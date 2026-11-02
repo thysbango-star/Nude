@@ -1,0 +1,36 @@
+{
+  "name": "@nude/desktop",
+  "productName": "Nude",
+  "version": "0.1.0",
+  "description": "Nude Web Browser for Nude OS (desktop)",
+  "main": "dist/main/main.js",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "dev": "node build.mjs --watch",
+    "test": "tsx --test tests/unit/*.test.ts",
+    "test:e2e": "node build.mjs && tsx --test --test-concurrency=1 tests/e2e/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "package": "node build.mjs && electron-builder --linux --win --mac"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "43.3.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.63.0",
+    "tsx": "^4.23.12",
+    "typescript": "^6.0.3"
+  },
+  "build": {
+    "appId": "os.nude.browser",
+    "productName": "Nude",
+    "directories": { "output": "release" },
+    "files": ["dist/**", "package.json"],
+    "linux": { "target": ["AppImage", "deb"], "category": "Network;WebBrowser" },
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" },
+    "protocols": [{ "name": "Web", "schemes": ["http", "https"] }]
+  }
+}
