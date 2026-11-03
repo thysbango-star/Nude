@@ -14,7 +14,7 @@ Nude Web Browser on Android is a native Kotlin app at `apps/android`. It shares 
 | APK size | Larger (~roughly tens of MB extra per ABI; use ABI splits / App Bundle) | Small |
 | Licence | MPL 2.0 (compatible with a proprietary app; modified MPL files stay MPL) | Part of the OS |
 
-**Recommendation:** GeckoView. It is the only option that gives a real browser engine on Android without maintaining a Chromium fork. The cost is APK size and owning engine security updates, so the release process must track GeckoView releases closely.
+**Status (v0.1):** the first APK uses **Android System WebView** so it could ship quickly with a small download; the engine sits behind the `Browser`/`Tab` classes so GeckoView can replace it. **Long-term recommendation:** GeckoView. It is the only option that gives a real browser engine on Android without maintaining a Chromium fork. The cost is APK size and owning engine security updates, so the release process must track GeckoView releases closely.
 
 A Chromium fork (like Samsung Internet or Edge do) gives the closest parity with desktop but needs a dedicated team and build farm; it's not recommended at this stage.
 

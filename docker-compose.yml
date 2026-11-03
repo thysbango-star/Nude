@@ -1,0 +1,43 @@
+# Nude services. Copy .env.example to .env and fill in keys, then: docker compose up --build -d
+services:
+  search:
+    build: { context: ., dockerfile: services/Dockerfile, args: { SERVICE: search } }
+    ports: ["8787:8787"]
+    environment:
+      PORT: 8787
+      NUDE_SEARCH_DB: /data/nude-search.db
+      NUDE_ADMIN_TOKEN: ${NUDE_ADMIN_TOKEN:-}
+      BRAVE_SEARCH_API_KEY: ${BRAVE_SEARCH_API_KEY:-}
+      SEARXNG_URL: ${SEARXNG_URL:-}
+      NUDE_AI_GATEWAY_URL: http://ai-gateway:8790
+      NUDE_SERVICE_TOKEN: ${NUDE_SERVICE_TOKEN:-}
+      NUDE_RECRAWL_MINUTES: ${NUDE_RECRAWL_MINUTES:-0}
+    volumes: [search-data:/data]
+    restart: unless-stopped
+
+  ai-gateway:
+    build: { context: ., dockerfile: services/Dockerfile, args: { SERVICE: ai-gateway } }
+    ports: ["8790:8790"]
+    environment:
+      PORT: 8790
+      NUDE_AI_PROVIDER: ${NUDE_AI_PROVIDER:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      NUDE_AI_MODEL: ${NUDE_AI_MODEL:-}
+      NUDE_SERVICE_TOKEN: ${NUDE_SERVICE_TOKEN:-}
+    restart: unless-stopped
+
+  threat-intel:
+    build: { context: ., dockerfile: services/Dockerfile, args: { SERVICE: threat-intel } }
+    ports: ["8791:8791"]
+    environment:
+      PORT: 8791
+      NUDE_THREAT_DB: /data/threats.db
+      NUDE_ADMIN_TOKEN: ${NUDE_ADMIN_TOKEN:-}
+    volumes: [threat-data:/data]
+    restart: unless-stopped
+
+volumes:
+  search-data:
+  threat-data:
