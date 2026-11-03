@@ -10,6 +10,7 @@ export interface SearchEngine {
 }
 
 export const SEARCH_ENGINES: Record<SearchEngineId, SearchEngine> = {
+  nude: { id: 'nude', name: 'Nude Search', searchUrl: 'http://127.0.0.1:8787/search?q={q}', suggestUrl: 'http://127.0.0.1:8787/api/suggest?q={q}' },
   duckduckgo: { id: 'duckduckgo', name: 'DuckDuckGo', searchUrl: 'https://duckduckgo.com/?q={q}', suggestUrl: 'https://duckduckgo.com/ac/?q={q}&type=list' },
   google: { id: 'google', name: 'Google', searchUrl: 'https://www.google.com/search?q={q}', suggestUrl: 'https://suggestqueries.google.com/complete/search?client=firefox&q={q}' },
   bing: { id: 'bing', name: 'Bing', searchUrl: 'https://www.bing.com/search?q={q}', suggestUrl: 'https://api.bing.com/osjson.aspx?query={q}' },
@@ -18,12 +19,19 @@ export const SEARCH_ENGINES: Record<SearchEngineId, SearchEngine> = {
   startpage: { id: 'startpage', name: 'Startpage', searchUrl: 'https://www.startpage.com/do/search?q={q}' },
 };
 
+/** Points the Nude Search engine at the configured search server. */
+export function configureNudeSearch(baseUrl: string) {
+  const base = (baseUrl || 'http://127.0.0.1:8787').replace(/\/+$/, '');
+  SEARCH_ENGINES.nude.searchUrl = `${base}/search?q={q}`;
+  SEARCH_ENGINES.nude.suggestUrl = `${base}/api/suggest?q={q}`;
+}
+
 export function searchUrl(engine: SearchEngineId, query: string): string {
   const e = SEARCH_ENGINES[engine] ?? SEARCH_ENGINES.duckduckgo;
   return e.searchUrl.replace('{q}', encodeURIComponent(query.trim()));
 }
 
-export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings'] as const;
+export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader', 'passwords'] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
 export const NEW_TAB_URL = 'nude://newtab';
 

@@ -10,7 +10,9 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": { "@nude/security-engine": ["../../packages/security-engine/src/index.ts"] }
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "../../packages/security-engine/src/**/*.ts"]
 }
