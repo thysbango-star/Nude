@@ -3,7 +3,7 @@ package os.nude.browser
 import java.net.URI
 
 /**
- * Nude Security for Android: a Kotlin port of packages/security-engine (URL, download and tracker checks).
+ * Rovian Defender for Android: a Kotlin port of packages/security-engine (URL, download and tracker checks).
  * Runs entirely on the device.
  */
 object Security {
@@ -120,7 +120,7 @@ object Security {
         if (u.scheme != "http" && u.scheme != "https") return Verdict(url, host, Action.ALLOW, false, null, 0, emptyList())
         val reg = registrableDomain(host)
         (knownBad[host] ?: knownBad[reg])?.let {
-            return Verdict(url, host, Action.BLOCK, true, it, 100, listOf(Signal("threat-list", 100, "This site is on Nude Security's list of known $it sites.")))
+            return Verdict(url, host, Action.BLOCK, true, it, 100, listOf(Signal("threat-list", 100, "This site is on Rovian Defender's list of known $it sites.")))
         }
         if (reg in trusted || host in trusted) return Verdict(url, host, Action.ALLOW, false, null, 0, emptyList())
 
@@ -197,7 +197,7 @@ object Security {
             if (parts.size >= 3 && parts[parts.size - 2] in decoys) notes += 50 to "The name \"$filename\" pretends to be a .${parts[parts.size - 2]} file but is actually a program."
         }
         if (url.startsWith("http:")) notes += (if (ext in executable) 25 else 8) to "The file was sent over an unencrypted connection and could have been altered."
-        if (sourceVerdict != null && sourceVerdict.action != Action.ALLOW) notes += (if (sourceVerdict.confirmed) 100 else 30) to "The site offering this file has been flagged by Nude Security."
+        if (sourceVerdict != null && sourceVerdict.action != Action.ALLOW) notes += (if (sourceVerdict.confirmed) 100 else 30) to "The site offering this file has been flagged by Rovian Defender."
         val score = minOf(100, notes.sumOf { it.first })
         val risk = when { score >= 80 -> "dangerous"; score >= 50 -> "high"; score >= 25 -> "medium"; else -> "low" }
         val blockAt = when (level) { Level.MAXIMUM -> 50; Level.ENHANCED -> 75; Level.STANDARD -> 85 }
@@ -225,7 +225,7 @@ object Security {
         for ((rule, msg) in messageRules) if (rule.second.containsMatchIn(text)) found += rule.first to msg
         Regex("https?://[^\\s<>\"')]+").findAll(text).take(20).forEach { m ->
             val v = analyze(m.value.trimEnd('.', ',', ';', ':', '!', '?'), Level.ENHANCED)
-            if (v.action != Action.ALLOW) found += (if (v.confirmed) 60 else 30) to "Contains a link to ${v.host}, which Nude Security flags: ${v.signals.firstOrNull()?.message ?: "suspicious address"}"
+            if (v.action != Action.ALLOW) found += (if (v.confirmed) 60 else 30) to "Contains a link to ${v.host}, which Rovian Defender flags: ${v.signals.firstOrNull()?.message ?: "suspicious address"}"
         }
         val score = minOf(100, found.sumOf { it.first })
         val assessment = when { score >= 50 -> "Likely a scam"; score >= 25 -> "Suspicious"; else -> "No strong scam signs found" }

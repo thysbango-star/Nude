@@ -14,6 +14,16 @@ export function on(topic: string, cb: () => void) {
   api.onEvent((e) => { if (e.topic === topic) cb(); });
 }
 
+/** Follows Nude's own light/dark setting (the OS media query alone isn't reliable everywhere). */
+export function applyTheme(theme: string) {
+  const dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('theme-dark', dark);
+  document.documentElement.classList.toggle('theme-light', !dark);
+}
+const syncTheme = () => api.invoke<{ settings: { theme: string } }>('settings.get').then((r) => applyTheme(r.settings.theme)).catch(() => {});
+syncTheme();
+on('settings', syncTheme);
+
 export function timeAgo(t: number): string {
   const s = (Date.now() - t) / 1000;
   if (s < 60) return 'Just now';

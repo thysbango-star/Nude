@@ -12,6 +12,7 @@ import { DownloadManager } from './downloads';
 import { SecurityService } from './security';
 import { ReaderStore } from './reader';
 import { AiBridge, type AiRequest } from './ai';
+import { Accounts } from './accounts';
 import { BrowserWindowController } from './window';
 import { PAGES_DIR } from './paths';
 import { configureNudeSearch, NEW_TAB_URL, SEARCH_ENGINES, searchUrl } from '../shared/omnibox';
@@ -32,6 +33,7 @@ export class NudeApp {
   readonly security: SecurityService;
   readonly reader = new ReaderStore();
   readonly ai: AiBridge;
+  readonly accounts: Accounts;
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
   private closed: ClosedTab[] = [];
@@ -56,6 +58,14 @@ export class NudeApp {
     this.downloads = new DownloadManager(this.profile);
     this.security = new SecurityService(this.profile, dir, {
       onMainFrame: (wc, url) => this.checkNavigation(wc, url),
+      onAdFrameBlocked: (wc, frameUrl, html) => {
+        const found = wc && this.findTab(wc);
+        if (!found) return;
+        const run = () => void ReaderStore.replaceAdFrame(found.tab.wc, frameUrl, html).catch(() => {});
+        // The frame element may not be in the DOM yet; try now and again once the page has loaded.
+        setTimeout(run, 30);
+        found.tab.wc.once('did-finish-load', run);
+      },
       onTrackerBlocked: (wc) => {
         const found = wc && this.findTab(wc);
         if (found) {
@@ -72,6 +82,11 @@ export class NudeApp {
       },
     });
     this.ai = new AiBridge(this);
+    this.accounts = new Accounts(dir);
+    this.accounts.onChange = () => {
+      for (const w of this.windows) w.pushState();
+      this.broadcast({ topic: 'account' });
+    };
     this.downloads.onChange = () => {
       for (const w of this.windows) w.pushState();
       this.broadcast({ topic: 'downloads' });
@@ -90,10 +105,10 @@ export class NudeApp {
       },
       flagged: (d, notes) => {
         this.security.log({ type: 'download-flagged', url: d.url, detail: `${d.filename}: ${notes[0]}` });
-        for (const w of this.windows) w.sendCommand({ type: 'toast', message: `Nude Security: ${d.filename} looks dangerous — don't open it.` });
+        for (const w of this.windows) w.sendCommand({ type: 'toast', message: `Rovian Defender: ${d.filename} looks dangerous — don't open it.` });
       },
       blocked: (d, wc) => {
-        this.windowFor(wc)?.sendCommand({ type: 'toast', message: `Nude Security blocked a dangerous download: ${d.filename}` });
+        this.windowFor(wc)?.sendCommand({ type: 'toast', message: `Rovian Defender blocked a dangerous download: ${d.filename}` });
       },
     };
     this.profile.on('changed', (e: InternalEvent) => this.onProfileChanged(e));
@@ -112,7 +127,10 @@ export class NudeApp {
     const saved = this.profile.session.get();
     const settings = this.profile.settings.get();
     const urls = process.argv.slice(app.isPackaged ? 1 : 2).filter((a) => /^https?:\/\//i.test(a));
-    if (settings.startup === 'restore' && saved.windows.length) {
+    if (this.accounts.needsWelcome()) {
+      // First run: sign in or create a Nude account (or continue without one).
+      this.createWindow(false, 'nude://welcome/');
+    } else if (settings.startup === 'restore' && saved.windows.length) {
       for (const w of saved.windows) this.createWindow(false, undefined, w);
     } else {
       this.createWindow(false, settings.startup === 'homepage' ? settings.homepage : undefined);
@@ -234,6 +252,7 @@ export class NudeApp {
     this.blockedPages.set(id, { url, verdict, tabId: tab.id });
     if (this.blockedPages.size > 100) this.blockedPages.delete(this.blockedPages.keys().next().value!);
     tab.security = 'blocked';
+    tab.blockedTarget = url;
     setImmediate(() => {
       void tab.wc.loadURL(`nude://blocked?id=${id}`);
       win.pushState();
@@ -402,6 +421,7 @@ export class NudeApp {
           const req = a[0] as AiRequest;
           if (!req || typeof req.requestId !== 'string' || !Array.isArray(req.messages)) return;
           const clean: AiRequest = {
+            mode: this.profile.settings.get().mode,
             requestId: req.requestId.slice(0, 80),
             messages: req.messages.slice(-20).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content).slice(0, 100_000) })),
             share: {
@@ -414,6 +434,21 @@ export class NudeApp {
           return;
         }
         case 'aiCancel': this.ai.cancel(str(a[0], 80)); return;
+        case 'setMode': this.profile.updateSettings({ mode: str(a[0], 20) }); return;
+        case 'setTheme': this.profile.updateSettings({ theme: str(a[0], 10) }); return;
+        case 'signOut': this.accounts.signOut(); w.openInternal('welcome'); return;
+        case 'accounts': return { current: this.accounts.current(), all: this.accounts.list() };
+        case 'pageContext': {
+          if (!tab || !/^https?:/.test(tab.url)) return null;
+          const products = await ReaderStore.pageProducts(tab.wc).catch(() => []);
+          return { title: tab.title, url: tab.url, favicon: tab.favicon, products };
+        }
+        case 'nebulaHighlight': {
+          if (!tab || !/^https?:/.test(tab.url)) return { found: 0 };
+          const texts = (Array.isArray(a[0]) ? a[0] : []).map((x) => str(x, 200)).filter(Boolean).slice(0, 8);
+          return ReaderStore.highlight(tab.wc, texts);
+        }
+        case 'nebulaGlow': if (tab && /^https?:/.test(tab.url)) await ReaderStore.glow(tab.wc).catch(() => {}); return;
         case 'tabsForAi': return w.tabs.filter((t) => /^https?:/.test(t.url)).map((t) => ({ id: t.id, title: t.title, url: t.url, favicon: t.favicon }));
         case 'openUrlInNewTab': {
           const url = str(a[0]);
@@ -435,6 +470,24 @@ export class NudeApp {
       // The warning page may only read its own verdict and continue/go back.
       if (page === 'blocked' && !cmd.startsWith('blocked.') && cmd !== 'settings.get') throw new Error('Unauthorized');
       switch (cmd) {
+        case 'account.get': return { current: this.accounts.current(), all: this.accounts.list(), needsWelcome: this.accounts.needsWelcome() };
+        case 'account.signUp': {
+          if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
+          return this.accounts.signUp(str(a[0], 100), str(a[1], 260), str(a[2], 500));
+        }
+        case 'account.signIn': {
+          if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
+          return this.accounts.signIn(str(a[0], 260), str(a[1], 500));
+        }
+        case 'account.guest': this.accounts.continueAsGuest(); return { ok: true };
+        case 'account.signOut': this.accounts.signOut(); return { ok: true };
+        case 'account.update': return this.accounts.update((a[0] ?? {}) as { name?: string; photo?: string | null });
+        case 'account.password': return this.accounts.changePassword(str(a[0], 500), str(a[1], 500));
+        case 'account.delete': return this.accounts.deleteCurrent(str(a[0], 500));
+        case 'account.done': {
+          if (found) void found.tab.load(NEW_TAB_URL);
+          return;
+        }
         case 'settings.get': return { settings: p.settings.get(), engines: Object.values(SEARCH_ENGINES).map((x) => ({ id: x.id, name: x.name })), levels: PROTECTION_LEVELS, private: isPrivate, version: app.getVersion(), chrome: process.versions.chrome, electron: process.versions.electron, platform: process.platform, isDefault: app.isDefaultProtocolClient('https'), shortcuts: SHORTCUT_HELP };
         case 'settings.set': return p.updateSettings(a[0]);
         case 'settings.makeDefault': app.setAsDefaultProtocolClient('http'); app.setAsDefaultProtocolClient('https'); return app.isDefaultProtocolClient('https');
@@ -450,6 +503,8 @@ export class NudeApp {
           engine: SEARCH_ENGINES[p.settings.get().searchEngine].name,
           private: isPrivate,
           security: this.security.summary().stats,
+          account: this.accounts.current(),
+          mode: p.settings.get().mode,
         };
         case 'search': {
           const q = str(a[0], 500).trim();

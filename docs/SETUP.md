@@ -24,7 +24,7 @@ Profile data (JSON files in the OS user-data folder — e.g. `%APPDATA%\Nude` on
 
 ### Nude services from the browser
 
-**Settings → Nude services** holds the addresses of the Nude Search server, the Nude AI gateway and the threat-intelligence server, plus an optional access token. Defaults are `http://127.0.0.1:8787`, `:8790` and `:8791`. Use **Check now** to test them.
+**Settings → Nude services** holds the addresses of the Nude Search server, the Nebula gateway and the threat-intelligence server, plus an optional access token. Defaults are `http://127.0.0.1:8787`, `:8790` and `:8791`. Use **Check now** to test them.
 
 ## 2. Android (`apps/android`)
 
@@ -32,7 +32,7 @@ Requirements: JDK 17, Android SDK (platform 35), Gradle 8.10+ (or Android Studio
 
 ```bash
 cd apps/android
-gradle testDebugUnitTest     # unit tests (omnibox + Nude Security engine)
+gradle testDebugUnitTest     # unit tests (omnibox + Rovian Defender engine)
 gradle assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
 gradle assembleRelease       # signed release APK (see signing below)
 ```
@@ -90,7 +90,7 @@ API:
 
 How it works: NudeBot (`User-Agent: NudeBot/0.1`) reads `robots.txt` (RFC 9309, incl. crawl-delay and sitemaps), honours `noindex`/`nofollow` and canonical URLs, strips tracking parameters, skips duplicate content by hash, and re-crawls pages more often when they change. Pages go into an SQLite FTS5 index. Ranking blends BM25 relevance (title > description > headings > body) with title/host matches, inbound links, page quality, freshness and spam penalties, and limits each site to two results per page. Personalisation only uses hosts the client sends in `prefer` — nothing is stored per user; only aggregate query counts are kept for suggestions and trending.
 
-## 4. Nude AI gateway (`services/ai-gateway`)
+## 4. Nebula gateway (`services/ai-gateway`)
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-… npm start -w services/ai-gateway     # http://127.0.0.1:8790
@@ -109,7 +109,7 @@ npm test -w services/ai-gateway
 
 `POST /v1/chat` `{ messages: [{role, content}], sources: [{id, kind, title, url, content}] }` → `text/event-stream` of `{delta}` … `{done:true}` or `{error}`.
 
-Privacy and safety: the browser sends page text, selections, tabs or files **only when the user turns on sharing** for that request. Shared content is wrapped as untrusted data; delimiter look-alikes are stripped so a page can't break out of its block; the system prompt forbids following instructions inside sources and forbids helping bypass Nude Security. The assistant can't submit forms or buy anything — it tells the user what to do.
+Privacy and safety: the browser sends page text, selections, tabs or files **only when the user turns on sharing** for that request. Shared content is wrapped as untrusted data; delimiter look-alikes are stripped so a page can't break out of its block; the system prompt forbids following instructions inside sources and forbids helping bypass Rovian Defender. The assistant can't submit forms or buy anything — it tells the user what to do.
 
 ## 5. Threat intelligence (`services/threat-intel`)
 

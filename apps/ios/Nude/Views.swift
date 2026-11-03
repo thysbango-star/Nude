@@ -1,17 +1,46 @@
 import SwiftUI
 import WebKit
 
-let nudeClay = Color(red: 0.71, green: 0.40, blue: 0.30)
-let nudeViolet = Color(red: 0.56, green: 0.49, blue: 1.0)
+/// Nude orange (logo) and Nebula lavender.
+let nudeClay = Color(red: 0.929, green: 0.490, blue: 0.227)
+let nudeViolet = Color(red: 0.651, green: 0.310, blue: 0.816)
+let nudeCream = Color(red: 0.961, green: 0.953, blue: 0.937)
+let rovianRed = Color(red: 0.784, green: 0.220, blue: 0.227)
+let nebulaGradient = AngularGradient(colors: [Color(red: 0.48, green: 0.36, blue: 1), Color(red: 1, green: 0.31, blue: 0.85), Color(red: 1, green: 0.6, blue: 0.24), Color(red: 0.24, green: 0.88, blue: 1), Color(red: 0.48, green: 0.36, blue: 1)], center: .center)
 
+/// The Nude logo: the orange NU/DE diamond with its fading beam.
 struct NudeMark: View {
     var size: CGFloat = 32
     var body: some View {
-        Image(systemName: "sparkle")
-            .font(.system(size: size * 0.5, weight: .semibold))
-            .foregroundStyle(.white)
+        ZStack(alignment: .top) {
+            LinearGradient(colors: [nudeClay.opacity(0), nudeClay.opacity(0.55)], startPoint: .top, endPoint: .bottom)
+                .frame(width: size * 0.4, height: size * 0.6)
+            Image("NudeMark").resizable().scaledToFit().frame(width: size, height: size)
+        }.frame(width: size, height: size).accessibilityLabel("Nude")
+    }
+}
+
+/// Nebula's orb: a slowly turning neon gradient.
+struct NebulaOrb: View {
+    var size: CGFloat = 30
+    @State private var spin = false
+    var body: some View {
+        Circle().fill(nebulaGradient)
+            .overlay(Image(systemName: "sparkle").font(.system(size: size * 0.45, weight: .semibold)).foregroundStyle(.white))
+            .rotationEffect(.degrees(spin ? 360 : 0))
             .frame(width: size, height: size)
-            .background(LinearGradient(colors: [nudeClay, nudeViolet], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: size * 0.32, style: .continuous))
+            .onAppear { withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { spin = true } }
+    }
+}
+
+/// "Rovian" + grey "Defender", as in the brand artwork.
+struct RovianWordmark: View {
+    var size: CGFloat = 15
+    var body: some View {
+        HStack(spacing: 6) {
+            Image("RovianMark").resizable().scaledToFit().frame(width: size * 1.15, height: size * 1.3)
+            (Text("Rovian").fontWeight(.bold) + Text("Defender").fontWeight(.semibold).foregroundColor(Color(red: 0.6, green: 0.63, blue: 0.67))).font(.system(size: size))
+        }
     }
 }
 
@@ -33,6 +62,7 @@ struct WebViewHost: UIViewRepresentable {
 struct ContentView: View {
     @EnvironmentObject var model: BrowserModel
     @EnvironmentObject var store: Store
+    @EnvironmentObject var accounts: Accounts
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var sheet: Sheet?
     @State private var aiPrompt: (String, Bool)?
@@ -69,6 +99,8 @@ struct ContentView: View {
         }
         .onChange(of: sheet) { s in if s == nil { aiPrompt = nil } }
         .overlay(alignment: .top) { ToastView() }
+        .overlay { if accounts.needsWelcome { WelcomeView().transition(.opacity) } }
+        .animation(.easeInOut(duration: 0.3), value: accounts.needsWelcome)
         .alert(item: $model.pendingDownload) { d in
             Alert(title: Text("\(d.filename) may be dangerous"),
                   message: Text(d.notes.joined(separator: "\n\n") + "\n\nNo warning doesn't guarantee a file is safe. Only keep it if you trust where it came from."),
@@ -132,7 +164,7 @@ struct ContentView: View {
             if wide { navButtons }
             addressBar
             if !editing {
-                Button { sheet = .ai } label: { NudeMark(size: 30) }.accessibilityLabel("Nude AI")
+                Button { sheet = .ai } label: { NebulaOrb(size: 30) }.accessibilityLabel("Nebula")
                 if !wide {
                     Button { sheet = .tabs } label: { tabCount }.accessibilityLabel("Tabs")
                 } else {
@@ -219,7 +251,7 @@ struct ContentView: View {
                 }
                 ShareLink(item: URL(string: t.url)!) { Label("Share", systemImage: "square.and.arrow.up") }
                 Button { t.webView?.findInteraction?.presentFindNavigator(showingReplace: false) } label: { Label("Find on Page", systemImage: "text.magnifyingglass") }
-                Button { aiPrompt = ("Summarise this page in five points", true); sheet = .ai } label: { Label("Summarise with Nude AI", systemImage: "sparkles") }
+                Button { aiPrompt = ("Summarise this page in five points", true); sheet = .ai } label: { Label("Summarise with Nebula", systemImage: "sparkles") }
                 Button {
                     store.desktopMode.toggle()
                     t.reload()
@@ -228,8 +260,14 @@ struct ContentView: View {
             }
             Button { sheet = .bookmarks } label: { Label("Bookmarks", systemImage: "book") }
             Button { sheet = .history } label: { Label("History", systemImage: "clock") }
-            Button { sheet = .security } label: { Label("Nude Security", systemImage: "shield.lefthalf.filled") }
+            Button { sheet = .security } label: { Label("Rovian Defender", systemImage: "shield.lefthalf.filled") }
             Button { sheet = .settings } label: { Label("Settings", systemImage: "gear") }
+            Divider()
+            if let a = accounts.current {
+                Button { accounts.signOut() } label: { Label("Sign out \(a.firstName)", systemImage: "person.crop.circle.badge.xmark") }
+            } else {
+                Button { accounts.needsWelcome = true } label: { Label("Sign in to Nude", systemImage: "person.crop.circle") }
+            }
         } label: { Image(systemName: "ellipsis.circle") }
     }
 
@@ -337,9 +375,36 @@ struct ErrorView: View {
     }
 }
 
+/// Cream backdrop with slowly drifting orange/peach light (the Nude home gradient).
+struct PeachBackdrop: View {
+    var dark: Bool
+    var isPrivate: Bool
+    @State private var drift = false
+    var body: some View {
+        let c: [Color] = isPrivate ? [Color(red: 0.48, green: 0.36, blue: 1), nudeViolet, Color(red: 0.24, green: 0.16, blue: 0.48)]
+            : [Color(red: 1, green: 0.54, blue: 0.24), Color(red: 1, green: 0.69, blue: 0.48), Color(red: 0.9, green: 0.33, blue: 0.24)]
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height
+            ZStack {
+                (dark || isPrivate ? Color(red: 0.08, green: 0.07, blue: 0.1) : nudeCream)
+                Circle().fill(RadialGradient(colors: [c[0].opacity(0.55), .clear], center: .center, startRadius: 0, endRadius: w * 0.6))
+                    .frame(width: w * 1.2, height: w * 1.2).position(x: w * (drift ? 0.4 : 0.22), y: h * (drift ? 0.22 : 0.3))
+                Circle().fill(RadialGradient(colors: [c[1].opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: w * 0.55))
+                    .frame(width: w * 1.1, height: w * 1.1).position(x: w * (drift ? 0.65 : 0.88), y: h * (drift ? 0.62 : 0.52))
+                Circle().fill(RadialGradient(colors: [c[2].opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: w * 0.5))
+                    .frame(width: w, height: w).position(x: w * (drift ? 0.55 : 0.42), y: h * (drift ? 0.82 : 0.9))
+            }
+        }
+        .ignoresSafeArea()
+        .onAppear { withAnimation(.easeInOut(duration: 14).repeatForever(autoreverses: true)) { drift = true } }
+    }
+}
+
 struct HomeView: View {
     @EnvironmentObject var model: BrowserModel
     @EnvironmentObject var store: Store
+    @EnvironmentObject var accounts: Accounts
+    @Environment(\.colorScheme) private var scheme
     @ObservedObject var tab: Tab
     let onSearch: () -> Void
     private let defaults: [(String, String)] = [("Wikipedia", "https://www.wikipedia.org/"), ("GitHub", "https://github.com/"), ("News24", "https://www.news24.com/"), ("YouTube", "https://m.youtube.com/")]
@@ -348,98 +413,209 @@ struct HomeView: View {
         var seen = Set<String>()
         return (store.bookmarks.prefix(8).map { ($0.title, $0.url) } + defaults).filter { seen.insert($0.1).inserted }.prefix(8).map { $0 }
     }
+    private var darkLook: Bool { scheme == .dark || tab.isPrivate }
+    private var ink: Color { darkLook ? Color(red: 0.96, green: 0.94, blue: 0.97) : Color(red: 0.09, green: 0.08, blue: 0.1) }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 22) {
+            VStack(spacing: 18) {
                 Spacer(minLength: 50)
-                NudeMark(size: 64)
-                Text(tab.isPrivate ? "Private browsing" : greeting).font(.largeTitle.weight(.semibold))
+                NudeMark(size: 68)
+                Group {
+                    if tab.isPrivate { Text("Private browsing") }
+                    else if let a = accounts.current { Text("Hello, ") + Text(a.firstName).foregroundColor(nudeClay) }
+                    else { Text("Hello there") }
+                }
+                .font(.system(size: 40, weight: .heavy)).foregroundStyle(ink).multilineTextAlignment(.center)
+                if !tab.isPrivate && accounts.current == nil {
+                    Button("Sign in to Nude") { accounts.needsWelcome = true }.font(.subheadline.weight(.semibold)).foregroundStyle(nudeClay)
+                }
+                Text(tab.isPrivate ? "Nothing from this tab is kept" : "What would you like to explore today?").foregroundStyle(ink.opacity(0.62))
                 Button(action: onSearch) {
                     HStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                        Text("Search \(store.engine.label) or type an address").lineLimit(1)
+                        Image(systemName: "magnifyingglass").foregroundStyle(nudeClay)
+                        Text("Search \(store.engine.label) or type an address").lineLimit(1).foregroundStyle(ink.opacity(0.6))
                         Spacer()
+                        Image(systemName: "arrow.right").font(.body.weight(.semibold)).foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(LinearGradient(colors: [nudeClay, Color(red: 0.9, green: 0.33, blue: 0.24)], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .foregroundStyle(.secondary).padding(.horizontal, 20).frame(height: 54).frame(maxWidth: 620)
-                    .background(.regularMaterial, in: Capsule())
+                    .padding(.leading, 20).padding(.trailing, 6).frame(height: 56).frame(maxWidth: 620)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(nudeClay.opacity(0.25)))
                 }.buttonStyle(.plain)
                 if tab.isPrivate {
                     Text("Nude won't save your history, cookies or site data from private tabs after you close them. Downloads and bookmarks are kept. Your internet provider and the sites you visit can still see your activity.")
-                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 520)
+                        .font(.footnote).foregroundStyle(ink.opacity(0.62)).multilineTextAlignment(.center).frame(maxWidth: 520)
                 } else {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 76))], spacing: 16) {
                         ForEach(shortcuts, id: \.1) { s in
                             Button { tab.load(s.1) } label: {
                                 VStack(spacing: 6) {
                                     Text(String(Omnibox.host(s.1).prefix(1)).uppercased()).font(.title3.weight(.bold)).foregroundStyle(nudeClay)
-                                        .frame(width: 54, height: 54).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    Text(s.0).font(.caption).lineLimit(1).foregroundStyle(.primary)
+                                        .frame(width: 54, height: 54).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                    Text(s.0).font(.caption).lineLimit(1).foregroundStyle(ink)
                                 }
                             }.buttonStyle(.plain)
                         }
                     }.frame(maxWidth: 620)
                     if !store.history.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Jump back in").font(.headline).foregroundStyle(.secondary)
+                            Text("Jump back in").font(.headline).foregroundStyle(ink.opacity(0.62))
                             ForEach(store.history.prefix(5)) { h in
                                 Button { tab.load(h.url) } label: {
-                                    HStack { Image(systemName: "clock").foregroundStyle(.secondary); VStack(alignment: .leading) { Text(h.title).lineLimit(1); Text(Omnibox.host(h.url)).font(.caption).foregroundStyle(.secondary) }; Spacer() }
+                                    HStack { Image(systemName: "clock").foregroundStyle(ink.opacity(0.5)); VStack(alignment: .leading) { Text(h.title).lineLimit(1).foregroundStyle(ink); Text(Omnibox.host(h.url)).font(.caption).foregroundStyle(ink.opacity(0.55)) }; Spacer() }
                                         .padding(.vertical, 6).contentShape(Rectangle())
                                 }.buttonStyle(.plain)
                             }
                         }.frame(maxWidth: 620)
                     }
                 }
-                Text("Nude Security has blocked \(store.blockedSites) dangerous sites and \(store.blockedDownloads) downloads").font(.caption).foregroundStyle(.secondary)
-            }.padding(.horizontal, 22)
+                HStack(spacing: 4) {
+                    RovianWordmark(size: 12)
+                    Text("has blocked \(store.blockedSites) dangerous sites and \(store.blockedDownloads) downloads").font(.caption).foregroundStyle(ink.opacity(0.6))
+                }.padding(.top, 8)
+            }.padding(.horizontal, 22).frame(maxWidth: .infinity)
         }
-        .background(LinearGradient(colors: [(tab.isPrivate ? nudeViolet : nudeClay).opacity(0.16), Color(.systemBackground)], startPoint: .top, endPoint: .center).ignoresSafeArea())
-    }
-
-    private var greeting: String {
-        let h = Calendar.current.component(.hour, from: Date())
-        return h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"
+        .background(PeachBackdrop(dark: scheme == .dark, isPrivate: tab.isPrivate))
     }
 }
 
+/// First run and "Sign in": a local Nude account (stored on this device, password hashed).
+struct WelcomeView: View {
+    @EnvironmentObject var accounts: Accounts
+    @State private var signIn = false
+    @State private var name = ""
+    @State private var email = ""
+    @State private var password = ""
+    @State private var error: String?
+    @State private var slide = false
+    private let words = ["A NEW GENERATION", "PRIVATE BY DESIGN", "MEET NEBULA", "ROVIAN DEFENDER", "MADE FOR YOU"]
+
+    var body: some View {
+        ZStack {
+            Color(red: 0.05, green: 0.04, blue: 0.06).ignoresSafeArea()
+            // Kinetic outlined type sliding across, from the Nude motion design.
+            VStack(spacing: 0) {
+                ForEach(Array(words.enumerated()), id: \.offset) { i, w in
+                    Text("\(w) · \(w) · \(w)").font(.system(size: 64, weight: .black)).lineLimit(1).fixedSize()
+                        .foregroundStyle(.white.opacity(0.05))
+                        .offset(x: CGFloat(i % 2 == 0 ? -1 : 1) * (slide ? 500 : -500))
+                        .frame(maxHeight: .infinity)
+                }
+            }.ignoresSafeArea().allowsHitTesting(false)
+            RadialGradient(colors: [nudeViolet.opacity(0.45), .clear], center: UnitPoint(x: 0.3, y: 0.8), startRadius: 0, endRadius: 420).ignoresSafeArea()
+            RadialGradient(colors: [nudeClay.opacity(0.35), .clear], center: UnitPoint(x: 0.8, y: 0.15), startRadius: 0, endRadius: 360).ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 12) {
+                    NudeMark(size: 64)
+                    Text(signIn ? "Welcome back" : "Welcome to Nude").font(.system(size: 28, weight: .heavy)).foregroundStyle(.white)
+                    Text(signIn ? "Sign in to pick up where you left off." : "Create your Nude account so your browser knows you.").font(.subheadline).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center)
+                    if !signIn { field("Your name", text: $name).textContentType(.name) }
+                    field("Email", text: $email).textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    SecureField("", text: $password, prompt: Text(signIn ? "Password" : "Password (at least 8 characters)").foregroundColor(.white.opacity(0.45)))
+                        .textContentType(signIn ? .password : .newPassword).modifier(WelcomeFieldStyle())
+                    if let error { Text(error).font(.footnote).foregroundStyle(Color(red: 1, green: 0.54, blue: 0.5)) }
+                    Button {
+                        error = signIn ? accounts.signIn(email: email, password: password) : accounts.signUp(name: name, email: email, password: password)
+                    } label: {
+                        Text(signIn ? "Sign in" : "Create account").fontWeight(.bold).foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 52)
+                            .background(LinearGradient(colors: [nudeClay, Color(red: 0.9, green: 0.33, blue: 0.24)], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    Button(signIn ? "New here? Create an account" : "Already have an account? Sign in") { signIn.toggle(); error = nil }.foregroundStyle(.white.opacity(0.85))
+                    Button("Continue without an account") { accounts.continueAsGuest() }.foregroundStyle(.white.opacity(0.6))
+                    Text("Your account is stored securely on this device — your password is never saved in plain text.").font(.caption2).foregroundStyle(.white.opacity(0.45)).multilineTextAlignment(.center)
+                }
+                .padding(24)
+                .background(Color(red: 0.11, green: 0.09, blue: 0.13).opacity(0.86), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).stroke(.white.opacity(0.08)))
+                .frame(maxWidth: 440).padding(22).frame(maxWidth: .infinity)
+                .padding(.top, 60)
+            }
+        }
+        .onAppear {
+            signIn = !accounts.known.isEmpty
+            email = accounts.known.first?.email ?? ""
+            withAnimation(.linear(duration: 22).repeatForever(autoreverses: true)) { slide = true }
+        }
+    }
+
+    private func field(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField("", text: text, prompt: Text(placeholder).foregroundColor(.white.opacity(0.45))).modifier(WelcomeFieldStyle())
+    }
+}
+
+struct WelcomeFieldStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content.foregroundStyle(.white).padding(.horizontal, 14).frame(height: 48)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(.white.opacity(0.14)))
+    }
+}
+
+/// Rovian Defender's warning page (red shield design).
 struct BlockedView: View {
     @EnvironmentObject var model: BrowserModel
     @EnvironmentObject var store: Store
     @ObservedObject var tab: Tab
     let verdict: SecurityVerdict
-    @State private var understood = false
+    @State private var confirming = false
+    @State private var why = false
+    private let ink = Color(red: 0.04, green: 0.04, blue: 0.06)
+    private let grey = Color(red: 0.33, green: 0.31, blue: 0.36)
 
     var body: some View {
         let info = Security.categoryInfo[verdict.category ?? "suspicious"] ?? Security.categoryInfo["suspicious"]!
-        let tint: Color = verdict.action == .block ? .red : .orange
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Image(systemName: "exclamationmark.shield.fill").font(.system(size: 40)).foregroundStyle(tint)
-                    .frame(width: 72, height: 72).background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                Text("NUDE SECURITY").font(.caption.weight(.bold)).foregroundStyle(.secondary)
-                Text(info.title).font(.largeTitle.weight(.bold))
-                Text(verdict.host).font(.system(.footnote, design: .monospaced)).padding(.horizontal, 10).padding(.vertical, 4).background(Color(.secondarySystemBackground), in: Capsule())
-                Text(info.explanation).foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(verdict.confirmed ? "Confirmed threat (on a known-threat list)" : "Suspected — based on warning signs, not confirmed").font(.headline)
-                    ForEach(verdict.signals, id: \.self) { s in Label(s.message, systemImage: "exclamationmark.circle").font(.subheadline).foregroundStyle(.secondary) }
-                }.padding().frame(maxWidth: .infinity, alignment: .leading).background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                Label("What to do: \(info.advice)", systemImage: "info.circle").font(.subheadline)
-                Button { model.backToSafety(tab) } label: { Text("Back to safety").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent).controlSize(.large)
+                Image("RovianBlock").resizable().scaledToFit().frame(width: 200).offset(x: -60).padding(.top, 20)
+                    .shadow(color: rovianRed.opacity(0.18), radius: 40)
+                (Text("This Website is ") + Text("Not Protected").foregroundColor(rovianRed) + Text("."))
+                    .font(.system(size: 38, weight: .black)).foregroundStyle(ink)
+                Text("Proceeding could cost you your information.").font(.title3.weight(.bold)).foregroundStyle(ink)
+                Text("\(info.title) — \(verdict.confirmed ? "on a known-threat list." : "suspected from warning signs, not confirmed.")").font(.subheadline).foregroundStyle(grey)
+                Button { model.backToSafety(tab) } label: {
+                    Label("Back to safety", systemImage: "chevron.left").fontWeight(.bold).frame(maxWidth: .infinity).frame(height: 50)
+                        .foregroundStyle(.white).background(ink, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
                 if let site = verdict.intendedSite {
-                    Button { tab.blocked = nil; tab.load(site) } label: { Text("Go to \(Omnibox.host(site)) instead").frame(maxWidth: .infinity) }.buttonStyle(.bordered).controlSize(.large)
+                    Button { tab.blocked = nil; tab.load(site) } label: {
+                        Text("Go to \(Omnibox.host(site)) instead").fontWeight(.semibold).frame(maxWidth: .infinity).frame(height: 50)
+                            .foregroundStyle(ink).background(Color(red: 0.95, green: 0.95, blue: 0.96), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
                 }
                 if !(verdict.confirmed && store.level == .maximum) {
-                    Toggle("I understand this site may steal my information or harm my device", isOn: $understood).font(.footnote).padding(.top, 16)
-                    Button("Continue to \(verdict.host) (unsafe)", role: .destructive) { model.continueAnyway(tab) }.disabled(!understood).font(.footnote)
+                    if !confirming {
+                        Button { withAnimation { confirming = true } } label: {
+                            (Text("Continue to \(verdict.host) ") + Text("UNSAFE").foregroundColor(rovianRed).fontWeight(.bold)).font(.title3).foregroundStyle(ink)
+                        }.buttonStyle(.plain).padding(.vertical, 6)
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("This site may steal your passwords, payment details or other information, or harm your device.").font(.subheadline).foregroundStyle(ink)
+                            HStack {
+                                Button("I understand — continue", role: .destructive) { model.continueAnyway(tab) }.buttonStyle(.borderedProminent).tint(rovianRed)
+                                Button("Cancel") { withAnimation { confirming = false } }.foregroundStyle(ink)
+                            }
+                        }.padding().background(rovianRed.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(rovianRed.opacity(0.3)))
+                    }
                 } else {
-                    Text("This site is a confirmed threat, and Maximum Protection doesn't allow continuing.").font(.footnote).foregroundStyle(.secondary)
+                    Text("This site is a confirmed threat, and Maximum Protection doesn't allow continuing.").font(.footnote).foregroundStyle(grey)
                 }
+                DisclosureGroup(isExpanded: $why) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(info.explanation)
+                        ForEach(verdict.signals, id: \.self) { s in Text("• \(s.message)") }
+                        Text("What to do: \(info.advice)").foregroundStyle(ink)
+                    }.font(.subheadline).foregroundStyle(grey).padding(.top, 6)
+                } label: { Text("Why Rovian Defender stopped this site").font(.subheadline.weight(.semibold)).foregroundStyle(ink) }
+                .tint(ink)
+                RovianWordmark(size: 15).padding(.top, 16)
             }.padding(24).frame(maxWidth: 640)
         }
         .frame(maxWidth: .infinity)
-        .background(LinearGradient(colors: [tint.opacity(0.12), Color(.systemBackground)], startPoint: .top, endPoint: .center).ignoresSafeArea())
+        .background(Color.white.ignoresSafeArea())
+        .environment(\.colorScheme, .light)
     }
 }
 
@@ -574,12 +750,12 @@ struct SettingsView: View {
                             }
                         }
                     }
-                } header: { Text("Nude Security") } footer: { Text("Tracker blocking uses WebKit content rules. Safari-style fraudulent-website warnings stay on in every level.") }
+                } header: { Text("Rovian Defender") } footer: { Text("Tracker blocking uses WebKit content rules. Safari-style fraudulent-website warnings stay on in every level.") }
                 Section("Appearance") {
                     Picker("Theme", selection: $store.theme) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }.pickerStyle(.segmented)
                 }
                 Section {
-                    TextField("Nude AI gateway (https://…)", text: $store.aiGateway).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    TextField("Nebula gateway (https://…)", text: $store.aiGateway).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     TextField("Nude Search server (https://…)", text: $store.searchServer).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Access token (optional)", text: $store.serviceToken)
                 } header: { Text("Nude services") } footer: { Text("API keys stay on the server, never in the app.") }
@@ -627,7 +803,7 @@ struct SecurityView: View {
                     }
                 }
                 Section("Recent security events") {
-                    if store.events.isEmpty { Text("All quiet — Nude Security hasn't had to step in yet.").foregroundStyle(.secondary) }
+                    if store.events.isEmpty { Text("All quiet — Rovian Defender hasn't had to step in yet.").foregroundStyle(.secondary) }
                     ForEach(store.events.prefix(50)) { e in
                         VStack(alignment: .leading) {
                             Text(e.type.replacingOccurrences(of: "-", with: " ").capitalized).font(.subheadline.weight(.semibold))
@@ -636,7 +812,7 @@ struct SecurityView: View {
                     }
                 }
             }
-            .navigationTitle("Nude Security").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .navigationTitle("Rovian Defender").toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
 }

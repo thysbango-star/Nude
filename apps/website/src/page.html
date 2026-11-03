@@ -1,0 +1,320 @@
+<title>Nude Browser</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Nude is a browser with Nebula, an assistant that only sees what you share, and Rovian Defender, security that checks every site and file first.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one dark stage. Giant kinetic type rows behind a narrow column; panels slide up into a dock-like grid; downloads close the page. */
+:root {
+  --ink: #0d0b10;          /* stage */
+  --panel: #17141b;        /* raised panels */
+  --line: #2a2530;         /* hairlines */
+  --text: #f4efe9;         /* cream text */
+  --mute: #a39aa8;         /* secondary text */
+  --orange: #ed7d3a;       /* Nude logo */
+  --lav: #c98cf0;          /* Nebula */
+  --blue: #1aa3dc;         /* Rovian Defender */
+  --red: #e0484a;          /* warnings */
+  --display: "Archivo", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: var(--ink); color: var(--text); font: 16px/1.6 var(--body); overflow-x: hidden; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; border-radius: 8px; }
+.wrap { max-width: 1160px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+
+/* nav */
+header.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; backdrop-filter: blur(14px); background: color-mix(in srgb, var(--ink) 72%, transparent); border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--ink); }
+.nav .wrap { display: flex; align-items: center; gap: 24px; padding-block: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 800 20px/1 var(--display); letter-spacing: .02em; }
+.brand svg { width: 30px; height: 30px; }
+.nav nav { display: flex; gap: 22px; margin-left: auto; font-weight: 500; color: var(--mute); }
+.nav nav a { text-decoration: none; }
+.nav nav a:hover { color: var(--text); }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; font-weight: 700; text-decoration: none; background: var(--orange); color: #1b0f07; white-space: nowrap; }
+.pill.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+@media (max-width: 720px) { .nav nav { display: none; } .nav .pill { margin-left: auto; } }
+
+/* hero: kinetic rows */
+.hero { position: relative; overflow: hidden; padding-block: 56px 72px; }
+.rows { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; opacity: .9; }
+.row { white-space: nowrap; font: 900 clamp(70px, 14vw, 190px)/0.92 var(--display); font-stretch: 62%; text-transform: uppercase; color: transparent; -webkit-text-stroke: 1px #3a3340; animation: slide 46s linear infinite; }
+.row:nth-child(2n) { animation-direction: reverse; animation-duration: 58s; }
+.row span { color: #1c1820; -webkit-text-stroke: 0; }
+@keyframes slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.glow { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(80px); opacity: .5; pointer-events: none; }
+.glow.a { background: var(--orange); left: -22vmax; top: 10%; animation: float 18s ease-in-out infinite alternate; opacity: .28; }
+.glow.b { background: #8a3fd0; right: -24vmax; bottom: -20%; animation: float 22s ease-in-out infinite alternate-reverse; opacity: .3; }
+@keyframes float { to { transform: translate(8vmax, -6vmax) scale(1.1); } }
+.hero-inner { position: relative; display: grid; gap: 28px; justify-items: center; text-align: center; }
+.logo-big { width: min(200px, 44vw); height: auto; }
+.hero h1 { font-size: clamp(44px, 8vw, 104px); line-height: .95; font-weight: 900; font-stretch: 75%; text-transform: uppercase; letter-spacing: -.01em; }
+.hero h1 em { font-style: normal; color: var(--orange); }
+.hero p.lede { max-width: 58ch; font-size: clamp(17px, 2vw, 20px); color: var(--mute); margin: 0; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+/* dock */
+.dock { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.dock span { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); font-size: 14px; color: var(--mute); }
+.dock i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* sections */
+section.band { padding-block: 88px; border-top: 1px solid var(--line); }
+.head { display: grid; gap: 14px; max-width: 760px; margin-bottom: 40px; }
+.head h2 { font-size: clamp(40px, 6vw, 76px); line-height: .95; font-weight: 900; font-stretch: 70%; text-transform: uppercase; }
+.head p { margin: 0; color: var(--mute); max-width: 60ch; font-size: 18px; }
+.split { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px; align-items: start; }
+@media (max-width: 880px) { .split { grid-template-columns: 1fr; } }
+.list { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
+.list li { display: grid; gap: 4px; padding-bottom: 18px; border-bottom: 1px solid var(--line); min-width: 0; }
+.list b { font: 700 18px/1.3 var(--body); }
+.list span { color: var(--mute); }
+
+/* Nebula mock panel */
+.nebula-frame { position: relative; border-radius: 26px; padding: 3px; background: conic-gradient(from var(--a, 0deg), #7b5cff, #ff4fd8, #ff9a3c, #3ce0ff, #7b5cff); animation: spin 8s linear infinite; }
+@property --a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes spin { to { --a: 360deg; } }
+.nebula { border-radius: 23px; background: #f6f1fa; color: #221d27; padding: 22px; display: grid; gap: 14px; }
+.nb-top { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.orb { width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(#7b5cff, #ff4fd8, #ff9a3c, #3ce0ff, #7b5cff); flex: none; }
+.chip { display: inline-flex; padding: 5px 12px; border-radius: 999px; background: #ecdff6; color: #6c2f8f; font-size: 13px; font-weight: 600; }
+.nb-top .chip { margin-left: auto; }
+.bubble { background: #fff; border-radius: 16px; padding: 14px 16px; font-size: 15px; line-height: 1.5; box-shadow: 0 2px 12px rgba(60, 30, 80, .08); }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.card { background: #fff; border-radius: 14px; padding: 10px; font-size: 13px; display: grid; gap: 6px; }
+.card .im { aspect-ratio: 1; max-width: 100%; border-radius: 10px; }
+.card b { font-weight: 700; }
+.card small { color: #7a7180; font-family: var(--mono); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chips .chip { background: #fff; color: #3a2f42; border: 1px solid #e6dcef; }
+.note { font-size: 12px; color: #7a7180; }
+
+/* Rovian */
+.rv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 760px) { .rv-grid { grid-template-columns: 1fr; } }
+.rv { border-radius: 22px; padding: 26px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.rv.block { background: #fff; color: #0b0b0f; grid-template-columns: 92px 1fr; align-items: center; }
+.rv.block svg { width: 92px; height: auto; }
+.rv.block h3 { font-size: 26px; line-height: 1.05; font-weight: 900; }
+.rv.block h3 em { font-style: normal; color: #c8383a; }
+.rv.block p { margin: 6px 0 0; font-weight: 600; font-size: 14px; }
+.rv.ad { background: #fff; color: #0b0b0f; grid-template-columns: 92px 1fr; align-items: center; }
+.rv.ad h3 { font-size: 26px; line-height: 1.05; font-weight: 900; }
+.rv.ad h3 em { font-style: normal; background: linear-gradient(90deg, #5fd8e8, #1450f0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rv.ad p { margin: 6px 0 0; font-weight: 600; font-size: 14px; }
+.rv.ad .m { font-weight: 800; color: #1450f0; }
+.rv .shield { width: 92px; height: auto; }
+.rv .tag { grid-column: 1 / -1; font: 500 12px/1.4 var(--mono); color: #6b6f78; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
+@media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+.stat { border-top: 2px solid var(--blue); padding-top: 14px; }
+.stat b { display: block; font: 900 22px/1.2 var(--display); font-stretch: 80%; text-transform: uppercase; }
+.stat span { color: var(--mute); font-size: 15px; }
+
+/* modes masonry */
+.modes { columns: 3 260px; column-gap: 16px; }
+.mode { break-inside: avoid; margin-bottom: 16px; border-radius: 20px; padding: 22px; background: var(--panel); border: 1px solid var(--line); display: grid; gap: 8px; }
+.mode h3 { font-size: 30px; font-weight: 900; font-stretch: 72%; text-transform: uppercase; line-height: 1; }
+.mode p { margin: 0; color: var(--mute); }
+.mode.shop { background: linear-gradient(135deg, #3a1f45, #241a33); border-color: #4b2b57; }
+.mode.shop h3 { color: #f2c6ff; }
+.mode .k { font: 500 12px/1.5 var(--mono); color: var(--lav); }
+
+/* home */
+.home { position: relative; overflow: hidden; border-radius: 26px; background: #f5f3ef; color: #17141a; padding-block: 64px; display: grid; justify-items: center; gap: 14px; text-align: center; padding-left: 16px; padding-right: 16px; }
+.home .blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .55; animation: float 16s ease-in-out infinite alternate; }
+.home > :not(.blob) { position: relative; }
+.home h3 { font: 900 clamp(38px, 6vw, 64px)/1 var(--display); font-stretch: 85%; }
+.home h3 em { font-style: normal; color: var(--orange); }
+.home .search { width: min(520px, 100%); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 20px; border-radius: 999px; background: rgba(255, 255, 255, .8); border: 1px solid rgba(237, 125, 58, .25); color: #7a7180; text-align: left; }
+.home .go { width: 42px; height: 42px; border-radius: 14px; background: linear-gradient(90deg, #ed7d3a, #e5533d); flex: none; }
+
+/* downloads */
+.dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+.dl a { display: grid; gap: 10px; align-content: start; padding: 22px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); text-decoration: none; transition: transform .25s, border-color .25s; min-width: 0; }
+.dl a:hover { transform: translateY(-4px); border-color: var(--orange); }
+.dl .os { font: 900 32px/1 var(--display); font-stretch: 72%; text-transform: uppercase; }
+.dl .file { font: 500 13px/1.4 var(--mono); color: var(--orange); overflow-wrap: anywhere; }
+.dl .how { color: var(--mute); font-size: 14px; }
+.small { color: var(--mute); font-size: 14px; margin-top: 22px; max-width: 75ch; }
+footer { border-top: 1px solid var(--line); padding-block: 40px; color: var(--mute); font-size: 14px; }
+footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+
+/* reveal: visible at rest; slides up only when JS has marked it */
+.js .rise { transform: translateY(26px); opacity: .45; transition: transform .8s cubic-bezier(.2, .7, .2, 1), opacity .8s; }
+.js .rise.in { transform: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .row, .glow, .nebula-frame, .home .blob { animation: none; }
+  .js .rise { transform: none; opacity: 1; transition: none; }
+}
+</style>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top">{{MARK}}Nude</a>
+    <nav aria-label="Sections"><a href="#nebula">Nebula</a><a href="#rovian">Rovian Defender</a><a href="#modes">Modes</a></nav>
+    <a class="pill" href="#get">Get Nude</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="rows" aria-hidden="true">
+      <div class="row">A new generation <span>·</span> Private by design <span>·</span> A new generation <span>·</span> Private by design <span>·</span></div>
+      <div class="row">Meet Nebula <span>·</span> Rovian Defender <span>·</span> Meet Nebula <span>·</span> Rovian Defender <span>·</span></div>
+      <div class="row">Made for you <span>·</span> Browse bare <span>·</span> Made for you <span>·</span> Browse bare <span>·</span></div>
+    </div>
+    <div class="glow a" aria-hidden="true"></div>
+    <div class="glow b" aria-hidden="true"></div>
+    <div class="wrap hero-inner">
+      {{LOGO}}
+      <h1>Hello, <em>you</em>.<br>This is Nude.</h1>
+      <p class="lede">A browser that greets you by name, shops and studies alongside you with Nebula, and checks every site and file with Rovian Defender before it reaches you.</p>
+      <div class="cta">
+        <a class="pill" href="#get">Download free</a>
+        <a class="pill ghost" href="https://github.com/thysbango-star/Nude" target="_blank" rel="noopener">Source on GitHub</a>
+      </div>
+      <div class="dock" aria-label="Available on">
+        <span><i style="background:#2f8cff"></i>Windows</span><span><i style="background:#cfcfd4"></i>macOS</span><span><i style="background:#5cc98a"></i>Android</span><span><i style="background:#f2a0ff"></i>iPhone &amp; iPad</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="head rise">
+        <span class="eyebrow">Your home page</span>
+        <h2>It starts with your name</h2>
+        <p>Sign in once and Nude opens on a warm, moving gradient with your name on it. Your account lives on your device and the password is stored only as a salted hash.</p>
+      </div>
+      <div class="home rise" aria-label="Preview of the Nude home page">
+        <div class="blob" style="width:420px;height:420px;background:#ff8a3d;left:-120px;top:-80px"></div>
+        <div class="blob" style="width:380px;height:380px;background:#ffb07a;right:-100px;top:40px;animation-delay:-6s"></div>
+        <div class="blob" style="width:340px;height:340px;background:#e5533d;left:40%;bottom:-200px;animation-delay:-3s"></div>
+        <h3>Hello, <em>Simon</em></h3>
+        <span>What would you like to explore today?</span>
+        <div class="search">Search or type an address<span class="go" aria-hidden="true"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="nebula">
+    <div class="wrap split">
+      <div class="rise">
+        <div class="head">
+          <span class="eyebrow">AI, on your terms</span>
+          <h2>Meet Nebula</h2>
+          <p>Nebula lives in a side panel. It reads a page only after you share it, and every answer says what it used.</p>
+        </div>
+        <ul class="list">
+          <li><b>Shopping, research, study and focus modes</b><span>Each mode changes Nebula's quick actions. Shopping mode compares prices and builds outfits from the products on the page.</span></li>
+          <li><b>Lights up what it changes</b><span>When Nebula highlights something on a page, a neon frame sweeps the screen so you always see where it acted.</span></li>
+          <li><b>Never overrides security</b><span>Page text is treated as untrusted. Nebula can't switch off Rovian Defender or act on a site without asking you.</span></li>
+        </ul>
+      </div>
+      <div class="nebula-frame rise" aria-label="Preview of the Nebula panel">
+        <div class="nebula">
+          <div class="nb-top"><span class="orb" aria-hidden="true"></span>Nebula<span class="chip">Analyze</span></div>
+          <div class="bubble">Here's a clean look built around the <b>Heavy Everyday Hoodie</b> you're viewing. Swap the vest for the field jacket if it's cold.</div>
+          <div class="cards">
+            <div class="card"><div class="im" style="background:#d9cfc4"></div><b>Everyday Hoodie</b><small>$58</small></div>
+            <div class="card"><div class="im" style="background:#c9d2c0"></div><b>Wool Vest</b><small>$49</small></div>
+            <div class="card"><div class="im" style="background:#cdbfb3"></div><b>Field Jacket</b><small>$95</small></div>
+          </div>
+          <div class="chips"><span class="chip">Smart Compare</span><span class="chip">Mix &amp; Match</span><span class="chip">Price Pulse</span></div>
+          <span class="note">Used: this page (shared by you) · Prices from the page, not live checked</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="rovian">
+    <div class="wrap">
+      <div class="head rise">
+        <span class="eyebrow">Also known as Nude Security</span>
+        <h2>Rovian Defender</h2>
+        <p>It checks every address before the page loads, stops look-alike sites and trackers, and inspects downloads before they're saved. It can only check known threats and common tricks, so it never calls a file guaranteed safe.</p>
+      </div>
+      <div class="rv-grid">
+        <div class="rv block rise">
+          {{BLOCK}}
+          <div><h3>This Website is <em>Not Protected</em>.</h3><p>Proceeding could cost you your information.</p></div>
+          <span class="tag">Shown before a flagged site opens, e.g. paypa1-login.com</span>
+        </div>
+        <div class="rv ad rise">
+          {{ROVIAN}}
+          <div><h3>This Advert Has Been <em>Blocked</em>.</h3><p>This advert is suspected to download <span class="m">MALWARE</span> onto your device.</p></div>
+          <span class="tag">Replaces the ad slot. The malware line appears only when the ad is actually flagged.</span>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat rise"><b>Before it loads</b><span>Phishing, typosquats and known-bad hosts are stopped at navigation.</span></div>
+        <div class="stat rise"><b>Three levels</b><span>Standard, Enhanced and Maximum, with HTTPS-only at Maximum.</span></div>
+        <div class="stat rise"><b>You decide</b><span>Continuing to a flagged site always takes a clear, two-step choice.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="modes">
+    <div class="wrap">
+      <div class="head rise">
+        <span class="eyebrow">One browser, five moods</span>
+        <h2>Pick a mode</h2>
+        <p>The chip at the top left of the window switches modes. Your home page and Nebula follow along.</p>
+      </div>
+      <div class="modes">
+        <div class="mode rise"><span class="k">Everyday</span><h3>Just browse</h3><p>Summaries, explanations and quick answers when you ask.</p></div>
+        <div class="mode shop rise"><span class="k">Shopping</span><h3>Smart Compare, Mix &amp; Match, Price Pulse</h3><p>Nebula reads the products on the page you share and lays them out as cards you can compare.</p></div>
+        <div class="mode rise"><span class="k">Research</span><h3>Sources first</h3><p>Answers come with the passages they used, so you can check them.</p></div>
+        <div class="mode rise"><span class="k">Study</span><h3>Notes and quizzes</h3><p>Turn a long article into study notes or a short quiz.</p></div>
+        <div class="mode rise"><span class="k">Focus</span><h3>Fewer distractions</h3><p>Reader view and a quieter Nebula that sticks to what you're reading.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="get">
+    <div class="wrap">
+      <div class="head rise">
+        <span class="eyebrow">Version 0.1.0 · free</span>
+        <h2>Get Nude</h2>
+        <p>Builds come straight from the project's GitHub release.</p>
+      </div>
+      <div class="dl">
+        <a class="rise" href="https://github.com/thysbango-star/Nude/releases/latest/download/Nude-Setup-0.1.0-x64.exe" target="_blank" rel="noopener"><span class="os">Windows</span><span class="file">Nude-Setup-0.1.0-x64.exe</span><span class="how">Installer for Windows 10 and 11. Not yet code-signed, so SmartScreen may ask you to confirm.</span></a>
+        <a class="rise" href="https://github.com/thysbango-star/Nude/releases/latest/download/Nude-0.1.0-macOS.dmg" target="_blank" rel="noopener"><span class="os">macOS</span><span class="file">Nude-0.1.0-macOS.dmg</span><span class="how">Apple silicon and Intel. Not notarised yet: right-click the app and choose Open the first time.</span></a>
+        <a class="rise" href="https://github.com/thysbango-star/Nude/releases/latest/download/Nude-Android.apk" target="_blank" rel="noopener"><span class="os">Android</span><span class="file">Nude-Android.apk</span><span class="how">Android 10 or later. Allow installs from your browser when Android asks.</span></a>
+        <a class="rise" href="https://github.com/thysbango-star/Nude/releases/latest/download/Nude-iOS-unsigned.ipa" target="_blank" rel="noopener"><span class="os">iPhone &amp; iPad</span><span class="file">Nude-iOS-unsigned.ipa</span><span class="how">Unsigned test build for sideloading tools. App Store and TestFlight need an Apple Developer account.</span></a>
+      </div>
+      <p class="small">Nude Search uses its own index, which covers the sites it has crawled, and falls back to a labelled partner engine for everything else. Nebula needs a Nebula gateway address in Settings; until then, safety questions are answered on your device.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#top">{{MARK2}}Nude</a>
+    <span>Nebula is the Nude assistant. Rovian Defender is Nude Security.</span>
+    <a href="https://github.com/thysbango-star/Nude" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const els = document.querySelectorAll('.rise');
+  if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.documentElement.classList.add('js');
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }, { rootMargin: '0px 0px -8% 0px' });
+  els.forEach((el, i) => { el.style.transitionDelay = (i % 4) * 70 + 'ms'; io.observe(el); });
+  // Anything already on screen shows immediately.
+  requestAnimationFrame(() => els.forEach((el) => { const r = el.getBoundingClientRect(); if (r.top < innerHeight) el.classList.add('in'); }));
+})();
+</script>

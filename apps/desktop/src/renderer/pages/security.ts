@@ -18,15 +18,15 @@ async function render() {
   const ring = 2 * Math.PI * 52;
   const scoreClass = s.privacyScore >= 80 ? 'ok' : s.privacyScore >= 60 ? 'warn' : 'danger';
   $('#root').innerHTML = `<div class="page">
-    <div class="page-head"><h1><span class="head-icon">${I.shieldCheck}</span>Nude Security</h1>
+    <div class="page-head"><h1><img class="rv-logo" src="rovian-mark.svg" alt=""><span class="rv-word">Rovian<i>Defender</i></span></h1>
       <button class="btn" id="check">${I.reload}Check for updates</button><a class="btn" href="nude://settings#privacy" data-open="nude://settings">${I.settings}Settings</a></div>
 
     <div class="hero card">
-      <div class="score ${scoreClass}"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="val" style="stroke-dasharray:${ring};stroke-dashoffset:${ring * (1 - s.privacyScore / 100)}"/></svg>
+      <div class="score ${scoreClass}"><svg viewBox="0 0 120 120"><defs><linearGradient id="rvgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1450f0"/><stop offset=".6" stop-color="#1aa3dc"/><stop offset="1" stop-color="#6ff0c6"/></linearGradient></defs><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="val" style="stroke-dasharray:${ring};stroke-dashoffset:${ring * (1 - s.privacyScore / 100)}"/></svg>
         <div><b>${s.privacyScore}</b><span>Privacy score</span></div></div>
       <div class="hero-text"><div class="status-line"><span class="dot-live"></span>Protection is on</div>
         <h2>${LEVEL_NAMES[s.level]}</h2>
-        <p class="muted">Nude checks every site before it opens and every file before it's saved, and blocks trackers that follow you across the web.</p>
+        <p class="muted">Rovian Defender — Nude's built-in security — checks every site before it opens and every file before it's saved, and blocks trackers that follow you across the web.</p>
         <div class="tiny">Last check: ${s.lastScan ? timeAgo(s.lastScan) : 'never'} · Threat lists: ${s.listsUpdated ? `updated ${timeAgo(s.listsUpdated)}` : 'built-in checks only'} · ${s.knownThreats.toLocaleString()} known threats loaded</div>
         ${s.level === 'standard' ? '<a class="btn primary" href="nude://settings#privacy" data-open="nude://settings">Increase protection</a>' : ''}</div>
     </div>
@@ -42,10 +42,10 @@ async function render() {
       <section class="card"><h2>Recent security events</h2>${s.events.length ? `<div class="events">${s.events.slice(0, 40).map((e) => {
         const [label, cls] = EVENT_LABEL[e.type] ?? [e.type, ''];
         return `<div class="event"><span class="pill ${cls}">${esc(label)}</span><div class="ev-main">${e.url ? `<b>${esc(host(e.url))}</b>` : ''}<div class="muted">${esc(e.detail)}</div></div><span class="tiny">${timeAgo(e.time)}</span></div>`;
-      }).join('')}</div>` : `<div class="empty" style="padding:24px"><div class="ei">${I.shieldCheck}</div><h3>All quiet</h3><div>Nude Security hasn't had to step in yet.</div></div>`}</section>
+      }).join('')}</div>` : `<div class="empty" style="padding:24px"><div class="ei">${I.shieldCheck}</div><h3>All quiet</h3><div>Rovian Defender hasn't had to step in yet.</div></div>`}</section>
 
       <section class="card"><h2>Check a link</h2>
-        <p class="muted" style="margin-top:0">Paste a link from an email or message to see if Nude Security trusts it — without opening it.</p>
+        <p class="muted" style="margin-top:0">Paste a link from an email or message to see if Rovian Defender trusts it — without opening it.</p>
         <form id="check-form" class="check-form"><input class="input" id="check-url" placeholder="https://…" required><button class="btn primary">Check</button></form>
         <div id="check-result"></div>
         <h2 style="margin-top:22px">Trusted sites</h2>
@@ -54,7 +54,7 @@ async function render() {
         <form id="trust-form" class="check-form"><input class="input" id="trust-domain" placeholder="example.com" required><button class="btn">Trust</button></form>
       </section>
     </div>
-    <p class="tiny" style="text-align:center">Nude Security reduces risk but can't catch every threat. If something looks too good to be true, or asks for passwords, PINs or payment urgently, stop and check.</p>
+    <p class="tiny" style="text-align:center">Rovian Defender reduces risk but can't catch every threat. If something looks too good to be true, or asks for passwords, PINs or payment urgently, stop and check.</p>
   </div>`;
 }
 

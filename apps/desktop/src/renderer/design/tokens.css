@@ -4,20 +4,28 @@
   --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "SF Pro Display", Inter, sans-serif;
   --mono: "Cascadia Code", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
-  --accent: #b5674d;          /* Nude clay — overridden by Nude OS / system accent */
+  --accent: #a64fd0;          /* Nude lilac — overridden by Nude OS / system accent */
+  --orange: #ed7d3a;          /* Nude brand orange (logo) */
+  --chrome: linear-gradient(100deg, #b3a6d2 0%, #c8bbe0 28%, #e2daea 58%, #e6d2e4 80%, #d6b6d0 100%);
+  --mode-bg: #ecc8fa;
+  --mode-text: #55275f;
+  --pill-bg: linear-gradient(90deg, #ffe0ff, #f1d3ff);
+  --neon: conic-gradient(from var(--neon-angle, 0deg), #ffd400, #ff2bd6, #7a3cff, #1f7bff, #22e3ff, #ffd400);
+  --orb: radial-gradient(circle at 30% 30%, #fff 0 6%, #ffb3f2 18%, #c86bff 45%, #6a5cff 72%, #3ab8ff 100%);
+  --rovian: linear-gradient(135deg, #1450f0, #1aa3dc 55%, #6ff0c6);
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   --accent-text: #fff;
 
-  --bg: #f4f1ee;              /* window */
-  --surface: #ffffff;         /* cards, omnibox */
-  --surface-2: #faf8f6;
+  --bg: #f6f4f7;              /* page background */
+  --surface: #ffffff;         /* toolbar, cards */
+  --surface-2: #f6f6f7;       /* address bar */
   --glass: rgba(255, 255, 255, 0.62);
-  --hover: rgba(60, 40, 30, 0.06);
-  --active: rgba(60, 40, 30, 0.11);
-  --border: rgba(60, 40, 30, 0.10);
-  --text: #26201c;
-  --text-2: #6b625b;
-  --text-3: #9b928b;
+  --hover: rgba(46, 30, 60, 0.06);
+  --active: rgba(46, 30, 60, 0.11);
+  --border: rgba(46, 30, 60, 0.10);
+  --text: #2a272e;
+  --text-2: #67616e;
+  --text-3: #9a93a2;
   --danger: #c6362c;
   --danger-soft: rgba(198, 54, 44, 0.10);
   --warn: #b7791f;
@@ -44,18 +52,22 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --accent: #d98a6c;
-    --accent-text: #1a1210;
-    --bg: #121113;
-    --surface: #1d1b1f;
-    --surface-2: #19171a;
-    --glass: rgba(32, 29, 34, 0.62);
-    --hover: rgba(255, 240, 230, 0.06);
-    --active: rgba(255, 240, 230, 0.11);
-    --border: rgba(255, 240, 230, 0.09);
-    --text: #f1ece8;
-    --text-2: #b0a69f;
-    --text-3: #7d746e;
+    --accent: #cf8cf2;
+    --accent-text: #1a1020;
+    --chrome: linear-gradient(100deg, #231d36 0%, #2d2442 35%, #33263f 70%, #2a1f30 100%);
+    --mode-bg: #4a2d5c;
+    --mode-text: #f2d8ff;
+    --pill-bg: linear-gradient(90deg, #4a2b57, #3a2a5a);
+    --bg: #131116;
+    --surface: #1c1a20;
+    --surface-2: #26232b;
+    --glass: rgba(32, 29, 38, 0.66);
+    --hover: rgba(240, 225, 255, 0.07);
+    --active: rgba(240, 225, 255, 0.12);
+    --border: rgba(240, 225, 255, 0.10);
+    --text: #f2edf6;
+    --text-2: #b3aabc;
+    --text-3: #7f7689;
     --danger: #ff6b5e;
     --danger-soft: rgba(255, 107, 94, 0.14);
     --warn: #f0b44c;
@@ -70,6 +82,10 @@
 
 /* Private browsing: a distinct violet-night palette in both themes. */
 .private {
+  --chrome: linear-gradient(100deg, #1b1430 0%, #261a40 50%, #1d1530 100%);
+  --mode-bg: #3a2a66;
+  --mode-text: #e4dcff;
+  --pill-bg: linear-gradient(90deg, #35265e, #2b2350);
   --accent: #a98bff;
   --accent-text: #120d1f;
   --bg: #16121f;
@@ -89,3 +105,6 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
+
+@property --neon-angle { syntax: '<angle>'; inherits: true; initial-value: 0deg; }
+@keyframes neon-spin { to { --neon-angle: 360deg; } }

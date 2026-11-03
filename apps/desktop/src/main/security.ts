@@ -1,4 +1,4 @@
-// Nude Security inside the browser: pre-navigation checks, tracker blocking, HTTPS-first,
+// Rovian Defender inside the browser: pre-navigation checks, tracker blocking, HTTPS-first,
 // download checks and the security event log. Built on @nude/security-engine.
 import { net, type Session, type WebContents } from 'electron';
 import { join } from 'node:path';
@@ -22,6 +22,34 @@ interface SecurityData {
   cache: { domains: [string, ThreatCategory][]; urls: [string, ThreatCategory][] };
 }
 
+
+const ROVIAN_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 230"> <defs> <linearGradient id="rvg" x1="0.1" y1="0.95" x2="0.9" y2="0.05"><stop offset="0" stop-color="#6FF0C6"/><stop offset="0.3" stop-color="#1AA8DA"/><stop offset="0.62" stop-color="#1450F0"/><stop offset="0.82" stop-color="#1AA3DC"/><stop offset="1" stop-color="#74F4C8"/></linearGradient> <clipPath id="rvs"><path d="M100 6 C132 20 162 25 192 25 C194 118 160 190 100 226 C40 190 6 118 8 25 C38 25 68 20 100 6 Z"/></clipPath> </defs> <g clip-path="url(#rvs)"> <rect width="200" height="230" fill="url(#rvg)"/> <g fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"> <path id="arm" d="M96 118 C132 128 170 92 162 -8"/> <use href="#arm" transform="rotate(120 100 116)"/> <use href="#arm" transform="rotate(240 100 116)"/> </g> <circle cx="100" cy="116" r="9" fill="#fff"/> </g> </svg>`;
+
+/** Rovian Defender's "advert blocked" card, shown in place of a blocked ad frame. */
+export function adBlockedHtml(malicious: boolean, host: string): string {
+  const esc = (x: string) => x.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const line = malicious
+    ? 'This advert is suspected to download <b class="m">MALWARE</b> onto your device.'
+    : 'This advert tracks you across websites, so Rovian Defender stopped it.';
+  const html = `<!doctype html><meta charset="utf-8"><meta name="color-scheme" content="light dark"><style>
+html,body,:host{margin:0;height:100%;display:block;font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;background:#fff;color:#0b0b0f;overflow:hidden;container-type:size}
+@media (prefers-color-scheme:dark){html,body,:host{background:#0f1116;color:#f2f4f8}}
+.w{position:relative;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:4cqw;padding:4cqh 6cqw 14cqh}
+svg{height:min(70cqh,240px);width:auto;flex-shrink:0;filter:drop-shadow(0 8px 24px rgba(20,80,240,.25))}
+.t{min-width:0}
+h1{margin:0;font-weight:800;font-size:clamp(11px,min(6cqw,14cqh),64px);line-height:1.05;letter-spacing:-.01em}
+h1 span{background:linear-gradient(90deg,#5fd8e8,#1aa3dc 45%,#1450f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+p{margin:.45em 0 0;font-weight:650;font-size:clamp(8px,min(2.2cqw,7cqh),22px)}
+.m{font-weight:800;background:linear-gradient(90deg,#5fd8e8,#1450f0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.f{position:absolute;left:0;right:0;bottom:4cqh;text-align:center;font-weight:700;font-size:clamp(8px,min(1.6cqw,6cqh),16px)}
+.f span{color:#9aa0aa;font-weight:600}.h{opacity:.55;font-weight:500}
+@container (max-height:140px){svg,.f{display:none}.w{padding:4cqh 5cqw}}
+@container (max-width:260px){svg{display:none}p{display:none}}
+</style><div class="w">${ROVIAN_MARK}<div class="t"><h1>This Advert Has Been <span>Blocked</span>.</h1><p>${line}</p></div>
+<div class="f">Rovian<span>Defender</span> <span class="h">· ${esc(host)}</span></div></div>`;
+  return html;
+}
+
 const EMPTY_STATS: SecurityStats = { blockedSites: 0, warnedSites: 0, blockedTrackers: 0, blockedDownloads: 0, flaggedDownloads: 0 };
 
 export interface TabHooks {
@@ -29,6 +57,8 @@ export interface TabHooks {
   onMainFrame(wc: WebContents | null, url: string): boolean;
   /** Called for each blocked tracker request so the owning tab's counter can update. */
   onTrackerBlocked(wc: WebContents | null): void;
+  /** A blocked ad frame: the page shows Rovian Defender's card in its place. */
+  onAdFrameBlocked(wc: WebContents | null, frameUrl: string, html: string): void;
   firstPartyHost(wc: WebContents | null): string | null;
 }
 
@@ -134,9 +164,16 @@ export class SecurityService {
       const wc = details.webContents ?? null;
       const fp = this.hooks.firstPartyHost(wc);
       const r = shouldBlockRequest(host, fp, this.level);
-      if (r.block) {
+      // Ad frames flagged as dangerous are blocked even if they're not on the tracker list.
+      const verdict = details.resourceType === 'subFrame' ? this.check(details.url) : null;
+      const malicious = Boolean(verdict && verdict.action !== 'allow');
+      if (r.block || malicious) {
         this.trackerTally++;
         this.hooks.onTrackerBlocked(wc);
+        if (details.resourceType === 'subFrame') {
+          if (malicious) this.log({ type: 'site-blocked', url: details.url, category: verdict?.category, detail: 'Blocked an advert suspected of spreading malware.' });
+          this.hooks.onAdFrameBlocked(wc, details.url, adBlockedHtml(malicious, host));
+        }
         return cb({ cancel: true });
       }
       cb({});

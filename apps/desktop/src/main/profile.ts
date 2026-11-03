@@ -47,6 +47,7 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   oneOf('searchEngine', ['nude', 'duckduckgo', 'google', 'bing', 'brave', 'ecosia', 'startpage']);
   oneOf('protectionLevel', ['standard', 'enhanced', 'maximum']);
   oneOf('fontSize', ['small', 'medium', 'large']);
+  oneOf('mode', ['everyday', 'shopping', 'research', 'study', 'focus']);
   if (out.toolbar !== undefined) {
     const items = ['home', 'reader', 'split', 'overview', 'downloads', 'security', 'ai', 'voice'];
     out.toolbar = Array.isArray(out.toolbar) ? [...new Set(out.toolbar.filter((t) => items.includes(t)))] as Settings['toolbar'] : undefined;

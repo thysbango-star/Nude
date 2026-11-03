@@ -19,3 +19,4 @@ apps/ios/Nude.xcodeproj/
 apps/ios/build/
 apps/ios/Payload/
 *.ipa
+apps/website/dist/

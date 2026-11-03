@@ -6,32 +6,42 @@ interface Data {
   recent: { url: string; title: string; favicon?: string; lastVisit: number }[];
   engine: string; private: boolean;
   security: { blockedTrackers: number; blockedSites: number };
+  account: { firstName: string; name: string } | null;
+  mode: string;
 }
 
-function greeting() {
-  const h = new Date().getHours();
-  return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-}
+const SUBTITLE: Record<string, string> = {
+  everyday: 'What would you like to explore today?',
+  shopping: 'Shopping Mode is on — Nebula will compare products and prices for you.',
+  research: 'Research Mode is on — Nebula will keep track of sources and facts.',
+  study: 'Study Mode is on — Nebula can turn any page into notes and quizzes.',
+  focus: 'Focus Mode is on. One thing at a time.',
+};
 
 function letterIcon(url: string) {
   const h = host(url);
   const hue = [...h].reduce((s, c) => s + c.charCodeAt(0), 0) % 360;
-  return `<span class="letter" style="background:hsl(${hue} 45% 55% / .18);color:hsl(${hue} 45% 42%)">${esc(h.charAt(0).toUpperCase())}</span>`;
+  return `<span class="letter" style="background:hsl(${hue} 55% 60% / .16);color:hsl(${hue} 45% 42%)">${esc(h.charAt(0).toUpperCase())}</span>`;
 }
 
 async function render() {
   const d = await api.invoke<Data>('newtab.data');
   document.documentElement.classList.toggle('private', d.private);
-  const tiles = d.shortcuts.map((s) => {
+  const name = d.account?.firstName;
+  const tiles = d.shortcuts.map((s, i) => {
     const fav = d.topSites.find((t) => host(t.url) === host(s.url))?.favicon;
-    return `<div class="tile" data-url="${esc(s.url)}" title="${esc(s.url)}"><div class="tile-icon">${fav ? faviconImg(fav) : letterIcon(s.url)}</div>
+    return `<div class="tile" data-url="${esc(s.url)}" title="${esc(s.url)}" style="animation-delay:${240 + i * 40}ms"><div class="tile-icon">${fav ? faviconImg(fav) : letterIcon(s.url)}</div>
       <span>${esc(s.title)}</span><button class="tile-x" data-remove="${esc(s.id)}" aria-label="Remove ${esc(s.title)}">${I.close}</button></div>`;
-  }).join('') + `<button class="tile add" id="add-tile"><div class="tile-icon">${I.plus}</div><span>Add</span></button>`;
+  }).join('') + `<button class="tile add" id="add-tile" style="animation-delay:${240 + d.shortcuts.length * 40}ms"><div class="tile-icon">${I.plus}</div><span>Add</span></button>`;
 
   $('#root').innerHTML = `
+    <div class="blobs" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i></div>
     <main class="home">
       <div class="hero">
-        <div class="brand"><span class="mark">${I.sparkle}</span>${d.private ? 'Private browsing' : `${greeting()}`}</div>
+        <img class="logo" src="nude-logo.svg" alt="Nude">
+        <h1 class="hello">${d.private ? 'Private browsing' : name ? `Hello, <span>${esc(name)}</span>` : 'Hello there'}</h1>
+        <p class="sub">${d.private ? 'Nothing from this window is saved after you close it.' : esc(SUBTITLE[d.mode] ?? SUBTITLE.everyday)}
+          ${!d.private && !name ? ' <a href="nude://welcome" data-open="nude://welcome/">Sign in</a>' : ''}</p>
         <form id="search" class="searchbar" autocomplete="off">
           ${I.search}<input id="q" placeholder="Search ${esc(d.engine)} or type an address" aria-label="Search" autofocus>
           <button type="submit" class="go" aria-label="Search">${I.forward}</button>
@@ -39,10 +49,10 @@ async function render() {
         ${d.private ? `<div class="private-note">${I.private}<div><b>You're browsing privately.</b> Nude won't save your history, cookies, site data or form entries after you close this window. Downloads and bookmarks are kept. Your internet provider, employer and the sites you visit can still see your activity.</div></div>` : ''}
       </div>
       ${d.private ? '' : `<section class="tiles">${tiles}</section>`}
-      ${!d.private && d.recent.length ? `<section class="recent"><h2>Jump back in</h2><div class="recent-list">${d.recent.map((r) =>
-        `<a class="recent-card" href="${esc(r.url)}" data-open="${esc(r.url)}">${faviconImg(r.favicon)}<div><b>${esc(r.title || host(r.url))}</b><span>${esc(host(r.url))} · ${timeAgo(r.lastVisit)}</span></div></a>`).join('')}</div></section>` : ''}
-      <footer class="stats">${I.shieldCheck}<span>Nude Security has blocked <b>${d.security.blockedTrackers.toLocaleString()}</b> trackers and <b>${d.security.blockedSites.toLocaleString()}</b> dangerous sites</span>
-        <a href="nude://security" data-open="nude://security">See report</a></footer>
+      ${!d.private && d.recent.length ? `<section class="recent"><h2>Jump back in</h2><div class="recent-list">${d.recent.map((r, i) =>
+        `<a class="recent-card" style="animation-delay:${420 + i * 50}ms" href="${esc(r.url)}" data-open="${esc(r.url)}">${faviconImg(r.favicon)}<div><b>${esc(r.title || host(r.url))}</b><span>${esc(host(r.url))} · ${timeAgo(r.lastVisit)}</span></div></a>`).join('')}</div></section>` : ''}
+      <footer class="stats"><img src="rovian-mark.svg" alt=""><span><b class="rv">Rovian<i>Defender</i></b> has blocked <b>${d.security.blockedTrackers.toLocaleString()}</b> trackers and <b>${d.security.blockedSites.toLocaleString()}</b> dangerous sites</span>
+        <a href="nude://security" data-open="nude://security/">See report</a></footer>
     </main>
     <dialog id="add-dialog"><form method="dialog" id="add-form"><h2>Add shortcut</h2>
       <label class="tiny">Name</label><input class="input" id="add-name" required maxlength="80">
@@ -68,4 +78,6 @@ async function render() {
   });
 }
 on('shortcuts', render);
+on('account', render);
+on('settings', render);
 void render();

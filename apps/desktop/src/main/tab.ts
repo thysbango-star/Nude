@@ -37,6 +37,8 @@ export class Tab {
   pendingUrl?: string;
   trackersBlocked = 0;
   security: TabState['security'] = 'unknown';
+  /** The site Rovian Defender stopped, shown in the address bar on the warning page. */
+  blockedTarget: string | undefined = undefined;
   readerAvailable = false;
   thumbnail?: string;
   /** Next did-navigate came from the omnibox (counts as typed in history). */
@@ -63,7 +65,7 @@ export class Tab {
     // sandboxed preferences) and passes it in the options; adopting it keeps window.opener working.
     const guest = (opts.openerOptions as { webContents?: WebContents } | undefined)?.webContents;
     this.view = guest ? new WebContentsView({ webContents: guest }) : new WebContentsView({ webPreferences: opts.openerOptions?.webPreferences ? { ...opts.openerOptions.webPreferences, ...secure } : secure });
-    this.view.setBorderRadius(12);
+    this.view.setBorderRadius(0);
     this.view.setBackgroundColor('#00000000');
     this.title = opts.title ?? 'New Tab';
     this.favicon = opts.favicon;
@@ -148,6 +150,7 @@ export class Tab {
       security: this.security,
       hasPasswords,
       readerAvailable: this.readerAvailable,
+      shownUrl: url.startsWith('nude://blocked') ? this.blockedTarget : undefined,
       thumbnail: undefined, // sent separately (large)
     };
   }

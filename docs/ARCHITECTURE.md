@@ -1,6 +1,6 @@
 # Nude — Architecture
 
-Nude is a browser ecosystem for Nude OS: **Nude Web Browser**, **Nude Search**, **Nude AI** and **Nude Security**.
+Nude is a browser ecosystem for Nude OS: **Nude Web Browser**, **Nude Search**, **Nebula** and **Rovian Defender**.
 
 ## Starting point
 
@@ -66,7 +66,7 @@ BrowserWindow (frameless, Nude chrome UI loaded from file://, preload: chrome.js
 * Internal pages are served by a custom protocol handler with path-traversal protection and a strict Content-Security-Policy. The chrome UI has its own strict CSP.
 * Website permissions (camera, microphone, location, notifications, …) are **ask by default**, scoped per origin, and revocable from Settings. Private windows never persist permission decisions.
 * Certificate errors are not bypassed; the navigation fails and the user sees an explanation.
-* Phase 4 adds the Nude Security pipeline as a pre-navigation and pre-download hook in the same places.
+* Phase 4 adds the Rovian Defender pipeline as a pre-navigation and pre-download hook in the same places.
 
 ## Storage
 
@@ -74,4 +74,4 @@ Phase 1 uses JSON stores in the user-data directory with atomic writes (write te
 
 ## AI and webpage content (Phase 3, design constraint)
 
-Webpage text is untrusted. The AI gateway receives page content only when the user explicitly attaches it, marks it as data rather than instructions, and any AI-proposed action that submits, purchases or sends requires a confirmation the page cannot forge (rendered in browser chrome, not in the page). The AI cannot change Nude Security decisions.
+Webpage text is untrusted. The AI gateway receives page content only when the user explicitly attaches it, marks it as data rather than instructions, and any AI-proposed action that submits, purchases or sends requires a confirmation the page cannot forge (rendered in browser chrome, not in the page). The AI cannot change Rovian Defender decisions.

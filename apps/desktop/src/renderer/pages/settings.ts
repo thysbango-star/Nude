@@ -16,7 +16,7 @@ const sel = (key: string, label: string, options: [string, string][], desc = '')
 const txt = (key: string, label: string, desc = '', placeholder = '', type = 'text') => `<div class="setting"><div class="text"><b>${label}</b>${desc ? `<span>${desc}</span>` : ''}</div>
   <input class="input" type="${type}" data-key="${key}" value="${esc(String(info.settings[key] ?? ''))}" placeholder="${esc(placeholder)}" style="min-width:260px"></div>`;
 
-const TOOLBAR: [string, string][] = [['home', 'Home button'], ['reader', 'Reader view'], ['split', 'Split view'], ['overview', 'Tab overview'], ['security', 'Nude Security shield'], ['downloads', 'Downloads'], ['ai', 'Nude AI']];
+const TOOLBAR: [string, string][] = [['home', 'Home button'], ['reader', 'Reader view'], ['split', 'Split view'], ['overview', 'Tab overview'], ['security', 'Rovian Defender shield'], ['downloads', 'Downloads'], ['ai', 'Nebula']];
 const ACCENTS = ['', '#b5674d', '#d4766a', '#c9963b', '#4f9a6d', '#3f8fb0', '#5b6fd8', '#8f6bd6', '#c45b9a', '#5f6368'];
 
 async function render() {
@@ -28,7 +28,7 @@ async function render() {
     <nav class="side">
       <a href="#appearance" class="on">${I.sparkle}Appearance</a><a href="#search">${I.search}Search</a><a href="#startup">${I.home}On startup</a>
       <a href="#privacy">${I.shield}Privacy &amp; security</a><a href="#permissions">${I.camera}Site permissions</a><a href="#downloads">${I.download}Downloads</a>
-      <a href="#ai">${I.sparkle}Nude AI</a><a href="#services">${I.globe}Nude services</a><a href="#accessibility">${I.info}Accessibility</a>
+      <a href="#ai">${I.sparkle}Nebula</a><a href="#services">${I.globe}Nude services</a><a href="#accessibility">${I.info}Accessibility</a>
       <a href="#shortcuts">${I.keyboard}Shortcuts</a><a href="#about">${I.info}About Nude</a></nav>
     <div>
       <div class="page-head"><h1><span class="head-icon">${I.settings}</span>Settings</h1></div>
@@ -54,7 +54,7 @@ async function render() {
       </section>
 
       <section class="card" id="privacy"><h2>Privacy &amp; security</h2>
-        <p class="muted" style="margin-top:0">Choose how strongly Nude Security protects you. Higher levels block more, but more sites may break.</p>
+        <p class="muted" style="margin-top:0">Choose how strongly Rovian Defender protects you. Higher levels block more, but more sites may break.</p>
         <div class="levels">${Object.entries(info.levels).map(([k, l]) => `<button class="level${lv === k ? ' on' : ''}" data-level="${k}">
           <div class="level-top">${I.shield}<b>${esc(l.name)}</b>${k === 'standard' ? '<span class="pill">Default</span>' : ''}</div>
           <div class="muted">${esc(l.summary)}</div><ul>${l.features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
@@ -62,7 +62,7 @@ async function render() {
         ${sw('clearHistoryOnExit', 'Clear history when Nude closes', 'Also clears the cache. Bookmarks and passwords are kept.')}
         ${sw('offerToSavePasswords', 'Offer to save passwords', 'Coming soon: Nude Passwords with Nude OS biometric unlock.')}
         <div class="setting"><div class="text"><b>Clear browsing data</b><span>History, cookies, cached files and more.</span></div><button class="btn" id="clear-btn">Clear data…</button></div>
-        <div class="setting"><div class="text"><b>Security dashboard</b><span>See what Nude Security has blocked.</span></div><a class="btn" href="nude://security" data-open="nude://security">Open</a></div>
+        <div class="setting"><div class="text"><b>Security dashboard</b><span>See what Rovian Defender has blocked.</span></div><a class="btn" href="nude://security" data-open="nude://security">Open</a></div>
       </section>
 
       <section class="card" id="permissions"><h2>Site permissions</h2><div id="perms"><div class="loading">Loading…</div></div>
@@ -73,16 +73,16 @@ async function render() {
         ${sw('askWhereToSave', 'Ask where to save each file')}${sw('notifyOnDownloadComplete', 'Notify me when a download finishes')}
       </section>
 
-      <section class="card" id="ai"><h2>Nude AI</h2>
-        ${sw('aiEnabled', 'Show Nude AI', 'The assistant only sees pages, selections, tabs or files you explicitly share with it.')}
+      <section class="card" id="ai"><h2>Nebula</h2>
+        ${sw('aiEnabled', 'Show Nebula', 'The assistant only sees pages, selections, tabs or files you explicitly share with it.')}
         ${sw('voiceOutput', 'Read answers aloud automatically')}
-        <p class="tiny">Nude AI runs through the Nude AI gateway. The gateway holds all AI provider keys — they're never stored in the browser.</p>
+        <p class="tiny">Nebula runs through the Nebula gateway. The gateway holds all AI provider keys — they're never stored in the browser.</p>
       </section>
 
       <section class="card" id="services"><h2>Nude services</h2>
-        <p class="muted" style="margin-top:0">Addresses of the Nude Search, Nude AI and threat-intelligence servers. Defaults point to servers running on this computer.</p>
+        <p class="muted" style="margin-top:0">Addresses of the Nude Search, Nebula and threat-intelligence servers. Defaults point to servers running on this computer.</p>
         ${txt('searchServerUrl', 'Nude Search server', '', 'https://search.example.com')}
-        ${txt('aiGatewayUrl', 'Nude AI gateway', '', 'https://ai.example.com')}
+        ${txt('aiGatewayUrl', 'Nebula gateway', '', 'https://ai.example.com')}
         ${txt('threatIntelUrl', 'Threat-intelligence server', '', 'https://threats.example.com')}
         ${txt('serviceToken', 'Access token', 'Only needed if your Nude servers require one.', '', 'password')}
         <div class="setting"><div class="text"><b>Connection status</b><span id="svc-status">Not checked</span></div><button class="btn" id="test-svc">Check now</button></div>

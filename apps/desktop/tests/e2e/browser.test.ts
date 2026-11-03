@@ -72,7 +72,11 @@ before(async () => {
     args: [...(process.getuid?.() === 0 || process.env.CI ? ['--no-sandbox'] : []), '--disable-gpu', APP_DIR],
     env: { ...process.env, NUDE_USER_DATA: profile, NODE_OPTIONS: '' },
   });
-  ui = await app.firstWindow();
+  // The browser UI is the file:// page; the first window event can also be a tab (e.g. nude://welcome).
+  await app.firstWindow();
+  const findUi = () => app.windows().find((w) => w.url().startsWith('file:'));
+  for (let i = 0; !findUi() && i < 120; i++) await new Promise((r) => setTimeout(r, 250));
+  ui = findUi() ?? await app.waitForEvent('window', { predicate: (w) => w.url().startsWith('file:') });
   await ui.waitForSelector('.tab');
   // Expose the latest pushed state for assertions.
   await ui.evaluate(() => {
@@ -92,16 +96,35 @@ after(async () => {
   try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* temp dir; ignore */ }
 });
 
-test('starts with a new tab page', async () => {
+/** Runs a script inside the web contents whose URL starts with prefix (a tab page, not the browser UI). */
+async function inPage<T>(prefix: string, code: string): Promise<T> {
+  return app.evaluate(async ({ webContents }, [p, c]) => {
+    const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith(p));
+    if (!wc) throw new Error('no page ' + p);
+    return wc.executeJavaScript(c, true);
+  }, [prefix, code] as const) as Promise<T>;
+}
+
+test('first run shows the welcome page, and signing up greets you by name', async () => {
   const t = await activeTab();
-  assert.match(t.url, /^nude:\/\/newtab/);
+  assert.match(t.url, /^nude:\/\/welcome/);
+  await waitFor(() => inPage<boolean>('nude://welcome', 'Boolean(document.getElementById("name"))'), Boolean);
+  await inPage('nude://welcome', `(() => {
+    const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+    set('name', 'Simon Tester'); set('email', 'simon@example.com'); set('pw', 'correct horse battery');
+    document.getElementById('go').click();
+  })()`);
+  await waitFor(activeTab, (t) => t.url.startsWith('nude://newtab'));
+  const hello = await waitFor(() => inPage<string>('nude://newtab', 'document.body.innerText'), (x) => /Hello, Simon/.test(x));
+  assert.match(hello, /Hello, Simon/);
+  assert.match(await ui.getAttribute('#avatar', 'title') ?? '', /Simon Tester/);
 });
 
 test('navigates to a real web page from the address bar', async () => {
   await go(`${base}/`);
   const t = await waitFor(activeTab, (t) => t.title === 'Nude Test Home' && !t.loading);
   assert.equal(t.url, `${base}/`);
-  assert.equal(await ui.inputValue('#address'), `${base}/`);
+  assert.equal(await waitFor(() => ui.inputValue('#address'), (v) => v === `${base}/`, 5000).catch(() => ui.inputValue('#address')), `${base}/`);
 });
 
 test('target=_blank opens a new tab', async () => {
@@ -121,6 +144,9 @@ test('bookmarks the current page and records history', async () => {
   await waitFor(activeTab, (t) => t.title === 'Nude Test Home' && !t.loading);
   await ui.click('#star');
   await waitFor(activeTab, (t) => t.isBookmarked);
+  // The bookmarks bar is off by default in the new design; turn it on.
+  await ui.evaluate(() => (window as unknown as { nude: { invoke(c: string, ...a: unknown[]): Promise<void> } }).nude.invoke('shortcut', 'toggle-bookmarks-bar'));
+  await ui.waitForSelector('#bookmarks-bar .bm');
   const bm = await ui.locator('#bookmarks-bar .bm').first().textContent();
   assert.match(bm ?? '', /Nude Test Home/);
   const history = await ui.evaluate(() => (window as unknown as { nude: { invoke(c: string, q: string): Promise<{ url: string }[]> } }).nude.invoke('suggest', 'Nude Test'));

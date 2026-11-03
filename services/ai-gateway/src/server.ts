@@ -37,7 +37,7 @@ export function createGateway(o: GatewayOptions) {
     };
     try {
       const url = new URL(req.url ?? '/', 'http://localhost');
-      if (url.pathname === '/health') return json(200, { ok: true, service: 'nude-ai-gateway', provider: o.provider.name });
+      if (url.pathname === '/health') return json(200, { ok: true, service: 'nude-ai-gateway', assistant: 'Nebula', provider: o.provider.name });
       if (url.pathname !== '/v1/chat' || req.method !== 'POST') return json(404, { error: 'Not found' });
       if (o.token && req.headers.authorization !== `Bearer ${o.token}`) return json(401, { error: 'Unauthorized' });
 
@@ -48,9 +48,9 @@ export function createGateway(o: GatewayOptions) {
       recent.push(now);
       hits.set(ip, recent);
 
-      const body = (await readJson(req)) as { messages?: ChatMessage[]; sources?: Source[] };
+      const body = (await readJson(req)) as { messages?: ChatMessage[]; sources?: Source[]; mode?: string };
       if (!Array.isArray(body.messages) || !body.messages.length) return json(400, { error: 'messages is required' });
-      const prompt = buildPrompt(body.messages, Array.isArray(body.sources) ? body.sources : []);
+      const prompt = buildPrompt(body.messages, Array.isArray(body.sources) ? body.sources : [], 120_000, typeof body.mode === 'string' ? body.mode : undefined);
       if (!prompt.messages.length) return json(400, { error: 'No user message' });
 
       res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });

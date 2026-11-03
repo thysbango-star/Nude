@@ -27,24 +27,37 @@ const els = {
   ai: $('ai-btn'), menu: $('menu'), bookmarksBar: $('bookmarks-bar'), bars: $('bars'), content: $('content'),
   snapshot: $<HTMLImageElement>('snapshot'), overlay: $('overlay'), toast: $('toast'), pageState: $('page-state'),
   splitHandle: $('split-handle'), newTab: $('new-tab'), main: $('main'),
+  mode: $('mode'), tabList: $('tab-list'), theme: $('theme'), avatar: $('avatar'), siteControls: $('site-controls'), inner: $('content-inner'),
+};
+
+export const MODES: Record<string, { label: string; icon: string; desc: string }> = {
+  everyday: { label: 'Everyday Mode', icon: I.compass, desc: 'Browse normally' },
+  shopping: { label: 'Shopping Mode', icon: I.bag, desc: 'Nebula compares products and prices' },
+  research: { label: 'Research Mode', icon: I.research, desc: 'Sources, facts and citations' },
+  study: { label: 'Study Mode', icon: I.study, desc: 'Notes, explanations and quizzes' },
+  focus: { label: 'Focus Mode', icon: I.focus, desc: 'Fewer distractions, short answers' },
 };
 
 // ------------------------------------------------------------------ static icons
 els.back.innerHTML = I.back; els.forward.innerHTML = I.forward; els.reload.innerHTML = I.reload; els.home.innerHTML = I.home;
 els.star.innerHTML = I.star; els.reader.innerHTML = I.reader; els.split.innerHTML = I.split; els.overview.innerHTML = I.grid;
 els.shield.insertAdjacentHTML('afterbegin', I.shield); els.downloads.insertAdjacentHTML('afterbegin', I.download);
-els.ai.innerHTML = `${I.sparkle}<span>Nude AI</span>`; els.menu.innerHTML = I.menu; els.newTab.innerHTML = I.plus;
+els.ai.innerHTML = `<span class="orb sm"></span><span>Nebula</span>`; els.menu.innerHTML = I.menu; els.newTab.innerHTML = I.plus;
+els.tabList.innerHTML = I.chevronDown; els.siteControls.innerHTML = I.sliders;
+els.theme.querySelector('[data-theme=light]')!.innerHTML = I.sun;
+els.theme.querySelector('[data-theme=dark]')!.innerHTML = I.moon;
 document.documentElement.classList.add(navigator.userAgent.includes('Mac') ? 'darwin' : 'other');
 
 const active = (): TabState | undefined => state?.tabs.find((t) => t.id === state!.activeTabId);
 
 // ------------------------------------------------------------------ content bounds → main process
 function reportBounds() {
-  const r = els.content.getBoundingClientRect();
+  const r = els.inner.getBoundingClientRect();
   void invoke('bounds', { x: r.left, y: r.top, width: r.width, height: r.height });
   positionSplitHandle();
 }
-new ResizeObserver(reportBounds).observe(els.content);
+new ResizeObserver(reportBounds).observe(els.inner);
+els.inner.addEventListener('transitionend', reportBounds);
 window.addEventListener('resize', reportBounds);
 
 // ------------------------------------------------------------------ overlay (menus, suggestions, overview)
@@ -123,7 +136,7 @@ function render(s: WindowState) {
   renderBars(s);
   renderPageState();
   positionSplitHandle();
-  if (!prev || prev.activeTabId !== s.activeTabId) aiPanel.onTabChanged();
+  if (!prev || prev.activeTabId !== s.activeTabId || prev.mode !== s.mode) aiPanel.onTabChanged();
   const prevUrl = prev?.tabs.find((t) => t.id === prev.activeTabId)?.url;
   if (suggestionsOpen && document.activeElement !== els.address && prevUrl !== active()?.url) closeOverlay();
   document.title = active()?.title ? `${active()!.title} — Nude` : 'Nude';
@@ -152,7 +165,7 @@ function renderTabs(s: WindowState) {
   lastTabsKey = key;
   els.tabstrip.innerHTML = s.tabs.map((t) => tabHtml(t, s)).join('');
   const width = els.tabstrip.parentElement!.clientWidth - 200;
-  const per = Math.max(40, Math.min(220, width / Math.max(1, s.tabs.length)));
+  const per = Math.max(44, Math.min(196, (width - 8 * s.tabs.length) / Math.max(1, s.tabs.length)));
   for (const el of els.tabstrip.querySelectorAll<HTMLElement>('.tab:not(.pinned)')) el.style.flexBasis = `${per}px`;
 }
 
@@ -245,7 +258,7 @@ function renderToolbar(s: WindowState) {
   const t = active();
   els.back.disabled = !t?.canGoBack;
   els.forward.disabled = !t?.canGoForward;
-  els.reload.innerHTML = t?.loading ? I.stop : I.reload;
+  setHtml(els.reload, t?.loading ? I.stop : I.reload);
   els.reload.title = t?.loading ? 'Stop' : 'Reload (Ctrl+R)';
   els.home.hidden = !s.settings.showHomeButton || !s.toolbar.includes('home');
   els.star.classList.toggle('on', Boolean(t?.isBookmarked));
@@ -255,12 +268,14 @@ function renderToolbar(s: WindowState) {
   els.split.classList.toggle('on', Boolean(s.split));
   els.overview.hidden = !s.toolbar.includes('overview');
   els.ai.hidden = !s.aiEnabled || !s.toolbar.includes('ai');
+  renderAccountAndMode(s);
   els.shield.hidden = !s.toolbar.includes('security');
   els.downloads.hidden = !s.toolbar.includes('downloads') && s.downloads.active === 0;
 
-  if (document.activeElement !== els.address && t) {
+  // Keep the address in sync unless the user is editing it (focus alone, e.g. restored focus, doesn't count).
+  if (t && (document.activeElement !== els.address || !addressEdited)) {
     const q = extractSearchQuery(t.url, s.settings.searchEngine);
-    els.address.value = q ?? displayUrl(t.url);
+    els.address.value = q ?? displayUrl(t.shownUrl ?? t.url);
   }
   els.address.placeholder = isPrivate ? 'Search privately or enter address' : 'Search or enter address';
 
@@ -268,21 +283,22 @@ function renderToolbar(s: WindowState) {
   const si = els.siteInfo;
   si.className = 'site-info';
   let label = '';
-  if (!t || !t.url || t.url.startsWith('nude://newtab')) si.innerHTML = isPrivate ? I.private : I.search, si.classList.toggle('private', isPrivate);
-  else if (t.security === 'blocked') { si.innerHTML = I.shieldX; si.classList.add('danger'); label = 'Blocked'; }
-  else if (t.secure === 'internal') si.innerHTML = I.sparkle;
-  else if (t.secure === 'secure') si.innerHTML = t.security === 'warning' ? I.warn : I.lock;
-  else if (t.secure === 'insecure') { si.innerHTML = I.unlock; si.classList.add('insecure'); label = 'Not secure'; }
-  else si.innerHTML = I.info;
+  let siHtml: string;
+  if (!t || !t.url || t.url.startsWith('nude://newtab')) { siHtml = isPrivate ? I.private : I.search; si.classList.toggle('private', isPrivate); }
+  else if (t.security === 'blocked') { siHtml = I.shieldX; si.classList.add('danger'); label = 'Blocked'; }
+  else if (t.secure === 'internal') siHtml = I.sparkle;
+  else if (t.secure === 'secure') siHtml = t.security === 'warning' ? I.warn : I.lock;
+  else if (t.secure === 'insecure') { siHtml = I.unlock; si.classList.add('insecure'); label = 'Not secure'; }
+  else siHtml = I.info;
   if (t?.security === 'warning') si.classList.add('insecure');
-  if (label) si.insertAdjacentHTML('beforeend', `<span>${label}</span>`);
+  setHtml(si, siHtml + (label ? `<span>${label}</span>` : ''));
 
   // Shield
   const badge = els.shield.querySelector<HTMLElement>('.badge')!;
   badge.hidden = !t?.trackersBlocked;
   badge.textContent = t && t.trackersBlocked > 99 ? '99+' : String(t?.trackersBlocked ?? '');
   els.shield.classList.toggle('danger', t?.security === 'blocked');
-  els.shield.title = `Nude Security — ${t?.trackersBlocked ?? 0} trackers blocked on this page`;
+  els.shield.title = `Rovian Defender — ${t?.trackersBlocked ?? 0} trackers blocked on this page`;
 
   // Downloads progress ring
   const ring = els.downloads.querySelector<SVGElement>('.ring')!;
@@ -296,9 +312,9 @@ function renderToolbar(s: WindowState) {
 function renderBookmarks(s: WindowState) {
   els.bookmarksBar.hidden = !s.settings.showBookmarksBar;
   if (!s.settings.showBookmarksBar) return;
-  els.bookmarksBar.innerHTML = s.bookmarksBar.length
+  setHtml(els.bookmarksBar, s.bookmarksBar.length
     ? s.bookmarksBar.map((b) => `<button class="bm" data-url="${esc(b.url)}" title="${esc(b.title)}\n${esc(b.url)}">${faviconImg(b.favicon)}<span>${esc(b.title)}</span></button>`).join('')
-    : `<span class="bm-empty">Bookmark pages with the star (Ctrl+D) to see them here.</span>`;
+    : `<span class="bm-empty">Bookmark pages with the star (Ctrl+D) to see them here.</span>`);
 }
 els.bookmarksBar.addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest<HTMLElement>('.bm');
@@ -334,7 +350,7 @@ function renderBars(s: WindowState) {
     const d = s.downloadPrompt;
     if (d) {
       html.push(`<div class="bar ${d.risk === 'high' || d.risk === 'dangerous' ? 'danger' : 'warn'}"><div class="bar-icon">${I.shield}</div>
-        <div class="grow"><strong>Nude Security: ${esc(d.filename)} may be dangerous</strong><small>${esc(d.notes[0] ?? 'This type of file can harm your device.')}</small></div>
+        <div class="grow"><strong>Rovian Defender: ${esc(d.filename)} may be dangerous</strong><small>${esc(d.notes[0] ?? 'This type of file can harm your device.')}</small></div>
         <button class="btn" data-dl="discard">Discard</button><button class="btn" data-dl="keep">Keep anyway</button></div>`);
     }
     if (s.find.open) {
@@ -393,12 +409,12 @@ function positionSplitHandle() {
   const s = state?.split;
   els.splitHandle.hidden = !s || overlayCloser !== null;
   if (!s) return;
-  const w = els.content.clientWidth;
+  const w = els.inner.clientWidth;
   els.splitHandle.style.left = `${Math.round((w - 8) * s.ratio)}px`;
 }
 els.splitHandle.addEventListener('mousedown', (e) => {
   e.preventDefault();
-  const r = els.content.getBoundingClientRect();
+  const r = els.inner.getBoundingClientRect();
   const move = (ev: MouseEvent) => {
     void invoke('splitRatio', (ev.clientX - r.left) / r.width);
     if (state?.split) { state.split.ratio = Math.max(0.2, Math.min(0.8, (ev.clientX - r.left) / r.width)); positionSplitHandle(); }
@@ -423,15 +439,131 @@ els.siteInfo.onclick = () => showSiteInfo(els.siteInfo);
 els.menu.onclick = () => showMenu();
 els.overview.onclick = () => showOverview();
 els.ai.onclick = () => aiPanel.toggle();
+els.siteControls.onclick = () => showSiteInfo(els.siteControls);
+els.tabList.onclick = () => showTabList();
+els.mode.onclick = () => showModeMenu();
+els.avatar.onclick = () => showAccountMenu();
+els.theme.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-theme]');
+  if (b) void invoke('setTheme', b.dataset.theme);
+});
+
+/** Neon frame around the page while Nebula reads or changes it (the "dynamic gradients" reference). */
+let nebulaTimer = 0;
+export function setNebulaActive(on: boolean, minMs = 1400) {
+  clearTimeout(nebulaTimer);
+  if (on) {
+    els.content.classList.add('nebula');
+    els.ai.classList.add('thinking');
+  } else {
+    nebulaTimer = window.setTimeout(() => { els.content.classList.remove('nebula'); els.ai.classList.remove('thinking'); }, minMs);
+  }
+}
+
+function avatarHtml(a: WindowState['account'], cls = '') {
+  if (!a) return { cls: `avatar guest ${cls}`, html: I.user };
+  return { cls: `avatar ${cls}`, html: a.photo ? `<img src="${esc(a.photo)}" alt="">` : esc(a.initials), style: a.photo ? '' : `background:${a.color}` };
+}
+
+/** Only touch the DOM when something changed: rewriting a button mid-click swallows the click. */
+const lastHtml = new WeakMap<HTMLElement, string>();
+function setHtml(el: HTMLElement, html: string) {
+  if (lastHtml.get(el) === html) return;
+  lastHtml.set(el, html);
+  el.innerHTML = html;
+}
+
+function renderAccountAndMode(s: WindowState) {
+  const m = MODES[s.mode] ?? MODES.everyday;
+  setHtml(els.mode, `${m.icon}<span>${m.label}</span><span class="chev">${I.chevronDown}</span>`);
+  els.mode.hidden = isPrivate;
+  const dark = s.theme === 'dark' || (s.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('theme-dark', dark);
+  document.documentElement.classList.toggle('theme-light', !dark);
+  els.theme.querySelector('[data-theme=light]')!.classList.toggle('on', !dark);
+  els.theme.querySelector('[data-theme=dark]')!.classList.toggle('on', dark);
+  const av = avatarHtml(s.account);
+  els.avatar.className = av.cls;
+  setHtml(els.avatar, av.html);
+  els.avatar.style.background = s.account && !s.account.photo ? s.account.color : '';
+  els.avatar.title = s.account ? `${s.account.name} — ${s.account.email}` : 'Sign in to Nude';
+  setHtml(els.ai, `<span class="orb sm"></span><span>Nebula</span>${aiPanel?.isOpen() ? `<svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>` : ''}`);
+}
+
+function showModeMenu() {
+  void openOverlay((layer) => {
+    const current = state?.mode ?? 'everyday';
+    const p = popover(els.mode, '', Object.entries(MODES).map(([k, m]) =>
+      `<button class="menu-item${k === current ? ' on' : ''}" data-mode="${k}">${m.icon}<span>${m.label}<span class="desc">${m.desc}</span></span></button>`).join(''), 'left');
+    p.addEventListener('click', (e) => {
+      const k = (e.target as HTMLElement).closest<HTMLElement>('[data-mode]')?.dataset.mode;
+      if (!k) return;
+      closeOverlay();
+      void invoke('setMode', k);
+      toast(`${MODES[k].label} on${k === 'shopping' ? ' — Nebula will compare products for you' : ''}`);
+    });
+    layer.appendChild(p);
+  });
+}
+
+function showAccountMenu() {
+  void openOverlay((layer) => {
+    const a = state?.account ?? null;
+    const av = avatarHtml(a);
+    const html = a
+      ? `<div class="account-head"><span class="${av.cls}" style="${av.style ?? ''}">${av.html}</span><div><b>${esc(a.name)}</b><span>${esc(a.email)}</span></div></div>
+         <div class="menu-sep"></div>
+         <button class="menu-item" data-acc="account">${I.user}<span>Manage your Nude account</span></button>
+         <button class="menu-item" data-acc="switch">${I.reopen}<span>Switch account</span></button>
+         <button class="menu-item" data-acc="signout">${I.logout}<span>Sign out</span></button>`
+      : `<div class="menu-head">You're not signed in</div><div class="tiny" style="padding:0 10px 8px">Sign in so Nude can greet you and keep your settings with your account.</div>
+         <button class="menu-item" data-acc="signin">${I.user}<span>Sign in or create an account</span></button>`;
+    const p = popover(els.avatar, '', html);
+    p.addEventListener('click', (e) => {
+      const k = (e.target as HTMLElement).closest<HTMLElement>('[data-acc]')?.dataset.acc;
+      if (!k) return;
+      closeOverlay();
+      if (k === 'account') void invoke('openInternal', 'account');
+      if (k === 'signin' || k === 'switch') void invoke('openInternal', 'welcome');
+      if (k === 'signout') void invoke('signOut');
+    });
+    layer.appendChild(p);
+  });
+}
+
+function showTabList() {
+  void openOverlay((layer) => {
+    const tabs = state?.tabs ?? [];
+    const p = popover(els.tabList, 'tab-search', `<input placeholder="Search ${tabs.length} tabs" aria-label="Search tabs"><div class="list"></div>`);
+    const input = p.querySelector('input')!;
+    const list = p.querySelector('.list')!;
+    const paint = () => {
+      const q = input.value.toLowerCase();
+      list.innerHTML = tabs.filter((t) => !q || t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q))
+        .map((t) => `<button class="menu-item${t.id === state?.activeTabId ? ' on' : ''}" data-tab="${t.id}">${faviconImg(t.favicon)}<span>${esc(tabTitle(t))}</span></button>`).join('')
+        || '<div class="tiny" style="padding:10px">No matching tabs</div>';
+    };
+    paint();
+    input.addEventListener('input', paint);
+    p.addEventListener('click', (e) => {
+      const id = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]')?.dataset.tab;
+      if (id) { closeOverlay(); void invoke('activate', Number(id)); }
+    });
+    layer.appendChild(p);
+    requestAnimationFrame(() => input.focus());
+  }, undefined, true);
+}
 
 // ------------------------------------------------------------------ omnibox
 let suggestions: Suggestion[] = [];
 let selected = -1;
+let addressEdited = false;
 let typed = '';
 let suggestSeq = 0;
 let suggestionsOpen = false;
 
 els.address.addEventListener('focus', () => {
+  addressEdited = false;
   els.omnibox.classList.add('focused');
   requestAnimationFrame(() => els.address.select());
 });
@@ -442,6 +574,7 @@ els.address.addEventListener('blur', () => {
   if (state) renderToolbar(state);
 });
 els.address.addEventListener('input', () => {
+  addressEdited = true;
   typed = els.address.value;
   void updateSuggestions((window.event as InputEvent | undefined)?.inputType?.startsWith('delete') ?? false);
 });
@@ -470,7 +603,7 @@ els.address.addEventListener('keydown', (e) => {
   } else if (e.key === 'Escape') {
     suggestSeq++;
     if (suggestionsOpen) closeOverlay();
-    else { els.address.value = displayUrl(active()?.url ?? ''); els.address.select(); }
+    else { const a = active(); els.address.value = displayUrl(a?.shownUrl ?? a?.url ?? ''); els.address.select(); }
     if (!suggestionsOpen && document.activeElement === els.address) { els.address.blur(); void invoke('overlay', false); }
   }
 });
@@ -553,7 +686,7 @@ async function showMenu() {
       <button class="menu-item" data-a="bookmarks">${I.bookmarks}<span>Bookmarks</span>${k('Ctrl+Shift+O')}</button>
       <button class="menu-item" data-a="history">${I.history}<span>History</span>${k('Ctrl+H')}</button>
       <button class="menu-item" data-a="downloads">${I.download}<span>Downloads</span>${k('Ctrl+J')}</button>
-      <button class="menu-item" data-a="security">${I.shield}<span>Nude Security</span></button>
+      <button class="menu-item" data-a="security">${I.shield}<span>Rovian Defender</span></button>
       <div class="menu-sep"></div>
       <button class="menu-item" data-a="find">${I.find}<span>Find in page</span>${k('Ctrl+F')}</button>
       <button class="menu-item" data-a="reader">${I.reader}<span>Reader view</span></button>
@@ -607,7 +740,7 @@ async function showSiteInfo(anchor: HTMLElement) {
     const conn = info.internal ? `<div class="status-row ok">${I.sparkle}<span>This is a secure Nude page.</span></div>`
       : info.secure ? `<div class="status-row ok">${I.lock}<span>Connection is encrypted (HTTPS).</span></div>`
         : /^http:/.test(info.url) ? `<div class="status-row warn">${I.unlock}<span>Connection is <b>not</b> encrypted. Don't enter passwords or card details.</span></div>` : '';
-    const threat = t.security === 'blocked' ? `<div class="status-row danger">${I.shieldX}<span>Nude Security blocked this site.</span></div>`
+    const threat = t.security === 'blocked' ? `<div class="status-row danger">${I.shieldX}<span>Rovian Defender blocked this site.</span></div>`
       : v.action === 'allow' ? (/^https?:/.test(info.url) ? `<div class="status-row ok">${I.shieldCheck}<span>No known threats. That isn't a guarantee — stay alert.</span></div>` : '')
         : `<div class="status-row ${v.action === 'block' ? 'danger' : 'warn'}">${I.warn}<span>${v.confidence === 'confirmed' ? 'Known threat' : 'Warning signs found'}:</span></div><ul>${v.signals.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>`;
     const perms = info.permissions.length ? `<div class="menu-sep"></div><div class="tiny" style="margin:6px 0 2px">Permissions for this site</div>` +
@@ -618,7 +751,7 @@ async function showSiteInfo(anchor: HTMLElement) {
       ${perms}
       <div class="menu-sep"></div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn" data-x="ask">${'Ask Nude AI: is this safe?'}</button>
+        <button class="btn" data-x="ask">Ask Nebula: is this safe?</button>
         <button class="btn" data-x="security">Security dashboard</button>
       </div>`, anchor === els.siteInfo ? 'left' : 'right');
     p.addEventListener('click', (e) => {
@@ -635,7 +768,7 @@ async function showSiteInfo(anchor: HTMLElement) {
 async function showOverview() {
   const thumbs = await invoke<Record<number, string>>('thumbnails');
   await openOverlay((layer) => {
-    const r = els.content.getBoundingClientRect();
+    const r = els.inner.getBoundingClientRect();
     const box = document.createElement('div');
     box.className = 'overview';
     Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
@@ -657,7 +790,7 @@ async function showOverview() {
 }
 
 // ------------------------------------------------------------------ AI panel
-const aiPanel = new AiPanel($('ai-panel'), els.ai, els.main, () => state, toast);
+const aiPanel = new AiPanel($('ai-panel'), els.ai, els.main, () => state, toast, (on) => setNebulaActive(on), () => { if (state) renderAccountAndMode(state); });
 
 // ------------------------------------------------------------------ commands from main
 nude.onCommand((c) => {
@@ -669,6 +802,7 @@ nude.onCommand((c) => {
     case 'toggle-ai': aiPanel.toggle(); break;
     case 'ai-prompt': aiPanel.ask(c.prompt, c.context); break;
     case 'toggle-overview': void showOverview(); break;
+    case 'nebula-activity': setNebulaActive(c.active); break;
   }
 });
 nude.onState((s) => render(s as WindowState));

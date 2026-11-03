@@ -1,26 +1,34 @@
-body { background: radial-gradient(900px 500px at 50% -10%, var(--warn-soft), transparent 70%), var(--bg); }
-body.severe { background: radial-gradient(900px 500px at 50% -10%, var(--danger-soft), transparent 70%), var(--bg); }
-.warn-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
-.warn-card { max-width: 640px; width: 100%; animation: rise .35s var(--ease); }
-@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
-.warn-icon { width: 76px; height: 76px; border-radius: 24px; display: grid; place-items: center; background: var(--warn-soft); color: var(--warn); margin-bottom: 20px; }
-.severe .warn-icon { background: var(--danger-soft); color: var(--danger); }
-.warn-icon svg { width: 40px; height: 40px; }
-.brand-line { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
-.brand-line svg { width: 14px; height: 14px; }
-h1 { font-size: 32px; margin: 6px 0 10px; }
-.addr { display: inline-block; font: 13px var(--mono); padding: 4px 10px; border-radius: var(--pill); background: var(--hover); margin-bottom: 14px; word-break: break-all; }
-.lead { font-size: 16px; color: var(--text-2); margin: 0 0 18px; }
-.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-.facts > div { padding: 12px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
-.why { padding: 14px 16px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border); margin-bottom: 14px; }
-.why ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-2); }
-.advice { display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--r); background: var(--accent-soft); margin-bottom: 22px; }
-.advice svg { width: 18px; height: 18px; color: var(--accent); flex-shrink: 0; margin-top: 2px; }
-.btns { display: flex; gap: 10px; flex-wrap: wrap; }
-.btn.big { height: 44px; padding: 0 22px; font-size: 14px; }
-.details { margin-top: 26px; color: var(--text-2); }
-.details summary { cursor: pointer; font-weight: 600; }
-.details .btn { margin-top: 8px; }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-@media (max-width: 560px) { .facts { grid-template-columns: 1fr; } }
+/* Rovian Defender warning — red shield on white (brand reference). */
+body { background: #fff; color: #0b0b0d; overflow-x: hidden; }
+@media (prefers-color-scheme: dark) { body { background: #111013; color: #f5f3f6; } }
+.rv-page { min-height: 100vh; display: grid; grid-template-columns: minmax(180px, 30vw) 1fr; align-items: center; gap: 4vw; padding: 6vh 6vw 6vh 0; }
+.shield { width: 100%; max-width: 440px; transform: translateX(-22%); filter: drop-shadow(0 30px 60px rgba(200, 56, 58, 0.28)); animation: shield-in 900ms cubic-bezier(.2,.9,.2,1) both; }
+@keyframes shield-in { from { opacity: 0; transform: translateX(-60%) rotate(-8deg); } }
+.copy { max-width: 760px; animation: copy-in 800ms 120ms cubic-bezier(.2,.9,.2,1) both; }
+@keyframes copy-in { from { opacity: 0; transform: translateY(24px); } }
+h1 { margin: 0; font: 800 clamp(34px, 5.4vw, 76px)/1.05 var(--font-display); letter-spacing: -0.02em; }
+h1 em, .continue em { font-style: normal; color: #c8383a; }
+@media (prefers-color-scheme: dark) { h1 em, .continue em { color: #ff6a66; } }
+.sub { margin: 18px 0 0; font: 700 clamp(17px, 2.2vw, 30px)/1.25 var(--font-display); }
+.continue { display: inline-block; margin-top: 18px; font: 400 clamp(15px, 1.9vw, 26px)/1.3 var(--font); color: inherit; padding: 0; background: none; cursor: pointer; text-decoration: underline transparent; transition: text-decoration-color var(--t); }
+.continue:hover { text-decoration-color: currentColor; }
+.continue.static { cursor: default; color: var(--text-2); font-size: 15px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
+.actions button { height: 48px; padding: 0 22px; border-radius: 14px; font-weight: 650; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: transform var(--t-fast), filter var(--t-fast); }
+.actions button:active { transform: scale(0.97); }
+.actions svg { width: 18px; height: 18px; }
+.back { background: #0b0b0d; color: #fff; }
+@media (prefers-color-scheme: dark) { .back { background: #f5f3f6; color: #111013; } }
+.alt { background: var(--hover); }
+.danger { background: #c8383a; color: #fff; }
+.why { margin-top: 28px; max-width: 620px; color: var(--text-2); }
+.why summary { cursor: pointer; font-weight: 650; color: var(--text); }
+.why .facts { display: flex; flex-direction: column; gap: 2px; margin: 12px 0 6px; }
+.why ul { padding-left: 20px; }
+.confirm { margin-top: 24px; padding: 18px 20px; border-radius: 18px; background: rgba(200, 56, 58, 0.08); border: 1px solid rgba(200, 56, 58, 0.25); max-width: 620px; animation: copy-in 400ms cubic-bezier(.2,.9,.2,1); }
+.confirm p { margin: 0; }
+.confirm .actions { margin-top: 14px; }
+.brand { display: flex; align-items: center; gap: 8px; margin-top: 40px; font-weight: 700; font-size: 15px; }
+.brand img { width: 20px; height: 23px; }
+.brand span { color: #9aa0aa; font-weight: 600; }
+@media (max-width: 720px) { .rv-page { grid-template-columns: 1fr; padding: 32px 22px; } .shield { width: 120px; transform: none; } }

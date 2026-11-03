@@ -13,8 +13,8 @@ import kotlin.coroutines.resume
 data class ChatMessage(val role: String, val text: String, val sources: List<String> = emptyList(), val note: String? = null, val error: Boolean = false)
 
 /**
- * Nude AI client. Page text is sent only when the user turns on "Share this page".
- * API keys live in the Nude AI gateway, never in the app.
+ * Nebula (AI) client. Page text is sent only when the user turns on "Share this page".
+ * API keys live in the Nebula gateway, never in the app.
  */
 object NudeAi {
     suspend fun pageText(webView: WebView): Pair<String, String> = suspendCancellableCoroutine { cont ->
@@ -60,7 +60,7 @@ object NudeAi {
         if (Regex("(is|are) (this|the) (site|website|page) (safe|legit|real|a scam)|safe to (use|visit)").containsMatchIn(q) && currentUrl?.startsWith("http") == true) {
             val v = Security.analyze(currentUrl, level)
             return if (v.action == Security.Action.ALLOW) {
-                "**${v.host}** isn't on Nude Security's threat lists and shows no strong warning signs.\n\nThat isn't a guarantee it's safe — Nude Security can only check known threats and common tricks."
+                "**${v.host}** isn't on Rovian Defender's threat lists and shows no strong warning signs.\n\nThat isn't a guarantee it's safe — Rovian Defender can only check known threats and common tricks."
             } else {
                 "**${v.host}** was flagged (${if (v.confirmed) "confirmed threat" else "suspected — not confirmed"}).\n\n" + v.signals.joinToString("\n") { "- ${it.message}" }
             }

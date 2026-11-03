@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rovian Defender "site not protected" shield (design/rovian-block.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp" android:height="230dp" android:viewportWidth="200" android:viewportHeight="230">
+    <path android:fillColor="#C8383A" android:pathData="M100,6 C132,20 162,25 192,25 C194,118 160,190 100,226 C40,190 6,118 8,25 C38,25 68,20 100,6 Z"/>
+    <path android:strokeColor="#FFB3B5" android:strokeWidth="18" android:strokeLineCap="round"
+        android:pathData="M54,112 a46,46 0 1,0 92,0 a46,46 0 1,0 -92,0 M68,80 L132,144"/>
+</vector>

@@ -5,6 +5,7 @@ import SwiftUI
 struct NudeApp: App {
     @StateObject private var store: Store
     @StateObject private var model: BrowserModel
+    @StateObject private var accounts = Accounts()
 
     init() {
         let s = Store()
@@ -17,6 +18,7 @@ struct NudeApp: App {
             ContentView()
                 .environmentObject(store)
                 .environmentObject(model)
+                .environmentObject(accounts)
                 .tint(nudeClay)
                 .preferredColorScheme(store.theme == "dark" ? .dark : store.theme == "light" ? .light : nil)
         }

@@ -9,7 +9,7 @@ struct ChatMessage: Identifiable, Equatable {
     var isError = false
 }
 
-/// Nude AI client. Page text is sent only when the user turns on "Share this page"; model keys live in the gateway.
+/// Nebula (AI) client. Page text is sent only when the user turns on "Share this page"; model keys live in the gateway.
 enum NudeAI {
     static func stream(gateway: String, token: String, history: [ChatMessage], sources: [[String: String]], onDelta: @escaping @MainActor (String) -> Void) async throws {
         guard let url = URL(string: gateway.trimmingCharacters(in: CharacterSet(charactersIn: "/ ")) + "/v1/chat") else { throw URLError(.badURL) }
@@ -38,7 +38,7 @@ enum NudeAI {
         if q.range(of: "(is|are) (this|the) (site|website|page) (safe|legit|real|a scam)|safe to (use|visit)", options: .regularExpression) != nil, let u = currentURL, u.hasPrefix("http") {
             let v = Security.analyze(u, level: level)
             if v.action == .allow {
-                return "**\(v.host)** isn't on Nude Security's threat lists and shows no strong warning signs.\n\nThat isn't a guarantee it's safe — Nude Security can only check known threats and common tricks."
+                return "**\(v.host)** isn't on Rovian Defender's threat lists and shows no strong warning signs.\n\nThat isn't a guarantee it's safe — Rovian Defender can only check known threats and common tricks."
             }
             return "**\(v.host)** was flagged (\(v.confirmed ? "confirmed threat" : "suspected — not confirmed")).\n\n" + v.signals.map { "• \($0.message)" }.joined(separator: "\n")
         }
@@ -53,6 +53,7 @@ enum NudeAI {
 struct AIView: View {
     @EnvironmentObject var model: BrowserModel
     @EnvironmentObject var store: Store
+    @EnvironmentObject var accounts: Accounts
     @Environment(\.dismiss) private var dismiss
     @State private var messages: [ChatMessage] = []
     @State private var input = ""
@@ -77,7 +78,7 @@ struct AIView: View {
                 }
                 composer
             }
-            .navigationTitle("Nude AI")
+            .navigationTitle("Nebula")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
@@ -89,9 +90,9 @@ struct AIView: View {
 
     private var empty: some View {
         VStack(spacing: 12) {
-            NudeMark(size: 56)
-            Text("How can I help?").font(.title2.weight(.semibold))
-            Text("Ask anything, or share this page with Nude AI.").foregroundStyle(.secondary)
+            NebulaOrb(size: 56)
+            Text(accounts.current.map { "Hi \($0.firstName), I'm Nebula" } ?? "Hi, I'm Nebula").font(.title2.weight(.semibold))
+            Text("Ask anything, or share this page with Nebula.").foregroundStyle(.secondary)
             ForEach(suggestions, id: \.0) { s in
                 Button { sharePage = s.1; send(s.0) } label: { Text(s.0).frame(maxWidth: .infinity) }.buttonStyle(.bordered).buttonBorderShape(.capsule)
             }
@@ -137,7 +138,7 @@ struct AIView: View {
                     .disabled(busy || input.trimmingCharacters(in: .whitespaces).isEmpty)
                     .keyboardShortcut(.return, modifiers: .command)
             }
-            Text("Nude AI only sees what you share. It can make mistakes.").font(.caption2).foregroundStyle(.secondary)
+            Text("Nebula only sees what you share. It can make mistakes.").font(.caption2).foregroundStyle(.secondary)
         }.padding()
     }
 
@@ -156,14 +157,14 @@ struct AIView: View {
                 let page = await tab.pageText()
                 sources.append(["id": "S1", "kind": "page", "title": page.title, "url": tab.url, "content": page.text])
                 let v = Security.analyze(tab.url, level: store.level)
-                sources.append(["id": "S2", "kind": "security", "title": "Nude Security site check", "url": tab.url,
+                sources.append(["id": "S2", "kind": "security", "title": "Rovian Defender site check", "url": tab.url,
                                 "content": "action=\(v.action.rawValue); confirmed=\(v.confirmed); signals=\(v.signals.map(\.message).joined(separator: "; "))"])
                 used.append(page.title.isEmpty ? Omnibox.host(tab.url) : page.title)
             }
             let local = NudeAI.localAnswer(q, currentURL: tab?.url, level: store.level)
             if store.aiGateway.isEmpty {
-                messages.append(local.map { ChatMessage(role: "assistant", text: $0, note: "Answered on your device by Nude Security.") }
-                    ?? ChatMessage(role: "assistant", text: "Nude AI isn't set up yet. Add your Nude AI gateway address in Settings → Nude services. Safety questions like \"Is this website safe?\" or pasting a suspicious message work without it.", isError: true))
+                messages.append(local.map { ChatMessage(role: "assistant", text: $0, note: "Answered on your device by Rovian Defender.") }
+                    ?? ChatMessage(role: "assistant", text: "Nebula isn't set up yet. Add your Nebula gateway address in Settings → Nude services. Safety questions like \"Is this website safe?\" or pasting a suspicious message work without it.", isError: true))
                 return
             }
             messages.append(ChatMessage(role: "assistant", text: "", sources: used))
@@ -173,8 +174,8 @@ struct AIView: View {
                     if index < messages.count { messages[index].text += delta }
                 }
             } catch {
-                messages[index] = local.map { ChatMessage(role: "assistant", text: $0, note: "Answered on your device — Nude AI isn't reachable.") }
-                    ?? ChatMessage(role: "assistant", text: "Nude AI isn't reachable (\(error.localizedDescription)).", isError: true)
+                messages[index] = local.map { ChatMessage(role: "assistant", text: $0, note: "Answered on your device — Nebula isn't reachable.") }
+                    ?? ChatMessage(role: "assistant", text: "Nebula isn't reachable (\(error.localizedDescription)).", isError: true)
             }
         }
     }

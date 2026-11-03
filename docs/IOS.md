@@ -4,9 +4,9 @@
 
 SwiftUI app on **WebKit** (`WKWebView`). Apple requires all iOS/iPadOS browsers to use WebKit, so this is the same engine Safari, Chrome and Edge use on iPhone.
 
-What's included: tabs and private tabs (separate, in-memory website data), address bar with search and suggestions, home page, bookmarks, history, find on page, desktop-site mode, downloads (saved to **Files → Nude → Downloads**) with Nude Security checks, the Nude Security warning page, tracker blocking with WebKit content rules (3 protection levels, HTTPS-only at Maximum), security dashboard, link checker, and the Nude AI sheet (page sharing is opt-in; on-device safety answers when no gateway is configured).
+What's included: tabs and private tabs (separate, in-memory website data), address bar with search and suggestions, home page, bookmarks, history, find on page, desktop-site mode, downloads (saved to **Files → Nude → Downloads**) with Rovian Defender checks, the Rovian Defender warning page, tracker blocking with WebKit content rules (3 protection levels, HTTPS-only at Maximum), security dashboard, link checker, and the Nebula sheet (page sharing is opt-in; on-device safety answers when no gateway is configured).
 
-iPad: tab strip and address bar along the top, form-sheet panels, and hardware-keyboard shortcuts — ⌘T new tab, ⌘⇧N private tab, ⌘W close, ⌘L address bar, ⌘R reload, ⌘[ / ⌘] back/forward, ⌘F find, ⌘D bookmark, ⌘Y history, ⌘⇧A Nude AI, ⌘⇧[ / ⌘⇧] switch tabs.
+iPad: tab strip and address bar along the top, form-sheet panels, and hardware-keyboard shortcuts — ⌘T new tab, ⌘⇧N private tab, ⌘W close, ⌘L address bar, ⌘R reload, ⌘[ / ⌘] back/forward, ⌘F find, ⌘D bookmark, ⌘Y history, ⌘⇧A Nebula, ⌘⇧[ / ⌘⇧] switch tabs.
 
 ### Build
 

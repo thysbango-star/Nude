@@ -33,7 +33,7 @@ apps/android/
   feature/newtab/            Nude home: search, shortcuts, recently visited
   feature/history|bookmarks|downloads|settings/
   feature/search/            Nude Search results UI (Phase 2)
-  feature/ai/                Nude AI sheet (Phase 3), talks to services/ai-gateway
+  feature/ai/                Nebula sheet (Phase 3), talks to services/ai-gateway
 ```
 
 * Kotlin, Jetpack Compose, coroutines/Flow, Room, DataStore, Hilt.
@@ -55,7 +55,7 @@ apps/android/
 * **Downloads:** Android `DownloadManager` / MediaStore so files appear in the system Downloads.
 * **Passwords & passkeys:** Android Autofill framework and Credential Manager.
 * **Biometrics:** BiometricPrompt to unlock private tabs and saved passwords.
-* **Share sheet**, **notifications** (download complete, Nude Security alerts), **Picture-in-picture** for video.
+* **Share sheet**, **notifications** (download complete, Rovian Defender alerts), **Picture-in-picture** for video.
 * **Nude OS on Android:** if Nude OS is an Android-based OS, the app reads system theme/accent via standard Android theming (Material You dynamic colour) and any Nude OS system APIs once they exist.
 
 ## 5. Security
@@ -87,8 +87,8 @@ CI (GitHub Actions): lint → unit tests → spec vectors → emulator tests →
 |---|---|
 | **A1 — Foundation** | Project scaffold, GeckoView integration, tabs, navigation, omnibox, new tab page, private tabs, history, bookmarks, downloads, settings, session restore, default-browser role |
 | **A2 — Nude Search** | Search home + results UI on the Phase 2 search API |
-| **A3 — Nude AI** | AI bottom sheet; explicit "share this page/selection" consent; confirmation for actions |
-| **A4 — Nude Security** | Pre-navigation checks, warning screen, download checks, tracker blocking levels |
+| **A3 — Nebula** | AI bottom sheet; explicit "share this page/selection" consent; confirmation for actions |
+| **A4 — Rovian Defender** | Pre-navigation checks, warning screen, download checks, tracker blocking levels |
 | **A5 — Integration & polish** | Sync with desktop, passkeys, biometrics, PiP, animations |
 | **A6 — Release** | Security review, performance on low-end devices, accessibility (TalkBack), signed APK/AAB |
 

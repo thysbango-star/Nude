@@ -76,7 +76,7 @@ export function mockProvider(): Provider {
     async *stream({ messages }) {
       const last = messages[messages.length - 1]?.content ?? '';
       const cited = /<untrusted_source id="(S\d+)"/.exec(last)?.[1];
-      const words = `This is Nude AI running in **development mode** with no model configured${cited ? ` (I received your sources, e.g. [${cited}])` : ''}. Set NUDE_AI_PROVIDER and an API key on the gateway to get real answers.`.split(' ');
+      const words = `This is Nebula running in **development mode** with no model configured${cited ? ` (I received your sources, e.g. [${cited}])` : ''}. Set NUDE_AI_PROVIDER and an API key on the gateway to get real answers.`.split(' ');
       for (const w of words) { yield w + ' '; await new Promise((r) => setTimeout(r, 5)); }
     },
   };

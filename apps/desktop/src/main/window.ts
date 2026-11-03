@@ -11,7 +11,7 @@ import { NEW_TAB_URL, resolveInput, searchUrl } from '../shared/omnibox';
 import { matchShortcut, type ShortcutCommand } from '../shared/shortcuts';
 import type { SavedWindow } from './profile';
 
-const IGNORED_LOAD_ERRORS = new Set([-3 /* ABORTED */, -20 /* BLOCKED_BY_CLIENT (Nude Security) */]);
+const IGNORED_LOAD_ERRORS = new Set([-3 /* ABORTED */, -20 /* BLOCKED_BY_CLIENT (Rovian Defender) */]);
 
 export class BrowserWindowController {
   readonly win: BrowserWindow;
@@ -37,7 +37,7 @@ export class BrowserWindowController {
       minHeight: 320,
       show: false,
       title: isPrivate ? 'Nude — Private' : 'Nude',
-      backgroundColor: isPrivate ? '#16121f' : dark ? '#111214' : '#f4f3f1',
+      backgroundColor: isPrivate ? '#1b1430' : dark ? '#231d36' : '#c9bde0',
       titleBarStyle: 'hidden',
       ...(process.platform === 'darwin'
         ? { trafficLightPosition: { x: 14, y: 14 } }
@@ -74,7 +74,7 @@ export class BrowserWindowController {
 
   overlayColors() {
     const dark = nativeTheme.shouldUseDarkColors || this.isPrivate;
-    return { color: '#00000000', symbolColor: dark ? '#e9e7f0' : '#26252b', height: 44 };
+    return { color: '#00000000', symbolColor: dark ? '#efe6f7' : '#2a2430', height: 50 };
   }
 
   refreshTheme() {
@@ -246,7 +246,7 @@ export class BrowserWindowController {
       }
     } else if (this.activeTab) {
       this.activeTab.view.setBounds(area);
-      this.activeTab.view.setBorderRadius(full ? 0 : 12);
+      this.activeTab.view.setBorderRadius(0);
       visible.add(this.activeTab.id);
     }
     for (const t of this.tabs) t.view.setVisible(!this.overlayOpen && visible.has(t.id) && (Boolean(this.split) || (!t.error && !t.crashed)));
@@ -575,7 +575,7 @@ export class BrowserWindowController {
       items.push(
         { label: 'Copy', role: 'copy' },
         { label: `Search for "${short}"`, click: () => this.addTab({ url: searchUrl(engine, sel), index: this.tabs.indexOf(tab) + 1 }) },
-        { label: 'Ask Nude AI to Explain', click: () => this.sendCommand({ type: 'ai-prompt', prompt: 'Explain the selected text in simple terms.', context: { selection: true } }) },
+        { label: 'Ask Nebula to Explain', click: () => this.sendCommand({ type: 'ai-prompt', prompt: 'Explain the selected text in simple terms.', context: { selection: true } }) },
         { type: 'separator' },
       );
     }
@@ -597,7 +597,7 @@ export class BrowserWindowController {
         { type: 'separator' },
         { label: 'Save Page As…', click: () => tab.wc.downloadURL(tab.wc.getURL()) },
         { label: 'Print…', click: () => tab.wc.print() },
-        { label: 'Summarise Page with Nude AI', click: () => this.sendCommand({ type: 'ai-prompt', prompt: 'Summarise this page in five key points.', context: { page: true } }) },
+        { label: 'Summarise Page with Nebula', click: () => this.sendCommand({ type: 'ai-prompt', prompt: 'Summarise this page in five key points.', context: { page: true } }) },
         { label: 'View Page Source', enabled: /^https?:/.test(tab.url), click: () => this.addTab({ url: `view-source:${tab.url}` }) },
         { type: 'separator' },
       );
@@ -653,6 +653,10 @@ export class BrowserWindowController {
       toolbar: s.toolbar,
       aiEnabled: s.aiEnabled,
       accentColor: s.accentColor || this.app.systemAccent(),
+      mode: s.mode,
+      account: this.isPrivate ? null : this.app.accounts.current(),
+      theme: s.theme,
+      nebulaActive: false,
     };
   }
 

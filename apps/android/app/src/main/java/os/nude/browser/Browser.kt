@@ -97,7 +97,7 @@ class Browser(private val activity: MainActivity, val store: Store) {
 
     fun saveTabs() = store.saveTabs(tabs.filter { !it.isPrivate && it.url.startsWith("http") }.map { it.url })
 
-    /** Navigate from the address bar or a link the user chose. Runs Nude Security first. */
+    /** Navigate from the address bar or a link the user chose. Runs Rovian Defender first. */
     fun navigate(input: String, tab: Tab? = active, newTab: Boolean = false) {
         val r = Omnibox.resolve(input, store.engine, store.searchServer.ifBlank { "http://127.0.0.1:8787" }) ?: return
         val url = when (r) {
@@ -131,7 +131,7 @@ class Browser(private val activity: MainActivity, val store: Store) {
         tab.blocked = v
         tab.isHome = false
         tab.url = url
-        tab.title = "Warning — Nude Security"
+        tab.title = "Warning — Rovian Defender"
         store.blockedSites = store.blockedSites + 1
         store.logEvent(if (v.action == Security.Action.BLOCK) "site-blocked" else "site-warned", v.signals.firstOrNull()?.message ?: "Suspicious site", url)
         return false
@@ -194,7 +194,7 @@ class Browser(private val activity: MainActivity, val store: Store) {
                 Security.Action.BLOCK -> {
                     store.blockedDownloads = store.blockedDownloads + 1
                     store.logEvent("download-blocked", "$name: ${verdict.notes.firstOrNull() ?: "risky file"}", url)
-                    toast = "Nude Security blocked a dangerous download: $name"
+                    toast = "Rovian Defender blocked a dangerous download: $name"
                 }
                 Security.Action.WARN -> pendingDownload = PendingDownload(url, name, mimeType, userAgent, verdict)
                 Security.Action.ALLOW -> startDownload(url, name, mimeType, userAgent)

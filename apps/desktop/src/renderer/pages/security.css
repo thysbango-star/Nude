@@ -28,3 +28,11 @@
 .result { margin-top: 12px; padding: 12px 14px; border-radius: var(--r); font-size: 13px; }
 .result.ok { background: var(--ok-soft); } .result.warn { background: var(--warn-soft); } .result.danger { background: var(--danger-soft); }
 .result ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* Rovian Defender brand */
+.rv-logo { width: 40px; height: 46px; }
+.rv-word { font-weight: 800; } .rv-word i { font-style: normal; color: var(--text-3); font-weight: 650; }
+.score .val { stroke: url(#rvgrad); }
+.hero { background: linear-gradient(135deg, rgba(20, 80, 240, 0.06), rgba(111, 240, 198, 0.08)), var(--surface); }
+.status-line { color: #1a8fd6; } .dot-live { background: #1aa3dc; box-shadow: 0 0 0 0 #1aa3dc; }
+.btn.primary { background: linear-gradient(135deg, #1450f0, #1aa3dc); color: #fff; }

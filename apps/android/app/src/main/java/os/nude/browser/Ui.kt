@@ -2,7 +2,6 @@
 
 package os.nude.browser
 
-import android.os.Build
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -10,10 +9,18 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,6 +45,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -53,6 +62,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -62,19 +73,18 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 // ------------------------------------------------------------------ theme
-private val Clay = Color(0xFFB5674D)
-private val Violet = Color(0xFF8F7CFF)
+private val Clay = Color(0xFFED7D3A)      // Nude orange
+private val Violet = Color(0xFFA64FD0)    // Nebula lavender
+private val Cream = Color(0xFFF5F3EF)
+private val RovianRed = Color(0xFFC8383A)
+private val NebulaBrush = Brush.sweepGradient(listOf(Color(0xFF7B5CFF), Color(0xFFFF4FD8), Color(0xFFFF9A3C), Color(0xFF3CE0FF), Color(0xFF7B5CFF)))
 
 @Composable
 fun NudeTheme(store: Store, content: @Composable () -> Unit) {
     val dark = when (store.theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
-    val ctx = LocalContext.current
-    // Nude OS / Android 12+: use the system accent (Material You) colours.
-    val scheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
-        dark -> darkColorScheme(primary = Color(0xFFD98A6C), background = Color(0xFF121113), surface = Color(0xFF1D1B1F), surfaceVariant = Color(0xFF26232A))
-        else -> lightColorScheme(primary = Clay, background = Color(0xFFF4F1EE), surface = Color.White, surfaceVariant = Color(0xFFF0ECE8))
-    }
+    // The Nude design palette: lavender chrome, Nude orange, Nebula purple.
+    val scheme = if (dark) darkColorScheme(primary = Color(0xFFCF8CF2), onPrimary = Color(0xFF1A1020), secondary = Clay, background = Color(0xFF131116), surface = Color(0xFF1C1A20), surfaceVariant = Color(0xFF26232B), error = Color(0xFFFF6B5E))
+        else lightColorScheme(primary = Violet, onPrimary = Color.White, secondary = Clay, background = Color(0xFFF3EEF8), surface = Color.White, surfaceVariant = Color(0xFFF1EBF6), error = RovianRed)
     MaterialTheme(colorScheme = scheme, content = content)
 }
 
@@ -128,13 +138,16 @@ fun BrowserScreen(browser: Browser) {
                 modifier = Modifier.fillMaxSize())
         }
 
+        val accounts = (ctx.applicationContext as NudeApplication).accounts
+        if (accounts.needsWelcome) WelcomeScreen(accounts)
+
         when (screen) {
             Screen.TABS -> TabsSheet(browser) { screen = Screen.NONE }
             Screen.MENU -> MenuSheet(browser, onDismiss = { screen = Screen.NONE }, onScreen = { screen = it }, onFind = { screen = Screen.NONE; findOpen = true })
             Screen.BOOKMARKS -> FullPage("Bookmarks", { screen = Screen.NONE }) { BookmarksPage(browser) { screen = Screen.NONE } }
             Screen.HISTORY -> FullPage("History", { screen = Screen.NONE }) { HistoryPage(browser) { screen = Screen.NONE } }
             Screen.SETTINGS -> FullPage("Settings", { screen = Screen.NONE }) { SettingsPage(browser) }
-            Screen.SECURITY -> FullPage("Nude Security", { screen = Screen.NONE }) { SecurityPage(browser) }
+            Screen.SECURITY -> FullPage("Rovian Defender", { screen = Screen.NONE }) { SecurityPage(browser) }
             Screen.AI -> AiSheet(browser) { screen = Screen.NONE }
             Screen.NONE -> {}
         }
@@ -263,8 +276,8 @@ private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -
                 }
                 if (!editing) {
                     IconButton({ onScreen(Screen.AI) }) {
-                        Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(Brush.linearGradient(listOf(Clay, Violet))), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ic_sparkle), "Nude AI", Modifier.size(18.dp), tint = Color.White)
+                        Box(Modifier.size(30.dp).clip(CircleShape).background(NebulaBrush), contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_sparkle), "Nebula", Modifier.size(16.dp), tint = Color.White)
                         }
                     }
                     IconButton({ onScreen(Screen.TABS) }) {
@@ -314,120 +327,263 @@ private fun FindBar(tab: Tab, onClose: () -> Unit) {
 // ------------------------------------------------------------------ home (new tab)
 private val DEFAULT_SHORTCUTS = listOf("Wikipedia" to "https://www.wikipedia.org/", "GitHub" to "https://github.com/", "News24" to "https://www.news24.com/", "YouTube" to "https://m.youtube.com/")
 
+// ------------------------------------------------------------------ home (cream with drifting peach light)
+@Composable
+private fun PeachBackdrop(dark: Boolean, private: Boolean, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "blobs")
+    val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(16000, easing = LinearEasing), RepeatMode.Reverse), label = "p")
+    val colors = if (private) listOf(Color(0xFF7B5CFF), Color(0xFFA64FD0), Color(0xFF3C2A7A))
+        else listOf(Color(0xFFFF8A3D), Color(0xFFFFB07A), Color(0xFFE5533D))
+    Canvas(modifier.fillMaxSize().background(if (dark || private) Color(0xFF15121A) else Cream)) {
+        val w = size.width; val h = size.height
+        fun blob(cx: Float, cy: Float, r: Float, c: Color, a: Float) =
+            drawCircle(Brush.radialGradient(listOf(c.copy(alpha = a), Color.Transparent), center = Offset(cx, cy), radius = r), r, Offset(cx, cy))
+        blob(w * (0.25f + 0.15f * p), h * (0.30f - 0.08f * p), w * 0.75f, colors[0], 0.55f)
+        blob(w * (0.85f - 0.2f * p), h * (0.55f + 0.1f * p), w * 0.7f, colors[1], 0.5f)
+        blob(w * (0.45f + 0.1f * p), h * (0.85f - 0.05f * p), w * 0.6f, colors[2], 0.35f)
+    }
+}
+
+@Composable
+private fun NudeMark(size: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(size * 0.4f, size).align(Alignment.TopCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Clay.copy(alpha = 0.55f)))))
+        Icon(painterResource(R.drawable.ic_nude_mark), "Nude", Modifier.size(size), tint = Clay)
+    }
+}
+
 @Composable
 private fun HomePage(browser: Browser, tab: Tab, onSearch: () -> Unit) {
     val store = browser.store
+    val accounts = (LocalContext.current.applicationContext as NudeApplication).accounts
+    val dark = when (store.theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
     val recent = remember(tab.id) { if (tab.isPrivate) emptyList() else store.history().take(5) }
     val shortcuts = remember(tab.id) { (store.bookmarks().take(8).map { it.title to it.url } + DEFAULT_SHORTCUTS).distinctBy { it.second }.take(8) }
-    Column(
-        Modifier.fillMaxSize().background(Brush.verticalGradient(listOf((if (tab.isPrivate) Violet else Clay).copy(alpha = 0.14f), MaterialTheme.colorScheme.background)))
-            .verticalScroll(rememberScrollState()).padding(horizontal = 22.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.height(72.dp))
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(21.dp)).background(Brush.linearGradient(listOf(Clay, Violet))), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_sparkle), null, Modifier.size(34.dp), tint = Color.White)
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(if (tab.isPrivate) "Private browsing" else greeting(), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(22.dp))
-        Row(
-            Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(27.dp)).background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(27.dp)).clickable(onClick = onSearch).padding(horizontal = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    val ink = if (dark || tab.isPrivate) Color(0xFFF5F0F7) else Color(0xFF17141A)
+    val sub = ink.copy(alpha = 0.62f)
+    Box(Modifier.fillMaxSize()) {
+        PeachBackdrop(dark, tab.isPrivate)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(12.dp))
-            Text("Search ${store.engine.label} or type an address", color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (tab.isPrivate) {
+            Spacer(Modifier.height(64.dp))
+            NudeMark(64.dp)
             Spacer(Modifier.height(18.dp))
+            val name = accounts.current?.firstName
             Text(
-                if (browser.privateProfilesSupported) "Nude won't save your history, cookies or site data from private tabs after you close them. Downloads and bookmarks are kept. Your internet provider and the sites you visit can still see your activity."
-                else "Nude won't save history from private tabs. Your Android WebView version doesn't support separate private storage, so cookies are shared with normal tabs — update Android System WebView for full private browsing.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp,
+                buildAnnotatedString {
+                    if (tab.isPrivate) append("Private browsing")
+                    else if (name != null) { append("Hello, "); withStyle(SpanStyle(color = Clay)) { append(name) } }
+                    else append("Hello there")
+                },
+                fontSize = 38.sp, fontWeight = FontWeight.ExtraBold, color = ink,
             )
-        } else {
-            Spacer(Modifier.height(26.dp))
-            shortcuts.chunked(4).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    row.forEach { (title, url) ->
-                        Column(Modifier.width(76.dp).clip(RoundedCornerShape(16.dp)).clickable { browser.load(tab, url) }.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.size(50.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                Text(Omnibox.host(url).take(1).uppercase(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            if (!tab.isPrivate && name == null) {
+                TextButton({ accounts.showWelcome() }) { Text("Sign in to Nude", color = Clay, fontWeight = FontWeight.SemiBold) }
+            } else Spacer(Modifier.height(8.dp))
+            Text(if (tab.isPrivate) "Nothing from this tab is kept" else "What would you like to explore today?", color = sub, fontSize = 15.sp)
+            Spacer(Modifier.height(22.dp))
+            Row(
+                Modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(28.dp)).background((if (dark || tab.isPrivate) Color(0xFF221D27) else Color.White).copy(alpha = 0.82f))
+                    .border(1.dp, Clay.copy(alpha = 0.25f), RoundedCornerShape(28.dp)).clickable(onClick = onSearch).padding(start = 18.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Search, null, tint = Clay)
+                Spacer(Modifier.width(12.dp))
+                Text("Search ${store.engine.label} or type an address", Modifier.weight(1f), color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Clay, Color(0xFFE5533D)))), contentAlignment = Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+            }
+            if (tab.isPrivate) {
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    if (browser.privateProfilesSupported) "Nude won't save your history, cookies or site data from private tabs after you close them. Downloads and bookmarks are kept. Your internet provider and the sites you visit can still see your activity."
+                    else "Nude won't save history from private tabs. Your Android WebView version doesn't support separate private storage, so cookies are shared with normal tabs — update Android System WebView for full private browsing.",
+                    color = sub, fontSize = 13.sp,
+                )
+            } else {
+                Spacer(Modifier.height(26.dp))
+                shortcuts.chunked(4).forEach { row ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        row.forEach { (title, url) ->
+                            Column(Modifier.width(76.dp).clip(RoundedCornerShape(16.dp)).clickable { browser.load(tab, url) }.padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background((if (dark) Color(0xFF2A2430) else Color.White).copy(alpha = 0.75f)), contentAlignment = Alignment.Center) {
+                                    Text(Omnibox.host(url).take(1).uppercase(), fontWeight = FontWeight.Bold, color = Clay)
+                                }
+                                Spacer(Modifier.height(6.dp))
+                                Text(title, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ink)
                             }
-                            Spacer(Modifier.height(6.dp))
-                            Text(title, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                if (recent.isNotEmpty()) {
+                    Spacer(Modifier.height(20.dp))
+                    Text("Jump back in", Modifier.fillMaxWidth(), color = sub, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    recent.forEach { h ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { browser.load(tab, h.url) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Refresh, null, Modifier.size(18.dp), tint = sub)
+                            Spacer(Modifier.width(12.dp))
+                            Column { Text(h.title, maxLines = 1, overflow = TextOverflow.Ellipsis, color = ink); Text(Omnibox.host(h.url), fontSize = 12.sp, color = sub) }
                         }
                     }
                 }
             }
-            if (recent.isNotEmpty()) {
-                Spacer(Modifier.height(20.dp))
-                Text("Jump back in", Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                recent.forEach { h ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { browser.load(tab, h.url) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Refresh, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(12.dp))
-                        Column { Text(h.title, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(Omnibox.host(h.url), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    }
-                }
+            Spacer(Modifier.height(28.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(painterResource(R.drawable.ic_rovian_mark), null, Modifier.size(14.dp, 16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ink)) { append("Rovian") }
+                    withStyle(SpanStyle(color = sub)) { append("Defender") }
+                    append(" has blocked ${store.blockedTrackers} trackers and ${store.blockedSites} dangerous sites")
+                }, fontSize = 12.sp, color = sub)
             }
+            Spacer(Modifier.height(24.dp))
         }
-        Spacer(Modifier.height(28.dp))
-        Text("Nude Security has blocked ${store.blockedTrackers} trackers and ${store.blockedSites} dangerous sites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
     }
 }
 
-private fun greeting(): String {
-    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    return when { h < 5 -> "Good night"; h < 12 -> "Good morning"; h < 18 -> "Good afternoon"; else -> "Good evening" }
+// ------------------------------------------------------------------ welcome / sign in (local account)
+@Composable
+private fun WelcomeScreen(accounts: Accounts) {
+    var signIn by remember { mutableStateOf(accounts.known().isNotEmpty()) }
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(accounts.known().firstOrNull()?.email ?: "") }
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val t = rememberInfiniteTransition(label = "kinetic")
+    val shift by t.animateFloat(0f, 1f, infiniteRepeatable(tween(22000, easing = LinearEasing)), label = "s")
+    val words = listOf("A NEW GENERATION", "PRIVATE BY DESIGN", "MEET NEBULA", "ROVIAN DEFENDER", "MADE FOR YOU")
+    val clear = { error = null }
+    BackHandler(true) {}
+    Box(Modifier.fillMaxSize().background(Color(0xFF0D0B10)).clickable(remember { MutableInteractionSource() }, indication = null) {}) {
+        // Huge outlined words sliding across (the kinetic type from the Nude motion design).
+        Column(Modifier.fillMaxSize().padding(top = 24.dp), verticalArrangement = Arrangement.SpaceEvenly) {
+            words.forEachIndexed { i, w ->
+                val dir = if (i % 2 == 0) -1f else 1f
+                Text("$w · $w · $w", maxLines = 1, softWrap = false, fontSize = 64.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.05f),
+                    modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true).graphicsLayer { translationX = dir * shift * 1400f - (if (dir > 0) 1400f else 0f) })
+            }
+        }
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(Brush.radialGradient(listOf(Violet.copy(alpha = 0.45f), Color.Transparent), center = Offset(size.width * 0.3f, size.height * 0.75f), radius = size.width), size.width, Offset(size.width * 0.3f, size.height * 0.75f))
+            drawCircle(Brush.radialGradient(listOf(Clay.copy(alpha = 0.35f), Color.Transparent), center = Offset(size.width * 0.8f, size.height * 0.2f), radius = size.width * 0.8f), size.width * 0.8f, Offset(size.width * 0.8f, size.height * 0.2f))
+        }
+        Column(
+            Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+        ) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Color(0xFF1B1720).copy(alpha = 0.86f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(28.dp)).padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                NudeMark(64.dp)
+                Spacer(Modifier.height(10.dp))
+                Text(if (signIn) "Welcome back" else "Welcome to Nude", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                Text(if (signIn) "Sign in to pick up where you left off." else "Create your Nude account so your browser knows you.", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                if (!signIn) WelcomeField(name, { name = it; clear() }, "Your name", false, KeyboardType.Text)
+                WelcomeField(email, { email = it; clear() }, "Email", false, KeyboardType.Email)
+                WelcomeField(password, { password = it; clear() }, if (signIn) "Password" else "Password (at least 8 characters)", true, KeyboardType.Password)
+                error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+                Spacer(Modifier.height(16.dp))
+                Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(Clay, Color(0xFFE5533D))))
+                    .clickable { error = if (signIn) accounts.signIn(email, password) else accounts.signUp(name, email, password) }, contentAlignment = Alignment.Center) {
+                    Text(if (signIn) "Sign in" else "Create account", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+                TextButton({ signIn = !signIn; error = null }) { Text(if (signIn) "New here? Create an account" else "Already have an account? Sign in", color = Color.White.copy(alpha = 0.85f)) }
+                TextButton({ accounts.continueAsGuest() }) { Text("Continue without an account", color = Color.White.copy(alpha = 0.6f)) }
+                Text("Your account is stored securely on this device — your password is never saved in plain text.", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
+            }
+        }
+    }
 }
 
-// ------------------------------------------------------------------ Nude Security warning page
+@Composable
+private fun WelcomeField(value: String, onChange: (String) -> Unit, label: String, secret: Boolean, kind: KeyboardType) {
+    OutlinedTextField(value, onChange, Modifier.fillMaxWidth().padding(top = 10.dp), label = { Text(label) }, singleLine = true,
+        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = kind),
+        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Clay, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
+            focusedLabelColor = Clay, unfocusedLabelColor = Color.White.copy(alpha = 0.6f), cursorColor = Clay))
+}
+
+@Composable
+private fun accountsHello(): String {
+    val a = (LocalContext.current.applicationContext as NudeApplication).accounts.current
+    return if (a != null) "Hi ${a.firstName}, I'm Nebula" else "Hi, I'm Nebula"
+}
+
+// ------------------------------------------------------------------ Rovian Defender warning page
 @Composable
 private fun BlockedPage(browser: Browser, tab: Tab, v: Security.Verdict) {
     val info = Security.categoryInfo[v.category ?: "suspicious"] ?: Security.categoryInfo.getValue("suspicious")
-    val severe = v.action == Security.Action.BLOCK
-    var understood by remember(v.url) { mutableStateOf(false) }
-    val tint = if (severe) MaterialTheme.colorScheme.error else Color(0xFFB7791F)
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(tint.copy(alpha = 0.12f), MaterialTheme.colorScheme.background))).verticalScroll(rememberScrollState()).padding(24.dp)) {
-        Spacer(Modifier.height(32.dp))
-        Box(Modifier.size(68.dp).clip(RoundedCornerShape(22.dp)).background(tint.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_shield), null, Modifier.size(36.dp), tint = tint)
-        }
-        Spacer(Modifier.height(16.dp))
-        Text("NUDE SECURITY", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(info.first, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(v.host, Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 13.sp)
-        Spacer(Modifier.height(12.dp))
-        Text(info.second, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(14.dp))
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text(if (v.confirmed) "Confirmed threat (on a known-threat list)" else "Suspected — based on warning signs, not confirmed", fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                v.signals.forEach { Text("• ${it.message}", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+    var confirm by remember(v.url) { mutableStateOf(false) }
+    var why by remember(v.url) { mutableStateOf(false) }
+    val ink = Color(0xFF0B0B0F)
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        Image(painterResource(R.drawable.ic_rovian_block), null, Modifier.size(220.dp, 253.dp).align(Alignment.TopStart).offset(x = (-70).dp, y = 40.dp))
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+            Spacer(Modifier.height(300.dp))
+            Text(buildAnnotatedString {
+                append("This Website is ")
+                withStyle(SpanStyle(color = RovianRed)) { append("Not Protected") }
+                append(".")
+            }, fontSize = 38.sp, lineHeight = 40.sp, fontWeight = FontWeight.Black, color = ink)
+            Spacer(Modifier.height(12.dp))
+            Text("Proceeding could cost you your information.", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = ink)
+            Spacer(Modifier.height(10.dp))
+            Text(buildAnnotatedString {
+                append("${info.first} — ")
+                append(if (v.confirmed) "on a known-threat list." else "suspected from warning signs, not confirmed.")
+            }, fontSize = 14.sp, color = Color(0xFF55505C))
+            Spacer(Modifier.height(20.dp))
+            Button({ browser.backToSafety(tab) }, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = ink, contentColor = Color.White)) {
+                Text("Back to safety", fontWeight = FontWeight.Bold)
             }
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("What to do: ${info.third}", fontSize = 14.sp)
-        Spacer(Modifier.height(20.dp))
-        Button({ browser.backToSafety(tab) }, Modifier.fillMaxWidth().height(50.dp)) { Text("Back to safety") }
-        v.intendedSite?.let { site ->
+            v.intendedSite?.let { site ->
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton({ tab.blocked = null; browser.load(tab, site) }, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Go to ${Omnibox.host(site)} instead", color = ink) }
+            }
+            Spacer(Modifier.height(14.dp))
+            if (!(v.confirmed && browser.store.level == Security.Level.MAXIMUM)) {
+                if (!confirm) {
+                    Text(buildAnnotatedString {
+                        append("Continue to ${v.host} ")
+                        withStyle(SpanStyle(color = RovianRed, fontWeight = FontWeight.Bold)) { append("UNSAFE") }
+                    }, fontSize = 17.sp, color = ink, modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { confirm = true }.padding(vertical = 10.dp))
+                } else {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(RovianRed.copy(alpha = 0.08f)).border(1.dp, RovianRed.copy(alpha = 0.3f), RoundedCornerShape(16.dp)).padding(16.dp)) {
+                        Text("This site may steal your passwords, payment details or other information, or harm your device.", fontSize = 14.sp, color = ink)
+                        Spacer(Modifier.height(10.dp))
+                        Row {
+                            Button({ browser.continueAnyway(tab) }, colors = ButtonDefaults.buttonColors(containerColor = RovianRed)) { Text("I understand — continue") }
+                            Spacer(Modifier.width(8.dp))
+                            TextButton({ confirm = false }) { Text("Cancel", color = ink) }
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
-            OutlinedButton({ tab.blocked = null; browser.load(tab, site) }, Modifier.fillMaxWidth().height(50.dp)) { Text("Go to ${Omnibox.host(site)} instead") }
-        }
-        if (!(v.confirmed && browser.store.level == Security.Level.MAXIMUM)) {
+            Text(if (why) "▾ Why Rovian Defender stopped this site" else "▸ Why Rovian Defender stopped this site", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = ink,
+                modifier = Modifier.clickable { why = !why }.padding(vertical = 8.dp))
+            if (why) {
+                Text(info.second, fontSize = 14.sp, color = Color(0xFF55505C))
+                Spacer(Modifier.height(6.dp))
+                v.signals.forEach { Text("• ${it.message}", fontSize = 14.sp, color = Color(0xFF55505C)) }
+                Spacer(Modifier.height(6.dp))
+                Text("What to do: ${info.third}", fontSize = 14.sp, color = ink)
+            }
             Spacer(Modifier.height(24.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(understood, { understood = it })
-                Text("I understand this site may steal my information or harm my device", fontSize = 13.sp)
+                Image(painterResource(R.drawable.ic_rovian_mark), null, Modifier.size(18.dp, 21.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ink)) { append("Rovian") }
+                    withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color(0xFF9AA0AA))) { append("Defender") }
+                }, fontSize = 15.sp)
             }
-            TextButton({ browser.continueAnyway(tab) }, enabled = understood) { Text("Continue to ${v.host} (unsafe)", color = if (understood) MaterialTheme.colorScheme.error else Color.Gray) }
+            Spacer(Modifier.height(32.dp))
         }
     }
 }
@@ -499,7 +655,11 @@ private fun MenuSheet(browser: Browser, onDismiss: () -> Unit, onScreen: (Screen
                 tab?.let { if (!it.isHome) browser.load(it, it.url) }
                 onDismiss()
             }
-            MenuItem(Icons.Default.Warning, "Nude Security") { onScreen(Screen.SECURITY) }
+            MenuItem(Icons.Default.Warning, "Rovian Defender") { onScreen(Screen.SECURITY) }
+            val accounts = (LocalContext.current.applicationContext as NudeApplication).accounts
+            accounts.current?.let { a ->
+                MenuItem(Icons.Default.AccountCircle, "Sign out ${a.firstName}") { accounts.signOut(); onDismiss() }
+            } ?: MenuItem(Icons.Default.AccountCircle, "Sign in to Nude") { accounts.showWelcome(); onDismiss() }
             MenuItem(Icons.Default.Settings, "Settings") { onScreen(Screen.SETTINGS) }
         }
     }
@@ -622,8 +782,8 @@ private fun SettingsPage(browser: Browser) {
             FilterChip(theme == k, { theme = k; store.theme = k; activity.recreate() }, { Text(l) }, Modifier.padding(end = 8.dp))
         } }
         SectionTitle("Nude services")
-        Text("Nude AI and Nude Search run on Nude servers. Enter their addresses here (API keys stay on the server).", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        OutlinedTextField(gateway, { gateway = it; store.aiGateway = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nude AI gateway") }, placeholder = { Text("https://ai.example.com") }, singleLine = true)
+        Text("Nebula and Nude Search run on Nude servers. Enter their addresses here (API keys stay on the server).", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(gateway, { gateway = it; store.aiGateway = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nebula gateway") }, placeholder = { Text("https://ai.example.com") }, singleLine = true)
         OutlinedTextField(search, { search = it; store.searchServer = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nude Search server") }, placeholder = { Text("https://search.example.com") }, singleLine = true)
         OutlinedTextField(token, { token = it; store.serviceToken = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Access token (optional)") }, singleLine = true)
         SectionTitle("Default browser")
@@ -679,7 +839,7 @@ private fun SecurityPage(browser: Browser) {
                 )
             }
             SectionTitle("Recent security events")
-            if (events.isEmpty()) Text("All quiet — Nude Security hasn't had to step in yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (events.isEmpty()) Text("All quiet — Rovian Defender hasn't had to step in yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         items(events) { e ->
             Column(Modifier.padding(vertical = 6.dp)) {
@@ -690,7 +850,7 @@ private fun SecurityPage(browser: Browser) {
     }
 }
 
-// ------------------------------------------------------------------ Nude AI
+// ------------------------------------------------------------------ Nebula (AI)
 @Composable
 private fun AiSheet(browser: Browser, onDismiss: () -> Unit) {
     val store = browser.store
@@ -716,14 +876,14 @@ private fun AiSheet(browser: Browser, onDismiss: () -> Unit) {
                 val (title, body) = NudeAi.pageText(wv)
                 sources += JSONObject().put("id", "S1").put("kind", "page").put("title", title).put("url", tab.url).put("content", body)
                 val v = Security.analyze(tab.url, store.level)
-                sources += JSONObject().put("id", "S2").put("kind", "security").put("title", "Nude Security site check").put("url", tab.url)
+                sources += JSONObject().put("id", "S2").put("kind", "security").put("title", "Rovian Defender site check").put("url", tab.url)
                     .put("content", JSONObject().put("action", v.action.name).put("confirmed", v.confirmed).put("signals", v.signals.joinToString("; ") { it.message }).toString())
                 used += title
             }
             if (store.aiGateway.isBlank()) {
                 val local = NudeAi.localAnswer(text, tab?.url, store.level)
-                messages += if (local != null) ChatMessage("assistant", local, note = "Answered on your phone by Nude Security.")
-                else ChatMessage("assistant", "Nude AI isn't set up yet. Add your Nude AI gateway address in Settings → Nude services. Safety questions like \"Is this website safe?\" or pasting a suspicious message work without it.", error = true)
+                messages += if (local != null) ChatMessage("assistant", local, note = "Answered on your phone by Rovian Defender.")
+                else ChatMessage("assistant", "Nebula isn't set up yet. Add your Nebula gateway address in Settings → Nude services. Safety questions like \"Is this website safe?\" or pasting a suspicious message work without it.", error = true)
                 busy = false
                 return@launch
             }
@@ -734,8 +894,8 @@ private fun AiSheet(browser: Browser, onDismiss: () -> Unit) {
             }
             r.onFailure { e ->
                 val local = NudeAi.localAnswer(text, tab?.url, store.level)
-                messages[idx] = if (local != null) ChatMessage("assistant", local, note = "Answered on your phone — Nude AI isn't reachable.")
-                else ChatMessage("assistant", "Nude AI isn't reachable (${e.message}).", error = true)
+                messages[idx] = if (local != null) ChatMessage("assistant", local, note = "Answered on your phone — Nebula isn't reachable.")
+                else ChatMessage("assistant", "Nebula isn't reachable (${e.message}).", error = true)
             }
             busy = false
         }
@@ -750,13 +910,13 @@ private fun AiSheet(browser: Browser, onDismiss: () -> Unit) {
                     Icon(painterResource(R.drawable.ic_sparkle), null, Modifier.size(16.dp), tint = Color.White)
                 }
                 Spacer(Modifier.width(10.dp))
-                Text("Nude AI", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                Text("Nebula", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 IconButton({ messages.clear() }) { Icon(Icons.Default.Refresh, "New conversation") }
             }
             LazyColumn(Modifier.weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (messages.isEmpty()) item {
                     Column(Modifier.fillMaxWidth().padding(top = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("How can I help?", style = MaterialTheme.typography.titleLarge)
+                        Text(accountsHello(), style = MaterialTheme.typography.titleLarge)
                         Spacer(Modifier.height(12.dp))
                         listOf("Summarise this page in five points" to true, "Is this website safe?" to false, "Explain this page like I'm in Grade 8" to true).forEach { (p, page) ->
                             AssistChip({ sharePage = page; send(p) }, { Text(p) }, Modifier.padding(4.dp))
@@ -787,7 +947,7 @@ private fun AiSheet(browser: Browser, onDismiss: () -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton({ send(input) }, enabled = !busy && input.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, "Send") }
             }
-            Text("Nude AI only sees what you share. It can make mistakes.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
+            Text("Nebula only sees what you share. It can make mistakes.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
         }
     }
 }

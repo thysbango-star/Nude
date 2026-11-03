@@ -1,0 +1,39 @@
+/* Welcome / sign-in: big kinetic type drifting behind a glass card (the motion reference). */
+body { background: #0c0b0e; color: #f4f0f6; overflow: hidden; min-height: 100vh; }
+.kinetic { position: fixed; inset: -6vh 0; display: flex; flex-direction: column; justify-content: center; gap: 1vh; z-index: 0; pointer-events: none; }
+.k-row { white-space: nowrap; font: 900 clamp(48px, 10vw, 150px)/0.95 var(--font-display); letter-spacing: -0.02em; color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.10); animation: marquee linear infinite; }
+.k-row:nth-child(3n) { color: rgba(255, 255, 255, 0.06); -webkit-text-stroke: 0; }
+.k-row span { display: inline-block; padding-right: 2vw; }
+.k-row.rev { animation-direction: reverse; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.glow { position: fixed; width: 70vw; height: 70vw; left: 15vw; top: 10vh; border-radius: 50%; z-index: 0; pointer-events: none; filter: blur(90px); opacity: 0.55;
+  background: radial-gradient(closest-side, #ed7d3a, #c86bff 55%, transparent 75%); animation: breathe 9s ease-in-out infinite alternate; }
+@keyframes breathe { from { transform: scale(0.9) translate(-4vw, 2vh); } to { transform: scale(1.1) translate(4vw, -2vh); } }
+.welcome { position: relative; z-index: 1; min-height: 100vh; display: grid; place-items: center; padding: 32px 18px; }
+.card { width: min(430px, 100%); padding: 34px 32px 26px; border-radius: 28px; text-align: center;
+  background: rgba(24, 20, 28, 0.66); backdrop-filter: blur(30px) saturate(1.4); border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55); animation: card-up 800ms cubic-bezier(.2,.9,.2,1) both; }
+@keyframes card-up { from { opacity: 0; transform: translateY(60px) scale(0.96); } }
+.leaving .card { transition: transform 420ms cubic-bezier(.5,0,.75,0), opacity 420ms; transform: translateY(-40px) scale(0.97); opacity: 0; }
+.logo { height: 96px; margin-bottom: 8px; filter: drop-shadow(0 10px 30px rgba(237, 125, 58, 0.35)); }
+h1 { margin: 0; font: 750 30px/1.15 var(--font-display); letter-spacing: -0.02em; color: #fff; }
+.lead { margin: 8px 0 20px; color: rgba(244, 240, 246, 0.7); }
+form { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+label { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; font-weight: 600; color: rgba(244, 240, 246, 0.75); }
+input { height: 46px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: #fff; padding: 0 14px; font-size: 15px; outline: 0; transition: border-color var(--t), box-shadow var(--t); }
+input:focus { border-color: #ed7d3a; box-shadow: 0 0 0 4px rgba(237, 125, 58, 0.2); }
+input::placeholder { color: rgba(255, 255, 255, 0.3); }
+.btn.big { height: 48px; justify-content: center; margin-top: 6px; font-size: 15px; border-radius: 14px; background: linear-gradient(135deg, #ed7d3a, #f05a4a); color: #fff; box-shadow: 0 10px 30px rgba(237, 125, 58, 0.35); }
+.btn.big:disabled { opacity: 0.6; }
+.err { padding: 10px 12px; border-radius: 12px; background: rgba(255, 90, 80, 0.14); color: #ffb3ab; font-size: 13px; }
+.switch-line { margin-top: 16px; font-size: 13.5px; color: rgba(244, 240, 246, 0.7); }
+.link { color: #ff9a5a; font-weight: 650; padding: 0; background: none; cursor: pointer; }
+.muted-link { margin-top: 10px; color: rgba(244, 240, 246, 0.55); font-weight: 500; }
+.fine { margin: 18px 0 0; font-size: 11.5px; color: rgba(244, 240, 246, 0.42); }
+.known { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.known-acc { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: #fff; text-align: left; cursor: pointer; }
+.known-acc:hover { background: rgba(255, 255, 255, 0.09); }
+.known-acc .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; overflow: hidden; flex-shrink: 0; }
+.known-acc .av img { width: 100%; height: 100%; object-fit: cover; }
+.known-acc b { display: block; font-size: 14px; } .known-acc small { color: rgba(255, 255, 255, 0.55); }

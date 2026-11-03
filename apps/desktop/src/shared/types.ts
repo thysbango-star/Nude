@@ -4,6 +4,7 @@ export type ThemeSetting = 'system' | 'light' | 'dark';
 export type StartupSetting = 'restore' | 'newtab' | 'homepage';
 export type SearchEngineId = 'nude' | 'duckduckgo' | 'google' | 'bing' | 'brave' | 'ecosia' | 'startpage';
 export type ProtectionLevel = 'standard' | 'enhanced' | 'maximum';
+export type BrowseMode = 'everyday' | 'shopping' | 'research' | 'study' | 'focus';
 export type ToolbarItem = 'home' | 'reader' | 'split' | 'overview' | 'downloads' | 'security' | 'ai' | 'voice';
 
 export interface Settings {
@@ -34,6 +35,7 @@ export interface Settings {
   toolbar: ToolbarItem[];
   aiEnabled: boolean;
   voiceOutput: boolean;
+  mode: BrowseMode;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -43,7 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   startup: 'restore',
   homepage: 'nude://newtab',
   showHomeButton: true,
-  showBookmarksBar: true,
+  showBookmarksBar: false,
   downloadsDirectory: '',
   askWhereToSave: false,
   notifyOnDownloadComplete: true,
@@ -62,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   toolbar: ['home', 'reader', 'split', 'overview', 'security', 'downloads', 'ai'],
   aiEnabled: true,
   voiceOutput: false,
+  mode: 'everyday',
 };
 
 export interface Bookmark {
@@ -104,7 +107,7 @@ export interface DownloadInfo {
   private: boolean;
   risk?: 'low' | 'medium' | 'high' | 'dangerous';
   securityNotes?: string[];
-  /** Waiting for the user to keep or discard after a Nude Security warning. */
+  /** Waiting for the user to keep or discard after a Rovian Defender warning. */
   awaitingDecision?: boolean;
   blocked?: boolean;
   /** True if the file has since been moved or deleted. */
@@ -156,6 +159,8 @@ export interface TabState {
   hasPasswords: boolean;
   readerAvailable: boolean;
   thumbnail?: string;
+  /** Address to display instead of url (the blocked site on Rovian Defender's warning page). */
+  shownUrl?: string;
 }
 
 export interface TabGroup { id: string; name: string; color: string; collapsed: boolean }
@@ -179,7 +184,11 @@ export interface SecurityStats {
 export interface PasswordPrompt { id: string; origin: string; username: string; update: boolean }
 export interface DownloadPrompt { id: string; filename: string; risk: string; notes: string[] }
 
-export interface AiSource { id: string; kind: 'page' | 'selection' | 'tab' | 'file' | 'security' | 'search'; title: string; url?: string }
+export interface AiSource { id: string; kind: 'page' | 'selection' | 'tab' | 'file' | 'security' | 'search' | 'products'; title: string; url?: string }
+
+export interface PageProduct { name: string; price?: string; currency?: string; image?: string; url?: string; rating?: string }
+
+export interface AccountInfo { id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string }
 
 export interface FindState {
   open: boolean;
@@ -217,6 +226,10 @@ export interface WindowState {
   toolbar: ToolbarItem[];
   aiEnabled: boolean;
   accentColor: string;
+  mode: BrowseMode;
+  account: AccountInfo | null;
+  theme: ThemeSetting;
+  nebulaActive: boolean;
 }
 
 export type SuggestionKind = 'url' | 'search' | 'history' | 'bookmark' | 'tab' | 'remote';
@@ -244,7 +257,8 @@ export type ChromeCommand =
   | { type: 'toast'; message: string }
   | { type: 'toggle-ai' }
   | { type: 'ai-prompt'; prompt: string; context: Partial<Record<'page' | 'selection' | 'security', boolean>> }
-  | { type: 'toggle-overview' };
+  | { type: 'toggle-overview' }
+  | { type: 'nebula-activity'; active: boolean };
 
 export interface ClearDataOptions {
   range: 'hour' | 'day' | 'week' | 'month' | 'all';
@@ -256,5 +270,5 @@ export interface ClearDataOptions {
 }
 
 export interface InternalEvent {
-  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords';
+  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account';
 }

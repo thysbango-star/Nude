@@ -31,7 +31,7 @@ export function searchUrl(engine: SearchEngineId, query: string): string {
   return e.searchUrl.replace('{q}', encodeURIComponent(query.trim()));
 }
 
-export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader', 'passwords'] as const;
+export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader', 'passwords', 'welcome', 'account'] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
 export const NEW_TAB_URL = 'nude://newtab/';
 

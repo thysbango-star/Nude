@@ -1,4 +1,4 @@
-// Nude AI bridge: gathers ONLY the context the user explicitly shared, attaches Nude Security
+// Nebula (Nude's AI) bridge: gathers ONLY the context the user explicitly shared, attaches Rovian Defender
 // signals, and streams answers from the AI gateway (which holds all provider keys).
 import { net, type WebContents } from 'electron';
 import { analyzeMessage, analyzeUrl, CATEGORY_INFO } from '@nude/security-engine';
@@ -10,6 +10,7 @@ export interface AiRequest {
   requestId: string;
   messages: { role: 'user' | 'assistant'; content: string }[];
   share: { page?: boolean; selection?: boolean; tabIds?: number[]; files?: { name: string; text: string }[] };
+  mode?: string;
 }
 
 interface SourcePayload extends AiSource { content: string }
@@ -31,6 +32,10 @@ export class AiBridge {
         const p = await ReaderStore.pageText(activeTab.wc);
         sources.push({ id: `S${sources.length + 1}`, kind: 'page', title: p.title, url: p.url, content: p.text });
         sources.push(this.securitySource(p.url, sources.length + 1));
+        const products = await ReaderStore.pageProducts(activeTab.wc).catch(() => []);
+        if (products.length) {
+          sources.push({ id: `S${sources.length + 1}`, kind: 'products', title: `Products on ${new URL(p.url).hostname}`, url: p.url, content: JSON.stringify(products) });
+        }
       }
       if (req.share.selection && activeTab) {
         const text = await ReaderStore.selection(activeTab.wc);
@@ -52,10 +57,10 @@ export class AiBridge {
     send({ type: 'sources', sources: sources.map(({ content: _c, ...s }) => s) });
 
     const last = req.messages[req.messages.length - 1]?.content ?? '';
-    // Pasted message/email: add Nude Security's scam analysis as a source.
+    // Pasted message/email: add Rovian Defender's scam analysis as a source.
     if (/scam|phish|fraud|legit|genuine|real\??|safe\??/i.test(last) && last.length > 120) {
       const v = analyzeMessage(last);
-      sources.push({ id: `S${sources.length + 1}`, kind: 'security', title: 'Nude Security message analysis',
+      sources.push({ id: `S${sources.length + 1}`, kind: 'security', title: 'Rovian Defender message analysis',
         content: JSON.stringify({ assessment: v.assessment, indicators: v.indicators.map((i) => i.message), links: v.links.map((l) => ({ host: l.host, action: l.action, confidence: l.confidence })) }) });
     }
 
@@ -66,7 +71,7 @@ export class AiBridge {
       const res = await net.fetch(`${settings.aiGatewayUrl.replace(/\/+$/, '')}/v1/chat`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(settings.serviceToken ? { authorization: `Bearer ${settings.serviceToken}` } : {}) },
-        body: JSON.stringify({ messages: req.messages.slice(-20), sources, stream: true }),
+        body: JSON.stringify({ messages: req.messages.slice(-20), sources, stream: true, mode: req.mode ?? this.app.profile.settings.get().mode }),
         signal: ctrl.signal,
       });
       if (!res.ok || !res.body) throw new Error(`gateway answered HTTP ${res.status}`);
@@ -99,10 +104,10 @@ export class AiBridge {
         const local = this.localAnswer(last, activeTab?.wc.getURL());
         if (local) {
           send({ type: 'delta', text: local });
-          send({ type: 'notice', message: 'Answered on your device by Nude Security — the Nude AI service isn\'t reachable.' });
+          send({ type: 'notice', message: 'Answered on your device by Rovian Defender — the Nebula service isn\'t reachable.' });
           send({ type: 'done' });
         } else {
-          send({ type: 'error', message: `Nude AI isn't reachable (${(err as Error).message}). Start the AI gateway or set its address in Settings → Nude AI.` });
+          send({ type: 'error', message: `Nebula isn't reachable (${(err as Error).message}). Start the AI gateway or set its address in Settings → Nebula.` });
         }
       }
     } finally {
@@ -113,7 +118,7 @@ export class AiBridge {
   private securitySource(url: string, n: number): SourcePayload {
     const v = analyzeUrl(url, undefined, this.app.profile.settings.get().protectionLevel);
     const live = this.app.security.check(url);
-    return { id: `S${n}`, kind: 'security', title: 'Nude Security site check', url,
+    return { id: `S${n}`, kind: 'security', title: 'Rovian Defender site check', url,
       content: JSON.stringify({ action: live.action, confidence: live.confidence, category: live.category ?? null, signals: (live.signals.length ? live.signals : v.signals).map((s) => s.message) }) };
   }
 
@@ -124,7 +129,7 @@ export class AiBridge {
       const v = this.app.security.check(currentUrl);
       const host = new URL(currentUrl).hostname;
       if (v.action === 'allow') {
-        return `**${host}** isn't on Nude Security's threat lists and shows no strong warning signs.\n\nThat isn't a guarantee it's safe — Nude Security can only check known threats and common tricks. ${currentUrl.startsWith('https:') ? 'The connection is encrypted.' : 'The connection is **not** encrypted, so avoid entering passwords or payment details.'}`;
+        return `**${host}** isn't on Rovian Defender's threat lists and shows no strong warning signs.\n\nThat isn't a guarantee it's safe — Rovian Defender can only check known threats and common tricks. ${currentUrl.startsWith('https:') ? 'The connection is encrypted.' : 'The connection is **not** encrypted, so avoid entering passwords or payment details.'}`;
       }
       const info = v.category ? CATEGORY_INFO[v.category] : null;
       return `**${host}** was flagged (${v.confidence === 'confirmed' ? 'confirmed threat' : 'suspected — not confirmed'}).\n\n${info?.explanation ?? ''}\n\nWhy:\n${v.signals.map((s) => `- ${s.message}`).join('\n')}\n\n${info?.advice ?? ''}`;
@@ -136,7 +141,7 @@ export class AiBridge {
     }
     if (/why (was|is) (this|the|my) download blocked|why.*blocked/.test(q)) {
       const ev = this.app.security.summary().events.find((e) => e.type === 'download-blocked' || e.type === 'site-blocked');
-      if (ev) return `Nude Security blocked ${ev.type === 'download-blocked' ? 'a download' : 'a site'}: ${ev.detail}\n\nSafe next steps: get the file or site from the official source by typing its address yourself. Nude AI can't override this protection; if you're sure it's a mistake, you can review it on the Nude Security page.`;
+      if (ev) return `Rovian Defender blocked ${ev.type === 'download-blocked' ? 'a download' : 'a site'}: ${ev.detail}\n\nSafe next steps: get the file or site from the official source by typing its address yourself. Nebula can't override this protection; if you're sure it's a mistake, you can review it on the Rovian Defender page.`;
     }
     return null;
   }

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 230">
+  <defs>
+    <linearGradient id="rvg" x1="0.1" y1="0.95" x2="0.9" y2="0.05"><stop offset="0" stop-color="#6FF0C6"/><stop offset="0.3" stop-color="#1AA8DA"/><stop offset="0.62" stop-color="#1450F0"/><stop offset="0.82" stop-color="#1AA3DC"/><stop offset="1" stop-color="#74F4C8"/></linearGradient>
+    <clipPath id="rvs"><path d="M100 6 C132 20 162 25 192 25 C194 118 160 190 100 226 C40 190 6 118 8 25 C38 25 68 20 100 6 Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#rvs)">
+    <rect width="200" height="230" fill="url(#rvg)"/>
+    <g fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round">
+      <path id="arm" d="M96 118 C132 128 170 92 162 -8"/>
+      <use href="#arm" transform="rotate(120 100 116)"/>
+      <use href="#arm" transform="rotate(240 100 116)"/>
+    </g>
+    <circle cx="100" cy="116" r="9" fill="#fff"/>
+  </g>
+</svg>

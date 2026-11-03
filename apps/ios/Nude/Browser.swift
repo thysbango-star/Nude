@@ -38,7 +38,7 @@ final class Tab: NSObject, ObservableObject, Identifiable {
             c.allowsInlineMediaPlayback = true
             c.mediaTypesRequiringUserActionForPlayback = [.all]
             c.preferences.javaScriptCanOpenWindowsAutomatically = false
-            c.preferences.isFraudulentWebsiteWarningEnabled = true // WebKit Safe Browsing, in addition to Nude Security
+            c.preferences.isFraudulentWebsiteWarningEnabled = true // WebKit Safe Browsing, in addition to Rovian Defender
             c.defaultWebpagePreferences.allowsContentJavaScript = true
             return c
         }()
@@ -103,7 +103,7 @@ final class Tab: NSObject, ObservableObject, Identifiable {
         webView = nil
     }
 
-    /// Page text for Nude AI — only read when the user shares the page. Uses the classic Objective-C
+    /// Page text for Nebula — only read when the user shares the page. Uses the classic Objective-C
     /// evaluateJavaScript API so the app runs on iOS 16+ (the newer Swift-only overload needs iOS 26 libraries).
     /// The text is treated as untrusted data by the AI gateway either way.
     func pageText() async -> (title: String, text: String) {
@@ -191,7 +191,7 @@ extension Tab: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
         model?.dialog = PageDialog(host: frame.request.url?.host ?? "This page", message: message, kind: .confirm) { ok in completionHandler(ok) }
     }
 
-    // Downloads: Nude Security checks every file before it's saved.
+    // Downloads: Rovian Defender checks every file before it's saved.
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
         guard let model else { return completionHandler(nil) }
         let src = url.hasPrefix("http") ? Security.analyze(url, level: model.store.level) : nil
@@ -202,7 +202,7 @@ extension Tab: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
         case .block:
             model.store.blockedDownloads += 1
             model.store.logEvent("download-blocked", "\(suggestedFilename): \(verdict.notes.first ?? "risky file")", url: source)
-            model.toast = "Nude Security blocked a dangerous download: \(suggestedFilename)"
+            model.toast = "Rovian Defender blocked a dangerous download: \(suggestedFilename)"
             completionHandler(nil)
         case .warn:
             model.pendingDownload = PendingDownload(filename: suggestedFilename, notes: verdict.notes) { keep in completionHandler(keep ? destination : nil) }
@@ -291,7 +291,7 @@ final class BrowserModel: ObservableObject {
         if newTab || active == nil { self.newTab(url: url) } else { active?.load(url) }
     }
 
-    /// Nude Security pre-navigation check. Returns false (and shows the warning page) when the site is flagged.
+    /// Rovian Defender pre-navigation check. Returns false (and shows the warning page) when the site is flagged.
     func allowNavigation(_ tab: Tab, _ url: String) -> Bool {
         if store.level == .maximum, url.hasPrefix("http://"), let host = URL(string: url)?.host, !Security.isPrivateIP(host) {
             let https = "https://" + url.dropFirst("http://".count)
@@ -303,7 +303,7 @@ final class BrowserModel: ObservableObject {
         tab.blocked = v
         tab.isHome = false
         tab.url = url
-        tab.title = "Warning — Nude Security"
+        tab.title = "Warning — Rovian Defender"
         store.blockedSites += 1
         store.logEvent(v.action == .block ? "site-blocked" : "site-warned", v.signals.first?.message ?? "Suspicious site", url: url)
         return false

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Nude Security for iOS/iPadOS: a Swift port of packages/security-engine. Runs entirely on the device.
+/// Rovian Defender for iOS/iPadOS: a Swift port of packages/security-engine. Runs entirely on the device.
 enum ProtectionLevel: String, CaseIterable, Identifiable, Codable {
     case standard, enhanced, maximum
     var id: String { rawValue }
@@ -142,7 +142,7 @@ enum Security {
         let reg = registrableDomain(host)
         if let c = knownBad[host] ?? knownBad[reg] {
             return SecurityVerdict(url: url, host: host, action: .block, confirmed: true, category: c, score: 100,
-                                   signals: [SecuritySignal(code: "threat-list", severity: 100, message: "This site is on Nude Security's list of known \(c) sites.")])
+                                   signals: [SecuritySignal(code: "threat-list", severity: 100, message: "This site is on Rovian Defender's list of known \(c) sites.")])
         }
         if trusted.contains(reg) || trusted.contains(host) { return SecurityVerdict(url: url, host: host, action: .allow, confirmed: false, category: nil, score: 0, signals: []) }
 
@@ -230,7 +230,7 @@ enum Security {
             if parts.count >= 3 && decoys.contains(parts[parts.count - 2]) { notes.append((50, "The name \"\(filename)\" pretends to be a .\(parts[parts.count - 2]) file but is actually a program.")) }
         }
         if url.hasPrefix("http:") { notes.append((executable.contains(ext) ? 25 : 8, "The file was sent over an unencrypted connection and could have been altered.")) }
-        if let s = source, s.action != .allow { notes.append((s.confirmed ? 100 : 30, "The site offering this file has been flagged by Nude Security.")) }
+        if let s = source, s.action != .allow { notes.append((s.confirmed ? 100 : 30, "The site offering this file has been flagged by Rovian Defender.")) }
         let score = min(100, notes.reduce(0) { $0 + $1.0 })
         let risk = score >= 80 ? "dangerous" : score >= 50 ? "high" : score >= 25 ? "medium" : "low"
         let blockAt = level == .maximum ? 50 : level == .enhanced ? 75 : 85
@@ -258,7 +258,7 @@ enum Security {
                 guard let r = Range(m.range, in: text) else { continue }
                 let link = String(text[r]).trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?"))
                 let v = analyze(link, level: .enhanced)
-                if v.action != .allow { found.append((v.confirmed ? 60 : 30, "Contains a link to \(v.host), which Nude Security flags: \(v.signals.first?.message ?? "suspicious address")")) }
+                if v.action != .allow { found.append((v.confirmed ? 60 : 30, "Contains a link to \(v.host), which Rovian Defender flags: \(v.signals.first?.message ?? "suspicious address")")) }
             }
         }
         let score = min(100, found.reduce(0) { $0 + $1.0 })
