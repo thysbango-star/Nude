@@ -1,5 +1,4 @@
 import XCTest
-@testable import Nude
 
 final class OmniboxTests: XCTestCase {
     private func r(_ s: String) -> OmniboxResult? { Omnibox.resolve(s, engine: .duckduckgo) }

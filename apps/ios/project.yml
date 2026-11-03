@@ -39,12 +39,14 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
+  # Logic tests: compile the pure-Swift engine files directly, so tests don't need to launch the app.
   NudeTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [NudeTests]
-    dependencies:
-      - target: Nude
+    sources:
+      - NudeTests
+      - Nude/Omnibox.swift
+      - Nude/Security.swift
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

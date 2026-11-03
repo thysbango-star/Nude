@@ -124,7 +124,27 @@ jobs:
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
           echo "Simulator: $UDID"
-          xcodebuild test -project Nude.xcodeproj -scheme Nude -destination "id=$UDID" CODE_SIGNING_ALLOWED=NO -quiet
+          echo "$UDID" > /tmp/udid
+          xcodebuild test -project Nude.xcodeproj -scheme Nude -destination "id=$UDID" CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual -quiet
+      - name: Launch the app in the simulator (smoke test)
+        working-directory: apps/ios
+        run: |
+          UDID=$(cat /tmp/udid)
+          xcodebuild build -project Nude.xcodeproj -scheme Nude -configuration Debug -sdk iphonesimulator -destination "id=$UDID" \
+            -derivedDataPath simbuild CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual -quiet
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" simbuild/Build/Products/Debug-iphonesimulator/Nude.app
+          xcrun simctl launch "$UDID" os.nude.browser
+          sleep 20
+          if xcrun simctl spawn "$UDID" launchctl list | grep -q os.nude.browser; then
+            echo "Nude is running in the simulator"
+          else
+            echo "Nude is not running — crash reports:"
+            find ~/Library/Logs/DiagnosticReports -name 'Nude*' -mmin -10 -exec sh -c 'echo "== $1"; head -120 "$1"' _ {} \;
+            exit 1
+          fi
+          xcrun simctl io "$UDID" screenshot ../../out-sim.png || true
       - name: Build unsigned .ipa (for sideloading / re-signing)
         working-directory: apps/ios
         run: |
