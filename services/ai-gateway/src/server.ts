@@ -1,6 +1,6 @@
-// Nude AI gateway HTTP server. Clients never see provider keys.
+// Nebula gateway HTTP server. Clients never see provider keys.
 import { createServer, type IncomingMessage } from 'node:http';
-import { buildPrompt, type ChatMessage, type Source } from './prompt';
+import { buildPrompt, pickSpeed, type ChatMessage, type Source } from './prompt';
 import { providerFromEnv, type Provider } from './providers';
 
 export interface GatewayOptions {
@@ -48,17 +48,19 @@ export function createGateway(o: GatewayOptions) {
       recent.push(now);
       hits.set(ip, recent);
 
-      const body = (await readJson(req)) as { messages?: ChatMessage[]; sources?: Source[]; mode?: string };
+      const body = (await readJson(req)) as { messages?: ChatMessage[]; sources?: Source[]; mode?: string; speed?: string };
       if (!Array.isArray(body.messages) || !body.messages.length) return json(400, { error: 'messages is required' });
-      const prompt = buildPrompt(body.messages, Array.isArray(body.sources) ? body.sources : [], 120_000, typeof body.mode === 'string' ? body.mode : undefined);
+      const sources = Array.isArray(body.sources) ? body.sources : [];
+      const prompt = buildPrompt(body.messages, sources, 120_000, typeof body.mode === 'string' ? body.mode : undefined);
+      const speed = pickSpeed(body.speed, sources);
       if (!prompt.messages.length) return json(400, { error: 'No user message' });
 
-      res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+      res.writeHead(200, { 'x-nebula-speed': speed, 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
       const ctrl = new AbortController();
       req.on('close', () => ctrl.abort());
       const send = (obj: unknown) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
       try {
-        for await (const delta of o.provider.stream({ ...prompt, maxTokens: o.maxTokens ?? 1500, signal: ctrl.signal })) send({ delta });
+        for await (const delta of o.provider.stream({ ...prompt, maxTokens: o.maxTokens ?? 1500, signal: ctrl.signal, speed })) send({ delta });
         send({ done: true });
       } catch (err) {
         if (!ctrl.signal.aborted) send({ error: `The AI provider failed: ${(err as Error).message}` });
@@ -77,5 +79,5 @@ if (require.main === module) {
   const provider = providerFromEnv();
   const server = createGateway({ provider, token: process.env.NUDE_SERVICE_TOKEN, maxTokens: Number(process.env.NUDE_AI_MAX_TOKENS ?? 1500), rateLimit: Number(process.env.NUDE_AI_RATE_LIMIT ?? 30) });
   const port = Number(process.env.PORT ?? 8790);
-  server.listen(port, process.env.HOST ?? '127.0.0.1', () => console.log(`Nude AI gateway on http://${process.env.HOST ?? '127.0.0.1'}:${port} (provider: ${provider.name})`));
+  server.listen(port, process.env.HOST ?? '127.0.0.1', () => console.log(`Nebula gateway on http://${process.env.HOST ?? '127.0.0.1'}:${port} (provider: ${provider.name})`));
 }

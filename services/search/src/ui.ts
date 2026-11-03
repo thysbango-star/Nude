@@ -1,7 +1,6 @@
 // Server-rendered Nude Search pages. All dynamic text is escaped.
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
-const SPARKLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3.5l1.8 5 5 1.8-5 1.8-1.8 5-1.8-5-5-1.8 5-1.8z"/><path fill="currentColor" d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>';
 const SEARCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M20 20l-4.2-4.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 const MIC = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
@@ -14,7 +13,7 @@ function shell(title: string, body: string, bodyClass = '') {
 function searchForm(q = '', type = 'web', big = false) {
   return `<form class="sbox${big ? ' big' : ''}" action="/search" method="get" role="search" autocomplete="off">
     <span class="sicon">${SEARCH}</span>
-    <input name="q" value="${esc(q)}" placeholder="Search the web with Nude" aria-label="Search" ${big ? 'autofocus' : ''} maxlength="300" id="q">
+    <input name="q" value="${esc(q)}" placeholder="Search with Nude" aria-label="Search" ${big ? 'autofocus' : ''} maxlength="300" id="q">
     ${type !== 'web' ? `<input type="hidden" name="type" value="${esc(type)}">` : ''}
     <button type="button" class="mic" id="voice" title="Search by voice" aria-label="Search by voice" hidden>${MIC}</button>
     <button class="go" aria-label="Search">${SEARCH}</button>
@@ -26,9 +25,9 @@ export function renderHome(trending: string[], index: { pages: number; hosts: nu
   const cats: [string, string][] = [['News', 'news'], ['Images', 'images'], ['Videos', 'videos'], ['Shopping', 'shopping']];
   return shell('Nude Search', `
   <main class="home">
-    <div class="brand"><span class="logo">${SPARKLE}</span><h1>Nude Search</h1></div>
+    <div class="brand"><img class="logo-img" src="/logo.svg" alt="" width="64" height="64"><h1>Nude <span>Search</span></h1></div>
     ${searchForm('', 'web', true)}
-    <div class="ai-toggle"><label class="switch"><input type="checkbox" id="ai-mode"><span></span></label><span>${SPARKLE} AI answers</span></div>
+    <div class="ai-toggle"><label class="switch"><input type="checkbox" id="ai-mode"><span></span></label><span><i class="orb"></i>Answers from Nebula</span></div>
     <div class="cats">${cats.map(([l, t]) => `<a class="chip" href="/search?type=${t}&q=" data-type="${t}">${l}</a>`).join('')}</div>
     <section class="lists">
       <div id="recent-wrap" hidden><h2>Recent searches</h2><div id="recent" class="chips"></div><button class="link" id="clear-recent">Clear</button></div>
@@ -80,8 +79,8 @@ export function renderResults(d: Data) {
   const pager = d.total > d.perPage ? `<nav class="pager">${d.page > 1 ? `<a class="chip" href="/search?q=${q}&type=${d.type}&page=${d.page - 1}">Previous</a>` : ''}
       <span>Page ${d.page}</span>${d.page * d.perPage < d.total ? `<a class="chip" href="/search?q=${q}&type=${d.type}&page=${d.page + 1}">Next</a>` : ''}</nav>` : '';
   return shell(`${d.query} — Nude Search`, `
-  <header class="top"><a class="mini-brand" href="/"><span class="logo sm">${SPARKLE}</span></a>${searchForm(d.query, d.type)}
-    <div class="ai-toggle compact"><label class="switch"><input type="checkbox" id="ai-mode"><span></span></label><span>AI</span></div></header>
+  <header class="top"><a class="mini-brand" href="/" aria-label="Nude Search home"><img src="/logo.svg" alt="" width="34" height="34"></a>${searchForm(d.query, d.type)}
+    <div class="ai-toggle compact"><label class="switch"><input type="checkbox" id="ai-mode"><span></span></label><span><i class="orb"></i>Nebula</span></div></header>
   <nav class="tabs">${tabs.map(([l, t]) => `<a class="${d.type === t ? 'on' : ''}" href="/search?q=${q}&type=${t}">${l}</a>`).join('')}
     <span class="filters"><select id="time" aria-label="Time"><option value="">Any time</option><option value="day">Past day</option><option value="week">Past week</option><option value="month">Past month</option><option value="year">Past year</option></select>
     <select id="safe" aria-label="Safe search"><option value="moderate">SafeSearch: on</option><option value="strict">SafeSearch: strict</option><option value="off">SafeSearch: off</option></select></span></nav>

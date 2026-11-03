@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { buildPrompt, sanitizeUntrusted } from '../src/prompt';
 import { anthropicProvider, mockProvider, openAiCompatibleProvider } from '../src/providers';
+import { pickSpeed } from '../src/prompt';
 import { createGateway } from '../src/server';
 
 test('untrusted content cannot forge delimiters', () => {
@@ -78,5 +79,28 @@ test('Anthropic and OpenAI-compatible providers parse streams (mock upstreams)',
   };
   assert.equal(await collect(anthropicProvider('k', 'm', fetch, base)), 'Hello');
   assert.equal(await collect(openAiCompatibleProvider('', 'm', base)), 'Hi');
+  upstream.close();
+});
+
+test('Nebula picks the fast model for quick chat and the thorough one for shared pages and images', async () => {
+  const seen: { model: string; images: number }[] = [];
+  const upstream = createServer(async (req, res) => {
+    let body = '';
+    for await (const c of req) body += c;
+    const j = JSON.parse(body) as { model: string; messages: { content: unknown }[] };
+    const last = j.messages[j.messages.length - 1].content;
+    seen.push({ model: j.model, images: Array.isArray(last) ? last.filter((b: { type: string }) => b.type === 'image').length : 0 });
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.end('data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}\n\n');
+  });
+  const base = await listen(upstream);
+  assert.equal(pickSpeed(undefined, []), 'fast');
+  assert.equal(pickSpeed('auto', [{ id: 'S1', kind: 'page', title: 't', content: 'x' }]), 'thorough');
+  assert.equal(pickSpeed('fast', [{ id: 'S1', kind: 'page', title: 't', content: 'x' }]), 'fast');
+  const p = anthropicProvider('k', 'big', fetch, base, 'quick');
+  const prompt = buildPrompt([{ role: 'user', content: 'What is in this picture?' }], [{ id: 'S1', kind: 'image', title: 'Photo', url: 'https://example.com/a.jpg', content: '' }]);
+  for await (const _ of p.stream({ ...prompt, maxTokens: 10, signal: new AbortController().signal, speed: 'thorough' })) { /* drain */ }
+  for await (const _ of p.stream({ system: 's', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10, signal: new AbortController().signal, speed: 'fast' })) { /* drain */ }
+  assert.deepEqual(seen, [{ model: 'big', images: 1 }, { model: 'quick', images: 0 }]);
   upstream.close();
 });

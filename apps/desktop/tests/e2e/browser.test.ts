@@ -117,14 +117,20 @@ test('first run shows the welcome page, and signing up greets you by name', asyn
   await waitFor(activeTab, (t) => t.url.startsWith('nude://newtab'));
   const hello = await waitFor(() => inPage<string>('nude://newtab', 'document.body.innerText'), (x) => /Hello, Simon/.test(x));
   assert.match(hello, /Hello, Simon/);
-  assert.match(await ui.getAttribute('#avatar', 'title') ?? '', /Simon Tester/);
+  const acct = await ui.evaluate(() => (window as unknown as { __lastState: { account: { name: string } | null } }).__lastState.account);
+  assert.equal(acct?.name, 'Simon Tester');
 });
 
 test('navigates to a real web page from the address bar', async () => {
   await go(`${base}/`);
   const t = await waitFor(activeTab, (t) => t.title === 'Nude Test Home' && !t.loading);
   assert.equal(t.url, `${base}/`);
-  assert.equal(await waitFor(() => ui.inputValue('#address'), (v) => v === `${base}/`, 5000).catch(() => ui.inputValue('#address')), `${base}/`);
+  // At rest the address bar shows just the site; focusing it shows the full address.
+  const host = new URL(base).host;
+  assert.equal(await waitFor(() => ui.inputValue('#address'), (v) => v === host, 5000).catch(() => ui.inputValue('#address')), host);
+  await ui.focus('#address');
+  assert.equal(await ui.inputValue('#address'), `${base}/`);
+  await ui.keyboard.press('Escape');
 });
 
 test('target=_blank opens a new tab', async () => {
@@ -201,4 +207,29 @@ test('closing and reopening a tab', async () => {
   await waitFor(state, (x) => x.tabs.length === n - 1);
   await ui.evaluate(() => (window as unknown as { nude: { invoke(c: string): Promise<void> } }).nude.invoke('reopen'));
   await waitFor(state, (x) => x.tabs.length === n);
+});
+
+test('Nebula opens as a floating panel over the page and closes again', async () => {
+  await go(`${base}/`);
+  await waitFor(activeTab, (t) => t.title === 'Nude Test Home' && !t.loading);
+  await ui.click('#ai-btn');
+  await ui.waitForSelector('.nebula-panel .nb-rail [data-sec=spaces]');
+  // The page keeps its full width: Nebula floats over it instead of splitting the window.
+  const pageWidth = await app.evaluate(({ BrowserWindow }) => {
+    const views = BrowserWindow.getAllWindows()[0].contentView.children as unknown as { getBounds(): { width: number } }[];
+    return Math.max(...views.map((v) => v.getBounds().width));
+  });
+  const uiWidth = await ui.evaluate(() => document.getElementById('content')!.getBoundingClientRect().width);
+  assert.ok(Math.abs(pageWidth - uiWidth) <= 2, `page ${pageWidth} vs content ${uiWidth}`);
+  await ui.click('.nebula-panel [data-sec=ask]');
+  await ui.waitForSelector('.nebula-panel .hello');
+  await ui.keyboard.press('Escape');
+  await ui.waitForSelector('.nebula-panel', { state: 'detached' });
+});
+
+test('tabs can be grouped into a space', async () => {
+  const s0 = await state();
+  await ui.evaluate((id) => (window as unknown as { nude: { invoke(c: string, ...a: unknown[]): Promise<unknown> } }).nude.invoke('groupCreate', 'Research', [id]), s0.activeTabId);
+  const s = await waitFor(state, (x) => (x as unknown as { groups: { name: string }[] }).groups.some((g) => g.name === 'Research'));
+  assert.ok((s as unknown as { tabs: { groupId?: string }[] }).tabs.some((t) => t.groupId));
 });

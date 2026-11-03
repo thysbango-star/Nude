@@ -9,8 +9,9 @@ import type { AiSource } from '../shared/types';
 export interface AiRequest {
   requestId: string;
   messages: { role: 'user' | 'assistant'; content: string }[];
-  share: { page?: boolean; selection?: boolean; tabIds?: number[]; files?: { name: string; text: string }[] };
+  share: { page?: boolean; selection?: boolean; tabIds?: number[]; files?: { name: string; text: string }[]; image?: { src: string; alt: string } };
   mode?: string;
+  speed?: 'auto' | 'fast' | 'thorough';
 }
 
 interface SourcePayload extends AiSource { content: string }
@@ -47,6 +48,10 @@ export class AiBridge {
         const p = await ReaderStore.pageText(wc, 30_000);
         sources.push({ id: `S${sources.length + 1}`, kind: 'tab', title: p.title, url: p.url, content: p.text });
       }
+      if (req.share.image && /^https:\/\//.test(req.share.image.src)) {
+        sources.push({ id: `S${sources.length + 1}`, kind: 'image', title: req.share.image.alt || 'Image from the page', url: req.share.image.src,
+          content: `An image from ${activeTab ? activeTab.wc.getURL() : 'the page'}${req.share.image.alt ? ` described as "${req.share.image.alt}"` : ''}. The image itself is attached.` });
+      }
       for (const f of (req.share.files ?? []).slice(0, 5)) {
         sources.push({ id: `S${sources.length + 1}`, kind: 'file', title: f.name.slice(0, 200), content: String(f.text).slice(0, 80_000) });
       }
@@ -71,7 +76,7 @@ export class AiBridge {
       const res = await net.fetch(`${settings.aiGatewayUrl.replace(/\/+$/, '')}/v1/chat`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(settings.serviceToken ? { authorization: `Bearer ${settings.serviceToken}` } : {}) },
-        body: JSON.stringify({ messages: req.messages.slice(-20), sources, stream: true, mode: req.mode ?? this.app.profile.settings.get().mode }),
+        body: JSON.stringify({ messages: req.messages.slice(-20), sources, stream: true, mode: req.mode ?? settings.mode, speed: req.speed ?? settings.nebulaSpeed }),
         signal: ctrl.signal,
       });
       if (!res.ok || !res.body) throw new Error(`gateway answered HTTP ${res.status}`);
@@ -107,11 +112,41 @@ export class AiBridge {
           send({ type: 'notice', message: 'Answered on your device by Rovian Defender — the Nebula service isn\'t reachable.' });
           send({ type: 'done' });
         } else {
-          send({ type: 'error', message: `Nebula isn't reachable (${(err as Error).message}). Start the AI gateway or set its address in Settings → Nebula.` });
+          send({ type: 'error', message: `Nebula isn't reachable (${(err as Error).message}). Set up Nebula in Settings → Nebula (see docs/NEBULA_SETUP.md).` });
         }
       }
     } finally {
       this.controllers.delete(req.requestId);
+    }
+  }
+
+  /** Asks Nebula to sort open tabs into spaces. Sends only tab titles and site names. Returns null when Nebula isn't reachable. */
+  async suggestSpaces(tabs: { id: number; title: string; url: string }[]): Promise<{ name: string; tabIds: number[] }[] | null> {
+    const settings = this.app.profile.settings.get();
+    const list = tabs.map((t) => { let host = ''; try { host = new URL(t.url).hostname; } catch { /* ignore */ } return `${t.id}\t${t.title.slice(0, 120)}\t${host}`; }).join('\n');
+    const prompt = `Sort these browser tabs into 2-6 spaces by topic. Reply with JSON only: [{"name": "Short name", "tabIds": [1,2]}]. Every id must come from the list. Leave out tabs that don't fit a group.\n\nid\ttitle\tsite\n${list}`;
+    try {
+      const res = await net.fetch(`${settings.aiGatewayUrl.replace(/\/+$/, '')}/v1/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(settings.serviceToken ? { authorization: `Bearer ${settings.serviceToken}` } : {}) },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], sources: [], speed: 'fast' }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) return null;
+      let text = '';
+      for (const line of (await res.text()).split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        try { const m = JSON.parse(line.slice(5)) as { delta?: string }; if (m.delta) text += m.delta; } catch { /* skip */ }
+      }
+      const json = /\[[\s\S]*\]/.exec(text)?.[0];
+      if (!json || /development mode/.test(text)) return null;
+      const ids = new Set(tabs.map((t) => t.id));
+      const plan = (JSON.parse(json) as { name?: unknown; tabIds?: unknown }[])
+        .map((g) => ({ name: String(g.name ?? '').slice(0, 40), tabIds: Array.isArray(g.tabIds) ? g.tabIds.map(Number).filter((n) => ids.has(n)) : [] }))
+        .filter((g) => g.name && g.tabIds.length);
+      return plan.length ? plan : null;
+    } catch {
+      return null;
     }
   }
 

@@ -16,6 +16,9 @@ final class Store: ObservableObject {
     @Published var searchServer: String { didSet { d.set(searchServer.trimmingCharacters(in: .whitespaces), forKey: "searchServer") } }
     @Published var serviceToken: String { didSet { d.set(serviceToken, forKey: "serviceToken") } }
     @Published var desktopMode: Bool { didSet { d.set(desktopMode, forKey: "desktopMode") } }
+    /// Nebula's mode (everyday, shopping, research, study, focus) and answer speed (auto, fast, thorough).
+    @Published var mode: String { didSet { d.set(mode, forKey: "mode") } }
+    @Published var nebulaSpeed: String { didSet { d.set(nebulaSpeed, forKey: "nebulaSpeed") } }
     @Published private(set) var bookmarks: [Bookmark] = []
     @Published private(set) var history: [HistoryEntry] = []
     @Published private(set) var events: [SecurityEvent] = []
@@ -31,6 +34,8 @@ final class Store: ObservableObject {
         searchServer = d.string(forKey: "searchServer") ?? ""
         serviceToken = d.string(forKey: "serviceToken") ?? ""
         desktopMode = d.bool(forKey: "desktopMode")
+        mode = d.string(forKey: "mode") ?? "everyday"
+        nebulaSpeed = d.string(forKey: "nebulaSpeed") ?? "auto"
         blockedSites = d.integer(forKey: "blockedSites")
         blockedDownloads = d.integer(forKey: "blockedDownloads")
         trusted = Set(d.stringArray(forKey: "trusted") ?? [])

@@ -76,6 +76,8 @@ async function render() {
       <section class="card" id="ai"><h2>Nebula</h2>
         ${sw('aiEnabled', 'Show Nebula', 'The assistant only sees pages, selections, tabs or files you explicitly share with it.')}
         ${sw('voiceOutput', 'Read answers aloud automatically')}
+        ${sel('nebulaSpeed', 'Answer speed', [['auto', 'Auto: fast for chat, deep when you share pages or images'], ['fast', 'Fast'], ['thorough', 'Deep: slower, more careful']])}
+        <p class="tiny">To turn Nebula on, run the Nebula gateway with an AI key and put its address under Nude services below. The setup guide is docs/NEBULA_SETUP.md in the Nude project.</p>
         <p class="tiny">Nebula runs through the Nebula gateway. The gateway holds all AI provider keys — they're never stored in the browser.</p>
       </section>
 

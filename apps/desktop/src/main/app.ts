@@ -226,6 +226,18 @@ export class NudeApp {
     return this.closed.length > 0;
   }
 
+  closedTabs() {
+    return [...this.closed].reverse();
+  }
+
+  /** index counts from the most recently closed tab (0). */
+  reopenClosedAt(w: BrowserWindowController, index: number) {
+    if (w.isPrivate || index < 0 || index >= this.closed.length) return;
+    const [c] = this.closed.splice(this.closed.length - 1 - index, 1);
+    w.addTab({ url: c.url, title: c.title, index: c.index });
+    this.windows.forEach((x) => x.pushState());
+  }
+
   reopenClosed(w: BrowserWindowController) {
     if (w.isPrivate) return;
     const c = this.closed.pop();
@@ -345,7 +357,7 @@ export class NudeApp {
       switch (cmd) {
         case 'ready': w.setUiReady(); return { shortcuts: SHORTCUT_HELP, engines: Object.values(SEARCH_ENGINES).map((x) => ({ id: x.id, name: x.name })) };
         case 'bounds': w.setContentBounds(a[0] as ContentBounds); return;
-        case 'overlay': return w.setOverlay(Boolean(a[0]));
+        case 'overlay': return w.setOverlay(Boolean(a[0]), Boolean(a[1]));
         case 'navigate': w.navigate(str(a[0]), (a[1] ?? {}) as { newTab?: boolean; background?: boolean }); return;
         case 'newTab': w.newTab(); return;
         case 'activate': w.activate(num(a[0])); return;
@@ -382,8 +394,51 @@ export class NudeApp {
         case 'toggleBookmark': w.runShortcut('bookmark'); return;
         case 'openBookmark': w.navigate(str(a[0]), { newTab: Boolean(a[1]), background: Boolean(a[1]) }); return;
         case 'reader': await w.openReader(); return;
-        case 'split': w.toggleSplit(); return;
-        case 'splitRatio': w.setSplitRatio(Number(a[0])); return;
+        // Spaces (tab groups)
+        case 'groupCreate': {
+          const ids = (Array.isArray(a[1]) ? a[1] : []).map(Number).filter(Number.isFinite);
+          return w.createGroup(str(a[0], 60), ids.length ? ids : tab ? [tab.id] : []);
+        }
+        case 'groupRename': w.renameGroup(str(a[0], 100), str(a[1], 60)); return;
+        case 'groupDelete': w.deleteGroup(str(a[0], 100)); return;
+        case 'groupClear': w.clearGroup(a[0] === null ? null : str(a[0], 100)); return;
+        case 'setTabGroup': w.setTabGroup(num(a[0]), a[1] === null ? null : str(a[1], 100)); return;
+        case 'groupTidy': {
+          const loose = w.tabs.filter((t) => !t.pinned && !t.groupId && /^https?:/.test(t.url));
+          if (loose.length < 2) return { made: 0, by: 'none' };
+          const plan = await this.ai.suggestSpaces(loose.map((t) => ({ id: t.id, title: t.title, url: t.url })));
+          if (plan) return { made: w.applyGroups(plan), by: 'nebula' };
+          return { made: w.tidyBySite(), by: 'site' };
+        }
+        case 'closedTabs': return w.isPrivate ? [] : this.closedTabs();
+        case 'reopenClosedAt': this.reopenClosedAt(w, num(a[0])); return;
+        case 'pageMedia': {
+          if (!tab || !/^https?:/.test(tab.url)) return [];
+          return ReaderStore.pageMedia(tab.wc).catch(() => []);
+        }
+        case 'downloadsList': return this.profile.downloads.get().filter((d) => d.private === w.isPrivate).slice(-30).reverse();
+        case 'downloadOpen': {
+          const d = this.profile.downloads.get().find((x) => x.id === str(a[0], 100));
+          if (d && d.status === 'completed' && !d.blocked) void shell.openPath(d.savePath);
+          return;
+        }
+        case 'downloadShow': {
+          const d = this.profile.downloads.get().find((x) => x.id === str(a[0], 100));
+          if (d) shell.showItemInFolder(d.savePath);
+          return;
+        }
+        case 'notes': return w.isPrivate ? [] : this.profile.notes.get();
+        case 'noteAdd': if (!w.isPrivate) return this.profile.addNote({ text: str(a[0], 50_000), title: str(a[1], 200), url: str(a[2], 2000) }); return null;
+        case 'noteRemove': this.profile.removeNote(str(a[0], 100)); return;
+        case 'setSpeed': this.profile.updateSettings({ nebulaSpeed: str(a[0], 10) as never }); return;
+        case 'nebulaStatus': {
+          const url = this.profile.settings.get().aiGatewayUrl.replace(/\/+$/, '');
+          try {
+            const r = await net.fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+            const j = await r.json() as { provider?: string };
+            return { ok: r.ok, provider: j.provider ?? '', url, speed: this.profile.settings.get().nebulaSpeed };
+          } catch { return { ok: false, provider: '', url, speed: this.profile.settings.get().nebulaSpeed }; }
+        }
         case 'thumbnails': {
           await Promise.all(w.tabs.filter((t) => t.id === w.activeTabId).map((t) => t.captureThumbnail()));
           return w.thumbnails();
@@ -402,6 +457,7 @@ export class NudeApp {
         }
         case 'downloadsSeen': this.downloads.markSeen(); return;
         case 'suggest': return this.suggest(w, str(a[0], 500));
+        case 'suggestRemote': return this.suggestRemote(w, str(a[0], 500));
         case 'siteInfo': {
           if (!tab) return null;
           const url = tab.url;
@@ -428,7 +484,10 @@ export class NudeApp {
               page: Boolean(req.share?.page), selection: Boolean(req.share?.selection),
               tabIds: Array.isArray(req.share?.tabIds) ? req.share.tabIds.filter((x) => typeof x === 'number') : [],
               files: Array.isArray(req.share?.files) ? req.share.files.slice(0, 5).map((f) => ({ name: String(f.name), text: String(f.text) })) : [],
+              image: req.share?.image && typeof req.share.image.src === 'string' && /^https:\/\//.test(req.share.image.src)
+                ? { src: req.share.image.src.slice(0, 4000), alt: String(req.share.image.alt ?? '').slice(0, 200) } : undefined,
             },
+            speed: req.speed === 'fast' || req.speed === 'thorough' ? req.speed : undefined,
           };
           void this.ai.ask(e.sender, tab ? { wc: tab.wc, id: tab.id } : undefined, (id) => w.tabById(id)?.wc, clean);
           return;
@@ -586,25 +645,25 @@ export class NudeApp {
     });
   }
 
-  private async suggest(w: BrowserWindowController, q: string) {
+  /** Local suggestions answer instantly; remote ones arrive separately so typing never waits on the network. */
+  private suggest(w: BrowserWindowController, q: string) {
     const p = this.profile;
     const tabs = w.tabs.filter((t) => t.id !== w.activeTabId).map((t) => ({ id: t.id, url: t.url, title: t.title, favicon: t.favicon }));
     const local = rankLocalSuggestions(q, w.isPrivate ? [] : p.history.get(), p.bookmarks.get(), tabs, 6);
     const inline = w.isPrivate ? null : inlineCompletion(q, p.history.get());
-    let remote: string[] = [];
-    const s = p.settings.get();
+    const engine = SEARCH_ENGINES[p.settings.get().searchEngine];
+    return { local, remote: [] as string[], inline, engine: engine.name };
+  }
+
+  private async suggestRemote(w: BrowserWindowController, q: string): Promise<string[]> {
+    const s = this.profile.settings.get();
     const engine = SEARCH_ENGINES[s.searchEngine];
     // Remote suggestions send what you type to the search engine: off in private windows.
-    if (s.searchSuggestions && !w.isPrivate && engine.suggestUrl && q.trim().length > 0 && q.length < 120) {
-      try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 1200);
-        const res = await net.fetch(engine.suggestUrl.replace('{q}', encodeURIComponent(q)), { signal: ctrl.signal, headers: { accept: 'application/json' } });
-        clearTimeout(t);
-        if (res.ok) remote = parseRemoteSuggestions(await res.json(), 5);
-      } catch { /* offline or slow: local suggestions only */ }
-    }
-    return { local, remote, inline, engine: engine.name };
+    if (!s.searchSuggestions || w.isPrivate || !engine.suggestUrl || !q.trim() || q.length >= 120) return [];
+    try {
+      const res = await net.fetch(engine.suggestUrl.replace('{q}', encodeURIComponent(q)), { signal: AbortSignal.timeout(900), headers: { accept: 'application/json' } });
+      return res.ok ? parseRemoteSuggestions(await res.json(), 5) : [];
+    } catch { return []; /* offline or slow: local suggestions only */ }
   }
 
   private async clearData(o: ClearDataOptions) {

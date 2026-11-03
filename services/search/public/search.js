@@ -70,7 +70,7 @@
     const card = $('#ai-answer');
     if (!card || !ai?.checked || !card.dataset.q) { if (card) card.hidden = true; return; }
     card.hidden = false;
-    card.innerHTML = '<h2>✦ Nude AI</h2><div id="ai-text">Thinking…</div>';
+    card.innerHTML = '<h2><i class="orb"></i>Nebula</h2><div id="ai-text"><span class="typing"><i></i><i></i><i></i></span></div>';
     try {
       const res = await fetch(`/api/answer?q=${encodeURIComponent(card.dataset.q)}`);
       if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
@@ -85,7 +85,7 @@
         }
       }
       if (sources.length) card.insertAdjacentHTML('beforeend', `<div class="src">Sources: ${sources.map((s) => `<a href="${esc(s.url)}">${esc(s.id)} ${esc(s.title)}</a>`).join(' · ')}</div>`);
-    } catch (err) { $('#ai-text').textContent = `AI answers aren't available: ${err.message}`; }
+    } catch (err) { $('#ai-text').textContent = `Nebula isn't available right now: ${err.message}`; }
   }
   loadAnswer();
 

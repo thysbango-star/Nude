@@ -3,7 +3,20 @@ import type { ChatMessage } from './prompt';
 
 export interface Provider {
   name: string;
-  stream(input: { system: string; messages: ChatMessage[]; maxTokens: number; signal: AbortSignal }): AsyncIterable<string>;
+  /** speed picks the fast or the thorough model when the provider has both. */
+  stream(input: { system: string; messages: ChatMessage[]; maxTokens: number; signal: AbortSignal; speed?: 'fast' | 'thorough' }): AsyncIterable<string>;
+}
+
+function anthropicMessages(messages: ChatMessage[]) {
+  return messages.map((m) => m.images?.length
+    ? { role: m.role, content: [...m.images.map((url) => ({ type: 'image', source: { type: 'url', url } })), { type: 'text', text: m.content }] }
+    : { role: m.role, content: m.content });
+}
+
+function openAiMessages(messages: ChatMessage[]) {
+  return messages.map((m) => m.images?.length
+    ? { role: m.role, content: [{ type: 'text', text: m.content }, ...m.images.map((url) => ({ type: 'image_url', image_url: { url } }))] }
+    : { role: m.role, content: m.content });
 }
 
 async function* sseLines(body: ReadableStream<Uint8Array>): AsyncIterable<string> {
@@ -24,15 +37,16 @@ async function* sseLines(body: ReadableStream<Uint8Array>): AsyncIterable<string
 }
 
 /** Anthropic Messages API (Claude). */
-export function anthropicProvider(apiKey: string, model: string, fetchImpl: typeof fetch = fetch, baseUrl = 'https://api.anthropic.com'): Provider {
+export function anthropicProvider(apiKey: string, model: string, fetchImpl: typeof fetch = fetch, baseUrl = 'https://api.anthropic.com', fastModel = model): Provider {
   return {
-    name: `anthropic:${model}`,
-    async *stream({ system, messages, maxTokens, signal }) {
+    name: fastModel !== model ? `anthropic:${fastModel}+${model}` : `anthropic:${model}`,
+    async *stream({ system, messages, maxTokens, signal, speed }) {
+      const use = speed === 'fast' ? fastModel : model;
       const res = await fetchImpl(`${baseUrl}/v1/messages`, {
         method: 'POST',
         signal,
         headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model, max_tokens: maxTokens, system, messages, stream: true }),
+        body: JSON.stringify({ model: use, max_tokens: maxTokens, system, messages: anthropicMessages(messages), stream: true }),
       });
       if (!res.ok || !res.body) throw new Error(`Anthropic API error ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
       for await (const data of sseLines(res.body)) {
@@ -46,15 +60,16 @@ export function anthropicProvider(apiKey: string, model: string, fetchImpl: type
 }
 
 /** Any OpenAI-compatible Chat Completions API (OpenAI, Azure OpenAI, OpenRouter, Ollama, vLLM, LM Studio…). */
-export function openAiCompatibleProvider(apiKey: string, model: string, baseUrl: string, fetchImpl: typeof fetch = fetch): Provider {
+export function openAiCompatibleProvider(apiKey: string, model: string, baseUrl: string, fetchImpl: typeof fetch = fetch, fastModel = model): Provider {
   return {
-    name: `openai-compatible:${model}`,
-    async *stream({ system, messages, maxTokens, signal }) {
+    name: fastModel !== model ? `openai-compatible:${fastModel}+${model}` : `openai-compatible:${model}`,
+    async *stream({ system, messages, maxTokens, signal, speed }) {
+      const use = speed === 'fast' ? fastModel : model;
       const res = await fetchImpl(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         signal,
         headers: { 'content-type': 'application/json', ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
-        body: JSON.stringify({ model, stream: true, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...messages] }),
+        body: JSON.stringify({ model: use, stream: true, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...openAiMessages(messages)] }),
       });
       if (!res.ok || !res.body) throw new Error(`Model API error ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`);
       for await (const data of sseLines(res.body)) {
@@ -86,8 +101,12 @@ export function providerFromEnv(env: NodeJS.ProcessEnv = process.env): Provider 
   const kind = (env.NUDE_AI_PROVIDER ?? (env.ANTHROPIC_API_KEY ? 'anthropic' : env.OPENAI_API_KEY || env.OPENAI_BASE_URL ? 'openai' : 'mock')).toLowerCase();
   if (kind === 'anthropic') {
     if (!env.ANTHROPIC_API_KEY) throw new Error('NUDE_AI_PROVIDER=anthropic needs ANTHROPIC_API_KEY');
-    return anthropicProvider(env.ANTHROPIC_API_KEY, env.NUDE_AI_MODEL ?? 'claude-sonnet-5-5', fetch, env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com');
+    const model = env.NUDE_AI_MODEL ?? 'claude-sonnet-5-5';
+    return anthropicProvider(env.ANTHROPIC_API_KEY, model, fetch, env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com', env.NUDE_AI_FAST_MODEL ?? 'claude-haiku-5-5');
   }
-  if (kind === 'openai') return openAiCompatibleProvider(env.OPENAI_API_KEY ?? '', env.NUDE_AI_MODEL ?? 'gpt-4o-mini', env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1');
+  if (kind === 'openai') {
+    const model = env.NUDE_AI_MODEL ?? 'gpt-4o-mini';
+    return openAiCompatibleProvider(env.OPENAI_API_KEY ?? '', model, env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1', fetch, env.NUDE_AI_FAST_MODEL ?? model);
+  }
   return mockProvider();
 }

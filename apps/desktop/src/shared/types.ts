@@ -5,7 +5,7 @@ export type StartupSetting = 'restore' | 'newtab' | 'homepage';
 export type SearchEngineId = 'nude' | 'duckduckgo' | 'google' | 'bing' | 'brave' | 'ecosia' | 'startpage';
 export type ProtectionLevel = 'standard' | 'enhanced' | 'maximum';
 export type BrowseMode = 'everyday' | 'shopping' | 'research' | 'study' | 'focus';
-export type ToolbarItem = 'home' | 'reader' | 'split' | 'overview' | 'downloads' | 'security' | 'ai' | 'voice';
+export type ToolbarItem = 'home' | 'reader' | 'split' | 'overview' | 'downloads' | 'security' | 'ai' | 'voice' | 'bookmarks';
 
 export interface Settings {
   theme: ThemeSetting;
@@ -36,6 +36,8 @@ export interface Settings {
   aiEnabled: boolean;
   voiceOutput: boolean;
   mode: BrowseMode;
+  /** Nebula answer speed: auto picks fast for chat and thorough when pages or images are shared. */
+  nebulaSpeed: 'auto' | 'fast' | 'thorough';
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -61,10 +63,11 @@ export const DEFAULT_SETTINGS: Settings = {
   serviceToken: '',
   clearHistoryOnExit: false,
   offerToSavePasswords: true,
-  toolbar: ['home', 'reader', 'split', 'overview', 'security', 'downloads', 'ai'],
+  toolbar: ['reader', 'bookmarks', 'overview', 'security', 'downloads', 'ai'],
   aiEnabled: true,
   voiceOutput: false,
   mode: 'everyday',
+  nebulaSpeed: 'auto',
 };
 
 export interface Bookmark {
@@ -165,6 +168,15 @@ export interface TabState {
 
 export interface TabGroup { id: string; name: string; color: string; collapsed: boolean }
 
+/** A recently closed tab (newest last). */
+export interface ClosedTabInfo { url: string; title: string; index: number }
+
+/** An image or video found on the page, for Nebula's Media view. */
+export interface PageMedia { src: string; alt: string; width: number; height: number; kind: 'image' | 'video' }
+
+/** Something the user saved from Nebula. */
+export interface NebulaNote { id: string; text: string; title: string; url?: string; createdAt: number }
+
 export interface SecurityEvent {
   time: number;
   type: 'site-blocked' | 'site-warned' | 'download-blocked' | 'download-warned' | 'download-flagged' | 'bypass' | 'tracker-summary' | 'scan' | 'lists-updated';
@@ -184,7 +196,7 @@ export interface SecurityStats {
 export interface PasswordPrompt { id: string; origin: string; username: string; update: boolean }
 export interface DownloadPrompt { id: string; filename: string; risk: string; notes: string[] }
 
-export interface AiSource { id: string; kind: 'page' | 'selection' | 'tab' | 'file' | 'security' | 'search' | 'products'; title: string; url?: string }
+export interface AiSource { id: string; kind: 'page' | 'selection' | 'tab' | 'file' | 'security' | 'search' | 'products' | 'image'; title: string; url?: string }
 
 export interface PageProduct { name: string; price?: string; currency?: string; image?: string; url?: string; rating?: string }
 
@@ -219,7 +231,6 @@ export interface WindowState {
   platform: NodeJS.Platform;
   canReopenClosedTab: boolean;
   groups: TabGroup[];
-  split: { leftId: number; rightId: number; ratio: number } | null;
   passwordPrompt: PasswordPrompt | null;
   downloadPrompt: DownloadPrompt | null;
   protectionLevel: ProtectionLevel;
@@ -232,7 +243,7 @@ export interface WindowState {
   nebulaActive: boolean;
 }
 
-export type SuggestionKind = 'url' | 'search' | 'history' | 'bookmark' | 'tab' | 'remote';
+export type SuggestionKind = 'url' | 'search' | 'history' | 'bookmark' | 'tab' | 'remote' | 'ai';
 
 export interface Suggestion {
   kind: SuggestionKind;
@@ -270,5 +281,5 @@ export interface ClearDataOptions {
 }
 
 export interface InternalEvent {
-  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account';
+  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes';
 }

@@ -7,6 +7,10 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
@@ -15,6 +19,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -73,18 +79,19 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 // ------------------------------------------------------------------ theme
-private val Clay = Color(0xFFED7D3A)      // Nude orange
-private val Violet = Color(0xFFA64FD0)    // Nebula lavender
-private val Cream = Color(0xFFF5F3EF)
-private val RovianRed = Color(0xFFC8383A)
-private val NebulaBrush = Brush.sweepGradient(listOf(Color(0xFF7B5CFF), Color(0xFFFF4FD8), Color(0xFFFF9A3C), Color(0xFF3CE0FF), Color(0xFF7B5CFF)))
+internal val Clay = Color(0xFFED7D3A)      // Nude orange
+internal val Violet = Color(0xFF8E6CF0)    // Nebula violet (used sparingly)
+internal val Cream = Color(0xFFF5F3EF)
+internal val RovianRed = Color(0xFFC8383A)
+internal val NebulaBrush = Brush.sweepGradient(listOf(Color(0xFF7B5CFF), Color(0xFFFF4FD8), Color(0xFFFF9A3C), Color(0xFF3CE0FF), Color(0xFF7B5CFF)))
 
 @Composable
 fun NudeTheme(store: Store, content: @Composable () -> Unit) {
     val dark = when (store.theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
     // The Nude design palette: lavender chrome, Nude orange, Nebula purple.
-    val scheme = if (dark) darkColorScheme(primary = Color(0xFFCF8CF2), onPrimary = Color(0xFF1A1020), secondary = Clay, background = Color(0xFF131116), surface = Color(0xFF1C1A20), surfaceVariant = Color(0xFF26232B), error = Color(0xFFFF6B5E))
-        else lightColorScheme(primary = Violet, onPrimary = Color.White, secondary = Clay, background = Color(0xFFF3EEF8), surface = Color.White, surfaceVariant = Color(0xFFF1EBF6), error = RovianRed)
+    // Matte palette: graphite and soft grey, Nude orange as the one accent.
+    val scheme = if (dark) darkColorScheme(primary = Color(0xFFF08A4B), onPrimary = Color(0xFF1B0F07), secondary = Clay, background = Color(0xFF0C0C0E), surface = Color(0xFF1C1C20), surfaceVariant = Color(0xFF222227), onSurfaceVariant = Color(0xFFA4A4AE), outlineVariant = Color(0x14FFFFFF), error = Color(0xFFFF6B5E))
+        else lightColorScheme(primary = Color(0xFFE8742F), onPrimary = Color.White, secondary = Clay, background = Color(0xFFF3F3F5), surface = Color.White, surfaceVariant = Color(0xFFEDEDF0), onSurfaceVariant = Color(0xFF5C5C66), outlineVariant = Color(0x17141420), error = RovianRed)
     MaterialTheme(colorScheme = scheme, content = content)
 }
 
@@ -130,13 +137,15 @@ fun BrowserScreen(browser: Browser) {
                 if (tab != null) TabContent(browser, tab, onSearch = { editing = true })
                 if (findOpen && tab?.webView != null) FindBar(tab) { findOpen = false }
             }
-            BottomBar(browser, editing, onEditing = { editing = it }, onScreen = { screen = it })
+            BottomBar(browser, editing, onEditing = { editing = it }, onScreen = { screen = it }, onAsk = { q -> NebulaMemory.pending = q; screen = Screen.AI })
         }
 
         browser.customView?.let { view ->
             AndroidView(factory = { c -> FrameLayout(c).apply { setBackgroundColor(android.graphics.Color.BLACK); (view.parent as? ViewGroup)?.removeView(view); addView(view) } },
                 modifier = Modifier.fillMaxSize())
         }
+
+        NebulaOverlay(browser, visible = screen == Screen.AI, onDismiss = { screen = Screen.NONE })
 
         val accounts = (ctx.applicationContext as NudeApplication).accounts
         if (accounts.needsWelcome) WelcomeScreen(accounts)
@@ -148,7 +157,7 @@ fun BrowserScreen(browser: Browser) {
             Screen.HISTORY -> FullPage("History", { screen = Screen.NONE }) { HistoryPage(browser) { screen = Screen.NONE } }
             Screen.SETTINGS -> FullPage("Settings", { screen = Screen.NONE }) { SettingsPage(browser) }
             Screen.SECURITY -> FullPage("Rovian Defender", { screen = Screen.NONE }) { SecurityPage(browser) }
-            Screen.AI -> AiSheet(browser) { screen = Screen.NONE }
+            Screen.AI -> {}
             Screen.NONE -> {}
         }
 
@@ -206,7 +215,7 @@ private fun TabContent(browser: Browser, tab: Tab, onSearch: () -> Unit) {
 
 // ------------------------------------------------------------------ bottom bar (address + actions)
 @Composable
-private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -> Unit, onScreen: (Screen) -> Unit) {
+private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -> Unit, onScreen: (Screen) -> Unit, onAsk: (String) -> Unit = {}) {
     val tab = browser.active
     var text by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -223,6 +232,11 @@ private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -
                     if (text.isNotBlank()) item {
                         SuggestionRow(Icons.Default.Search, text, "Search ${store.engine.label}") { browser.navigate("?$text"); onEditing(false); focus.clearFocus() }
                     }
+                    // Questions can go straight to Nebula.
+                    val question = text.trim().let { t -> !t.contains('.') && (t.endsWith("?") || Regex("^(what|why|how|who|when|where|which|is|are|can|should|explain|compare)\\b", RegexOption.IGNORE_CASE).containsMatchIn(t) || t.split(Regex("\\s+")).size >= 5) }
+                    if (question && tab?.isPrivate != true) item {
+                        SuggestionRow(Icons.Default.Star, "Ask Nebula: ${text.trim()}", "Nebula") { onAsk(text.trim()); onEditing(false); focus.clearFocus() }
+                    }
                     items(suggestions) { (title, url) ->
                         SuggestionRow(Icons.Default.Star, title, Omnibox.display(url)) { tab?.let { browser.load(it, url) }; onEditing(false); focus.clearFocus() }
                     }
@@ -230,8 +244,13 @@ private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(
-                    Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(22.dp))
+                    Modifier.weight(1f).animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)).height(46.dp).clip(RoundedCornerShape(16.dp))
                         .background(if (tab?.isPrivate == true) Violet.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant)
+                        .drawBehind {
+                            // A thin loading line along the bottom of the address bar.
+                            val p = (tab?.progress ?: 100)
+                            if (tab != null && !tab.isHome && p in 1..99) drawRect(Clay, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 2.dp.toPx()), size = androidx.compose.ui.geometry.Size(size.width * p / 100f, 2.dp.toPx()))
+                        }
                         .clickable(enabled = !editing) { onEditing(true) }.padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -240,11 +259,12 @@ private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -
                         tab?.blocked != null -> Icons.Default.Warning
                         tab != null && tab.isPrivate && tab.isHome -> Icons.Default.Lock
                         tab?.isHome != false -> Icons.Default.Search
-                        secure -> Icons.Default.Lock
+                        secure -> Icons.Default.CheckCircle
                         else -> Icons.Default.Info
                     }
-                    Icon(icon, null, Modifier.size(18.dp).clickable { onScreen(Screen.SECURITY) },
-                        tint = if (tab?.blocked != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                    // Rovian Defender indicator: tap for the security panel.
+                    Icon(icon, "Rovian Defender", Modifier.size(18.dp).clickable { onScreen(Screen.SECURITY) },
+                        tint = when { tab?.blocked != null -> MaterialTheme.colorScheme.error; secure && tab?.isHome == false -> Color(0xFF2F8A57); else -> MaterialTheme.colorScheme.onSurfaceVariant })
                     Spacer(Modifier.width(10.dp))
                     if (editing) {
                         BasicTextField(
@@ -274,12 +294,9 @@ private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -
                         }
                     }
                 }
-                if (!editing) {
-                    IconButton({ onScreen(Screen.AI) }) {
-                        Box(Modifier.size(30.dp).clip(CircleShape).background(NebulaBrush), contentAlignment = Alignment.Center) {
-                            Icon(painterResource(R.drawable.ic_sparkle), "Nebula", Modifier.size(16.dp), tint = Color.White)
-                        }
-                    }
+                AnimatedVisibility(!editing, enter = fadeIn(tween(160)) + androidx.compose.animation.expandHorizontally(), exit = fadeOut(tween(100)) + androidx.compose.animation.shrinkHorizontally()) {
+                  Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton({ onScreen(Screen.AI) }) { NebulaOrb(28.dp, spinning = false) }
                     IconButton({ onScreen(Screen.TABS) }) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(painterResource(R.drawable.ic_tabs), "Tabs", tint = MaterialTheme.colorScheme.onSurface)
@@ -287,6 +304,7 @@ private fun BottomBar(browser: Browser, editing: Boolean, onEditing: (Boolean) -
                         }
                     }
                     IconButton({ onScreen(Screen.MENU) }) { Icon(Icons.Default.MoreVert, "Menu") }
+                  }
                 }
             }
         }
@@ -345,7 +363,7 @@ private fun PeachBackdrop(dark: Boolean, private: Boolean, modifier: Modifier = 
 }
 
 @Composable
-private fun NudeMark(size: androidx.compose.ui.unit.Dp) {
+internal fun NudeMark(size: androidx.compose.ui.unit.Dp) {
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Box(Modifier.size(size * 0.4f, size).align(Alignment.TopCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Clay.copy(alpha = 0.55f)))))
         Icon(painterResource(R.drawable.ic_nude_mark), "Nude", Modifier.size(size), tint = Clay)
@@ -509,7 +527,7 @@ private fun WelcomeField(value: String, onChange: (String) -> Unit, label: Strin
 }
 
 @Composable
-private fun accountsHello(): String {
+internal fun accountsHello(): String {
     val a = (LocalContext.current.applicationContext as NudeApplication).accounts.current
     return if (a != null) "Hi ${a.firstName}, I'm Nebula" else "Hi, I'm Nebula"
 }
@@ -601,10 +619,15 @@ private fun TabsSheet(browser: Browser, onDismiss: () -> Unit) {
             }
             Spacer(Modifier.height(12.dp))
             LazyVerticalGrid(GridCells.Adaptive(150.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(browser.tabs, key = { it.id }) { t ->
+                itemsIndexed(browser.tabs, key = { _, t -> t.id }) { i, t ->
                     val active = t.id == browser.activeId
+                    // Cards rise in one after another; closing one lets the rest glide into place.
+                    var shown by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) { kotlinx.coroutines.delay(minOf(i, 12) * 28L); shown = true }
+                    val p by animateFloatAsState(if (shown) 1f else 0f, tween(280), label = "card")
                     Card(
-                        Modifier.fillMaxWidth().height(140.dp).clickable { browser.activeId = t.id; onDismiss() }
+                        Modifier.animateItem().graphicsLayer { alpha = p; translationY = (1 - p) * 28f; scaleX = 0.96f + 0.04f * p; scaleY = 0.96f + 0.04f * p }
+                            .fillMaxWidth().height(140.dp).clickable { browser.activeId = t.id; onDismiss() }
                             .then(if (active) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
                         colors = CardDefaults.cardColors(containerColor = if (t.isPrivate) Violet.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant),
                     ) {
@@ -851,109 +874,8 @@ private fun SecurityPage(browser: Browser) {
 }
 
 // ------------------------------------------------------------------ Nebula (AI)
-@Composable
-private fun AiSheet(browser: Browser, onDismiss: () -> Unit) {
-    val store = browser.store
-    val scope = rememberCoroutineScope()
-    val tab = browser.active
-    val messages = remember { mutableStateListOf<ChatMessage>() }
-    var input by remember { mutableStateOf("") }
-    var sharePage by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
-    val activity = LocalContext.current as MainActivity
-
-    fun send(text: String) {
-        if (text.isBlank() || busy) return
-        messages += ChatMessage("user", text)
-        input = ""
-        busy = true
-        scope.launch {
-            val sources = mutableListOf<JSONObject>()
-            val used = mutableListOf<String>()
-            val wv = tab?.webView
-            if (sharePage && tab != null && wv != null && tab.url.startsWith("http")) {
-                val (title, body) = NudeAi.pageText(wv)
-                sources += JSONObject().put("id", "S1").put("kind", "page").put("title", title).put("url", tab.url).put("content", body)
-                val v = Security.analyze(tab.url, store.level)
-                sources += JSONObject().put("id", "S2").put("kind", "security").put("title", "Rovian Defender site check").put("url", tab.url)
-                    .put("content", JSONObject().put("action", v.action.name).put("confirmed", v.confirmed).put("signals", v.signals.joinToString("; ") { it.message }).toString())
-                used += title
-            }
-            if (store.aiGateway.isBlank()) {
-                val local = NudeAi.localAnswer(text, tab?.url, store.level)
-                messages += if (local != null) ChatMessage("assistant", local, note = "Answered on your phone by Rovian Defender.")
-                else ChatMessage("assistant", "Nebula isn't set up yet. Add your Nebula gateway address in Settings → Nude services. Safety questions like \"Is this website safe?\" or pasting a suspicious message work without it.", error = true)
-                busy = false
-                return@launch
-            }
-            messages += ChatMessage("assistant", "", sources = used)
-            val idx = messages.lastIndex
-            val r = NudeAi.ask(store.aiGateway, store.serviceToken, messages.dropLast(1), sources) { delta ->
-                activity.runOnUiThread { messages[idx] = messages[idx].copy(text = messages[idx].text + delta) }
-            }
-            r.onFailure { e ->
-                val local = NudeAi.localAnswer(text, tab?.url, store.level)
-                messages[idx] = if (local != null) ChatMessage("assistant", local, note = "Answered on your phone — Nebula isn't reachable.")
-                else ChatMessage("assistant", "Nebula isn't reachable (${e.message}).", error = true)
-            }
-            busy = false
-        }
-    }
-
-    LaunchedEffect(messages.size, messages.lastOrNull()?.text?.length) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.lastIndex) }
-
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxHeight(0.92f).padding(horizontal = 16.dp).imePadding()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(Brush.linearGradient(listOf(Clay, Violet))), contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_sparkle), null, Modifier.size(16.dp), tint = Color.White)
-                }
-                Spacer(Modifier.width(10.dp))
-                Text("Nebula", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                IconButton({ messages.clear() }) { Icon(Icons.Default.Refresh, "New conversation") }
-            }
-            LazyColumn(Modifier.weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (messages.isEmpty()) item {
-                    Column(Modifier.fillMaxWidth().padding(top = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(accountsHello(), style = MaterialTheme.typography.titleLarge)
-                        Spacer(Modifier.height(12.dp))
-                        listOf("Summarise this page in five points" to true, "Is this website safe?" to false, "Explain this page like I'm in Grade 8" to true).forEach { (p, page) ->
-                            AssistChip({ sharePage = page; send(p) }, { Text(p) }, Modifier.padding(4.dp))
-                        }
-                    }
-                }
-                items(messages) { m ->
-                    val mine = m.role == "user"
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-                        Column(
-                            Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(18.dp))
-                                .background(if (mine) MaterialTheme.colorScheme.primary else if (m.error) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(12.dp),
-                        ) {
-                            if (m.text.isEmpty() && !mine) Text("…") else Text(markdown(m.text), color = if (mine) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
-                            if (!mine && m.sources.isNotEmpty()) Text("Used: ${m.sources.joinToString()}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
-                            if (!mine && m.sources.isEmpty() && m.text.isNotEmpty() && !m.error) Text("No page content was shared.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
-                            m.note?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp)) }
-                        }
-                    }
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
-                FilterChip(sharePage, { sharePage = !sharePage }, { Text("Share this page") }, enabled = tab != null && tab.url.startsWith("http") && !tab.isHome)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
-                OutlinedTextField(input, { input = it }, Modifier.weight(1f), placeholder = { Text("Ask anything…") }, maxLines = 5, shape = RoundedCornerShape(22.dp))
-                Spacer(Modifier.width(8.dp))
-                FilledIconButton({ send(input) }, enabled = !busy && input.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, "Send") }
-            }
-            Text("Nebula only sees what you share. It can make mistakes.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-        }
-    }
-}
-
 /** Renders **bold** segments; everything else is plain text. */
-private fun markdown(s: String) = buildAnnotatedString {
+internal fun markdown(s: String) = buildAnnotatedString {
     val parts = s.split("**")
     parts.forEachIndexed { i, p -> if (i % 2 == 1) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(p) } else append(p) }
 }

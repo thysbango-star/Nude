@@ -9,59 +9,49 @@
 </head>
 <body>
   <div id="app">
+    <!-- Row 1: tabs (the window's drag area) -->
     <header id="titlebar">
-      <button id="home" class="icon-btn" title="Home" aria-label="Home"></button>
-      <button id="mode" class="mode-chip" title="Browsing mode" aria-haspopup="menu"></button>
       <div id="tabstrip" role="tablist" aria-label="Tabs"></div>
-      <button id="new-tab" class="icon-btn" title="New tab (Ctrl+T)" aria-label="New tab"></button>
+      <button id="new-tab" class="icon-btn small" title="New tab (Ctrl+T)" aria-label="New tab"></button>
       <div class="drag-space"></div>
-      <button id="tab-list" class="icon-btn" title="All tabs" aria-label="All tabs"></button>
     </header>
 
-    <div id="frame">
-      <nav id="toolbar" aria-label="Navigation">
+    <!-- Row 2: navigation, the address bar, and a few actions -->
+    <nav id="toolbar" aria-label="Navigation">
+      <div class="nav-group">
         <button id="back" class="icon-btn" title="Back (Alt+Left)" aria-label="Back"></button>
         <button id="forward" class="icon-btn" title="Forward (Alt+Right)" aria-label="Forward"></button>
         <button id="reload" class="icon-btn" title="Reload (Ctrl+R)" aria-label="Reload"></button>
-        <button id="shield" class="icon-btn shield" title="Rovian Defender" aria-label="Rovian Defender"><span class="badge" hidden></span></button>
+      </div>
 
-        <div id="omnibox" class="omnibox">
-          <button id="site-info" class="site-info" aria-label="Site information"></button>
-          <input id="address" type="text" spellcheck="false" autocomplete="off" aria-label="Search or enter address" placeholder="Search or enter address">
-          <button id="reader" class="icon-btn small" title="Reader view" aria-label="Reader view" hidden></button>
-          <button id="star" class="icon-btn small" title="Bookmark this page (Ctrl+D)" aria-label="Bookmark this page"></button>
-          <button id="site-controls" class="icon-btn small" title="Site controls" aria-label="Site controls"></button>
+      <div id="omnibox" class="omnibox">
+        <button id="site-info" class="site-info" aria-label="Rovian Defender: site security"></button>
+        <input id="address" type="text" spellcheck="false" autocomplete="off" aria-label="Search or enter address" placeholder="Search or enter address">
+        <button id="reader" class="icon-btn tiny" title="Reader view" aria-label="Reader view" hidden></button>
+        <button id="star" class="icon-btn tiny" title="Bookmark this page (Ctrl+D)" aria-label="Bookmark this page"></button>
+        <span id="progress" class="progress" aria-hidden="true"></span>
+      </div>
+
+      <div id="actions">
+        <button id="bookmarks" class="icon-btn" title="Bookmarks" aria-label="Bookmarks"></button>
+        <button id="tabs-btn" class="icon-btn tabs-btn" title="All tabs (Ctrl+Shift+Space)" aria-label="All tabs"><span class="count"></span></button>
+        <button id="downloads" class="icon-btn" title="Downloads (Ctrl+J)" aria-label="Downloads"><svg class="ring" viewBox="0 0 36 36" hidden><circle cx="18" cy="18" r="15"/></svg><span class="dot" hidden></span></button>
+        <button id="ai-btn" class="nebula-btn" title="Nebula (Ctrl+Shift+A)" aria-label="Nebula"><span class="orb"></span></button>
+        <button id="menu" class="icon-btn" title="Menu" aria-label="Menu"></button>
+      </div>
+    </nav>
+
+    <div id="bookmarks-bar" aria-label="Bookmarks" hidden></div>
+    <div id="bars"></div>
+
+    <main id="main">
+      <div id="content">
+        <div id="content-inner">
+          <img id="snapshot" alt="" hidden>
+          <div id="page-state" hidden></div>
         </div>
-
-        <div id="actions">
-          <button id="split" class="icon-btn" title="Split view" aria-label="Split view"></button>
-          <button id="overview" class="icon-btn" title="Tab overview" aria-label="Tab overview"></button>
-          <button id="downloads" class="icon-btn" title="Downloads (Ctrl+J)" aria-label="Downloads"><svg class="ring" viewBox="0 0 36 36" hidden><circle cx="18" cy="18" r="15"/></svg><span class="dot" hidden></span></button>
-          <div id="theme" class="theme-toggle" role="group" aria-label="Theme">
-            <button data-theme="light" aria-label="Light theme"></button>
-            <button data-theme="dark" aria-label="Dark theme"></button>
-          </div>
-          <button id="avatar" class="avatar" title="Account" aria-label="Account"></button>
-          <button id="menu" class="icon-btn" title="Menu" aria-label="Menu"></button>
-          <span class="divider" aria-hidden="true"></span>
-          <button id="ai-btn" class="ai-btn" title="Nebula (Ctrl+Shift+A)" aria-label="Nebula"></button>
-        </div>
-      </nav>
-
-      <div id="bookmarks-bar" aria-label="Bookmarks"></div>
-      <div id="bars"></div>
-
-      <main id="main">
-        <div id="content">
-          <div id="content-inner">
-            <img id="snapshot" alt="" hidden>
-            <div id="split-handle" hidden></div>
-            <div id="page-state" hidden></div>
-          </div>
-        </div>
-        <aside id="ai-panel" hidden aria-label="Nebula"></aside>
-      </main>
-    </div>
+      </div>
+    </main>
 
     <div id="overlay" hidden></div>
     <div id="toast" role="status" aria-live="polite"></div>

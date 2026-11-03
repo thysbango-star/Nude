@@ -26,7 +26,8 @@ object NudeAi {
 
     /** Streams an answer. Calls [onDelta] on the IO thread; caller must hop to the UI thread. */
     suspend fun ask(
-        gateway: String, token: String, history: List<ChatMessage>, sources: List<JSONObject>, onDelta: (String) -> Unit,
+        gateway: String, token: String, history: List<ChatMessage>, sources: List<JSONObject>,
+        mode: String = "everyday", speed: String = "auto", onDelta: (String) -> Unit,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val conn = URL("${gateway.trimEnd('/')}/v1/chat").openConnection() as HttpURLConnection
@@ -41,7 +42,8 @@ object NudeAi {
             history.filter { !it.error }.takeLast(20).forEach { messages.put(JSONObject().put("role", it.role).put("content", it.text)) }
             val src = JSONArray()
             sources.forEach { src.put(it) }
-            conn.outputStream.use { it.write(JSONObject().put("messages", messages).put("sources", src).put("stream", true).toString().toByteArray()) }
+            conn.outputStream.use { it.write(JSONObject().put("messages", messages).put("sources", src).put("stream", true).put("mode", mode)
+                .apply { if (speed != "auto") put("speed", speed) }.toString().toByteArray()) }
             if (conn.responseCode !in 200..299) error("gateway answered HTTP ${conn.responseCode}")
             conn.inputStream.bufferedReader().useLines { lines ->
                 for (line in lines) {

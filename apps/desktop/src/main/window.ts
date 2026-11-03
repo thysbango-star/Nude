@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { Tab, type TabOptions } from './tab';
 import { CHROME_HTML, CHROME_PRELOAD } from './paths';
 import type { NudeApp } from './app';
-import type { ChromeCommand, ContentBounds, FindState, WindowState } from '../shared/types';
+import type { ChromeCommand, ContentBounds, FindState, TabGroup, WindowState } from '../shared/types';
 import { NEW_TAB_URL, resolveInput, searchUrl } from '../shared/omnibox';
 import { matchShortcut, type ShortcutCommand } from '../shared/shortcuts';
 import type { SavedWindow } from './profile';
@@ -17,7 +17,8 @@ export class BrowserWindowController {
   readonly win: BrowserWindow;
   readonly tabs: Tab[] = [];
   activeTabId: number | null = null;
-  split: WindowState['split'] = null;
+  /** Tab groups (Nebula calls them Spaces). */
+  groups: TabGroup[] = [];
   private contentBounds: ContentBounds = { x: 0, y: 88, width: 800, height: 600 };
   private overlayOpen = false;
   private find: FindState = { open: false, text: '', activeMatch: 0, matches: 0 };
@@ -37,7 +38,7 @@ export class BrowserWindowController {
       minHeight: 320,
       show: false,
       title: isPrivate ? 'Nude — Private' : 'Nude',
-      backgroundColor: isPrivate ? '#1b1430' : dark ? '#231d36' : '#c9bde0',
+      backgroundColor: isPrivate ? '#0f0e14' : dark ? '#111113' : '#e9e9ec',
       titleBarStyle: 'hidden',
       ...(process.platform === 'darwin'
         ? { trafficLightPosition: { x: 14, y: 14 } }
@@ -66,15 +67,17 @@ export class BrowserWindowController {
     this.win.on('close', () => this.app.beforeWindowClose(this));
     this.win.on('closed', () => this.app.windowClosed(this));
 
+    if (saved?.groups?.length) this.groups = saved.groups.slice(0, 50).map((g) => ({ id: String(g.id), name: String(g.name).slice(0, 60), color: String(g.color), collapsed: false }));
     if (saved?.tabs.length) {
-      saved.tabs.forEach((t, i) => this.addTab({ url: t.url, title: t.title, favicon: t.favicon, pinned: t.pinned, lazy: i !== saved.activeIndex }, i === saved.activeIndex));
+      saved.tabs.forEach((t, i) => this.addTab({ url: t.url, title: t.title, favicon: t.favicon, pinned: t.pinned, lazy: i !== saved.activeIndex,
+        groupId: t.groupId && this.groups.some((g) => g.id === t.groupId) ? t.groupId : undefined }, i === saved.activeIndex));
       if (this.activeTabId === null) this.activate(this.tabs[0].id);
     }
   }
 
   overlayColors() {
     const dark = nativeTheme.shouldUseDarkColors || this.isPrivate;
-    return { color: '#00000000', symbolColor: dark ? '#efe6f7' : '#2a2430', height: 50 };
+    return { color: '#00000000', symbolColor: dark ? '#e8e8ec' : '#26262b', height: 40 };
   }
 
   refreshTheme() {
@@ -112,7 +115,8 @@ export class BrowserWindowController {
 
   newTab(url = NEW_TAB_URL, activate = true, openerIndex?: number) {
     const index = openerIndex !== undefined ? this.nextIndexAfterOpener(openerIndex) : undefined;
-    const tab = this.addTab({ url, index }, activate);
+    // New tabs join the space you're in.
+    const tab = this.addTab({ url, index, groupId: this.activeTab?.groupId }, activate);
     if (activate && url === NEW_TAB_URL) this.sendCommand({ type: 'focus-omnibox' });
     return tab;
   }
@@ -127,7 +131,6 @@ export class BrowserWindowController {
     const prev = this.activeTab;
     if (prev && prev !== tab) void prev.captureThumbnail();
     this.activeTabId = id;
-    if (this.split && id !== this.split.leftId && id !== this.split.rightId) this.split = null;
     tab.ensureLoaded();
     if (this.find.open) this.closeFind();
     this.layout();
@@ -143,7 +146,6 @@ export class BrowserWindowController {
     this.tabs.splice(i, 1);
     this.app.permissions.cancelForTab(id);
     this.app.security.forgetTab(id);
-    if (this.split && (this.split.leftId === id || this.split.rightId === id)) this.split = null;
     this.win.contentView.removeChildView(tab.view);
     tab.destroy();
     if (this.tabs.length === 0) {
@@ -200,26 +202,70 @@ export class BrowserWindowController {
     }
   }
 
-  // ---------------------------------------------------------------- split view
-  toggleSplit() {
-    if (this.split) {
-      this.split = null;
-    } else {
-      const active = this.activeTab;
-      if (!active) return;
-      const others = this.tabs.filter((t) => t !== active);
-      const right = others[this.tabs.indexOf(active)] ?? others[others.length - 1] ?? this.addTab({ url: NEW_TAB_URL }, false);
-      right.ensureLoaded();
-      this.split = { leftId: active.id, rightId: right.id, ratio: 0.5 };
-    }
-    this.layout();
-    this.pushState();
+  // ---------------------------------------------------------------- tab groups ("Spaces")
+  static readonly GROUP_COLORS = ['#e9a5ae', '#9ec5f0', '#b5dba3', '#f2c98a', '#c7b3f0', '#8fd6cf'];
+
+  createGroup(name: string, tabIds: number[]): TabGroup {
+    const g: TabGroup = { id: this.newId(), name: name.trim().slice(0, 60) || 'New space', color: BrowserWindowController.GROUP_COLORS[this.groups.length % 6], collapsed: false };
+    this.groups.push(g);
+    for (const id of tabIds) { const t = this.tabById(id); if (t) t.groupId = g.id; }
+    this.groupsChanged();
+    return g;
   }
 
-  setSplitRatio(ratio: number) {
-    if (!this.split) return;
-    this.split.ratio = Math.max(0.2, Math.min(0.8, ratio));
-    this.layout();
+  renameGroup(id: string, name: string) {
+    const g = this.groups.find((x) => x.id === id);
+    if (g && name.trim()) { g.name = name.trim().slice(0, 60); this.groupsChanged(); }
+  }
+
+  /** Removes the space; its tabs stay open, ungrouped. */
+  deleteGroup(id: string) {
+    this.groups = this.groups.filter((g) => g.id !== id);
+    for (const t of this.tabs) if (t.groupId === id) t.groupId = undefined;
+    this.groupsChanged();
+  }
+
+  /** Closes the space's tabs that aren't pinned ("Clear"). */
+  clearGroup(id: string | null) {
+    const victims = this.tabs.filter((t) => (t.groupId ?? null) === id && !t.pinned);
+    if (victims.length === this.tabs.length) this.addTab({ url: NEW_TAB_URL }, false);
+    for (const t of victims) this.closeTab(t.id);
+  }
+
+  setTabGroup(tabId: number, groupId: string | null) {
+    const t = this.tabById(tabId);
+    if (!t) return;
+    t.groupId = groupId && this.groups.some((g) => g.id === groupId) ? groupId : undefined;
+    this.groupsChanged();
+  }
+
+  /** Groups open tabs by site when there's no smarter grouping available. */
+  tidyBySite() {
+    const byHost = new Map<string, number[]>();
+    for (const t of this.tabs) {
+      if (t.pinned || t.groupId || !/^https?:/.test(t.url)) continue;
+      let host = '';
+      try { host = new URL(t.url).hostname.replace(/^www\./, ''); } catch { continue; }
+      byHost.set(host, [...(byHost.get(host) ?? []), t.id]);
+    }
+    let made = 0;
+    for (const [host, ids] of byHost) if (ids.length >= 2) { this.createGroup(host, ids); made++; }
+    return made;
+  }
+
+  /** Applies Nebula's suggested spaces: [{ name, tabIds }]. */
+  applyGroups(plan: { name: string; tabIds: number[] }[]) {
+    let made = 0;
+    for (const g of plan.slice(0, 12)) {
+      const ids = g.tabIds.filter((id) => { const t = this.tabById(id); return t && !t.groupId; });
+      if (ids.length) { this.createGroup(g.name, ids); made++; }
+    }
+    return made;
+  }
+
+  private groupsChanged() {
+    this.pushState();
+    this.app.saveSessionSoon();
   }
 
   // ---------------------------------------------------------------- layout
@@ -234,22 +280,13 @@ export class BrowserWindowController {
     const visible = new Set<number>();
     const full = this.htmlFullscreen;
     const area = full ? { x: 0, y: 0, ...this.sizeOf() } : this.contentBounds;
-    if (this.split && !full) {
-      const gap = 8;
-      const leftW = Math.round((area.width - gap) * this.split.ratio);
-      const l = this.tabById(this.split.leftId);
-      const r = this.tabById(this.split.rightId);
-      if (l && r) {
-        l.view.setBounds({ x: area.x, y: area.y, width: leftW, height: area.height });
-        r.view.setBounds({ x: area.x + leftW + gap, y: area.y, width: area.width - leftW - gap, height: area.height });
-        visible.add(l.id).add(r.id);
-      }
-    } else if (this.activeTab) {
+    if (this.activeTab) {
       this.activeTab.view.setBounds(area);
-      this.activeTab.view.setBorderRadius(0);
+      // The page sits in a rounded card, like the rest of the Nude design (square in full screen).
+      this.activeTab.view.setBorderRadius(full ? 0 : 12);
       visible.add(this.activeTab.id);
     }
-    for (const t of this.tabs) t.view.setVisible(!this.overlayOpen && visible.has(t.id) && (Boolean(this.split) || (!t.error && !t.crashed)));
+    for (const t of this.tabs) t.view.setVisible(!this.overlayOpen && visible.has(t.id) && !t.error && !t.crashed);
   }
 
   private sizeOf() {
@@ -258,12 +295,14 @@ export class BrowserWindowController {
   }
 
   /** Overlays (menus, suggestions) can't draw over native views, so the UI shows a snapshot instead. */
-  async setOverlay(open: boolean): Promise<string | null> {
+  async setOverlay(open: boolean, frost = false): Promise<string | null> {
     let snapshot: string | null = null;
-    if (open && !this.overlayOpen && this.activeTab && !this.split) {
+    if (open && !this.overlayOpen && this.activeTab && !this.activeTab.error && !this.activeTab.crashed) {
       try {
-        const img = await this.activeTab.wc.capturePage();
-        snapshot = img.isEmpty() ? null : img.toDataURL();
+        let img = await this.activeTab.wc.capturePage();
+        // Behind frosted glass the page is blurred anyway, so a smaller image is plenty — and much faster.
+        if (frost && !img.isEmpty()) img = img.resize({ width: Math.max(1, Math.round(img.getSize().width / 3)), quality: 'good' });
+        snapshot = img.isEmpty() ? null : `data:image/jpeg;base64,${img.toJPEG(frost ? 70 : 88).toString('base64')}`;
       } catch { /* ignore */ }
     }
     this.overlayOpen = open;
@@ -348,6 +387,8 @@ export class BrowserWindowController {
       case 'devtools': wc?.toggleDevTools(); break;
       case 'view-source': if (tab && /^https?:/.test(tab.url)) this.addTab({ url: `view-source:${tab.url}` }); break;
       case 'clear-data': this.openInternal('settings', '#privacy'); break;
+      case 'nebula': this.sendCommand({ type: 'toggle-ai' }); break;
+      case 'tab-switcher': this.sendCommand({ type: 'toggle-overview' }); break;
     }
   }
 
@@ -431,7 +472,7 @@ export class BrowserWindowController {
         action: 'allow',
         outlivesOpener: true,
         createWindow: (options) => {
-          const child = this.addTab({ openerOptions: options, index: this.tabs.indexOf(tab) + 1 }, !background);
+          const child = this.addTab({ openerOptions: options, index: this.tabs.indexOf(tab) + 1, groupId: tab.groupId }, !background);
           return child.wc;
         },
       };
@@ -523,12 +564,6 @@ export class BrowserWindowController {
     });
     wc.on('before-input-event', (e, input) => this.handleInput(e, input, true));
     wc.on('context-menu', (_e, params) => this.showContextMenu(tab, params));
-    wc.on('focus', () => {
-      if (this.split && tab.id !== this.activeTabId) {
-        this.activeTabId = tab.id;
-        changed();
-      }
-    });
     wc.on('destroyed', () => {
       if (!tab.closing && this.tabs.includes(tab)) this.closeTab(tab.id);
     });
@@ -645,8 +680,7 @@ export class BrowserWindowController {
       maximized: this.win.isMaximized(),
       platform: process.platform,
       canReopenClosedTab: !this.isPrivate && this.app.hasClosedTabs(),
-      groups: [],
-      split: this.split,
+      groups: this.groups.filter((g) => this.tabs.some((t) => t.groupId === g.id)),
       passwordPrompt: null,
       downloadPrompt: this.app.downloadPromptFor(this),
       protectionLevel: s.protectionLevel,
@@ -672,7 +706,8 @@ export class BrowserWindowController {
     return {
       bounds: normal,
       maximized: this.win.isMaximized(),
-      tabs: tabs.map((t) => ({ url: t.url, title: t.title, pinned: t.pinned, favicon: t.favicon })),
+      tabs: tabs.map((t) => ({ url: t.url, title: t.title, pinned: t.pinned, favicon: t.favicon, groupId: t.groupId })),
+      groups: this.groups.filter((g) => tabs.some((t) => t.groupId === g.id)),
       activeIndex: Math.max(0, tabs.findIndex((t) => t.id === this.activeTabId)),
     };
   }

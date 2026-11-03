@@ -30,6 +30,14 @@ class Store(context: Context) {
     var serviceToken: String
         get() = prefs.getString("serviceToken", "")!!
         set(v) = prefs.edit().putString("serviceToken", v.trim()).apply()
+    /** Nebula's mode: everyday, shopping, research, study or focus. */
+    var mode: String
+        get() = prefs.getString("mode", "everyday")!!
+        set(v) = prefs.edit().putString("mode", v).apply()
+    /** Nebula answer speed: auto, fast or thorough. */
+    var nebulaSpeed: String
+        get() = prefs.getString("nebulaSpeed", "auto")!!
+        set(v) = prefs.edit().putString("nebulaSpeed", v).apply()
     var desktopMode: Boolean
         get() = prefs.getBoolean("desktopMode", false)
         set(v) = prefs.edit().putBoolean("desktopMode", v).apply()

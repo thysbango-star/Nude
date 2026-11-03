@@ -7,7 +7,8 @@ export type ShortcutCommand =
   | 'next-tab' | 'prev-tab' | 'tab-1' | 'tab-2' | 'tab-3' | 'tab-4' | 'tab-5' | 'tab-6' | 'tab-7' | 'tab-8' | 'last-tab'
   | 'bookmark' | 'history' | 'downloads' | 'bookmarks' | 'settings' | 'toggle-bookmarks-bar'
   | 'find' | 'find-next' | 'find-prev' | 'escape'
-  | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'fullscreen' | 'print' | 'devtools' | 'view-source' | 'clear-data';
+  | 'zoom-in' | 'zoom-out' | 'zoom-reset' | 'fullscreen' | 'print' | 'devtools' | 'view-source' | 'clear-data'
+  | 'nebula' | 'tab-switcher';
 
 export interface KeyInput {
   type: string; // 'keyDown' | 'keyUp' | ...
@@ -52,6 +53,8 @@ const BINDINGS: Binding[] = [
   { key: '5', mod: true, cmd: 'tab-5' }, { key: '6', mod: true, cmd: 'tab-6' },
   { key: '7', mod: true, cmd: 'tab-7' }, { key: '8', mod: true, cmd: 'tab-8' },
   { key: '9', mod: true, cmd: 'last-tab' },
+  { key: 'a', mod: true, shift: true, cmd: 'nebula' },
+  { key: ' ', mod: true, shift: true, cmd: 'tab-switcher' },
   { key: 'd', mod: true, cmd: 'bookmark' },
   { key: 'h', mod: true, cmd: 'history' },
   { key: 'y', mod: true, cmd: 'history' },
@@ -106,6 +109,8 @@ export function isPassThroughInPage(cmd: ShortcutCommand): boolean {
 }
 
 export const SHORTCUT_HELP: { label: string; keys: string }[] = [
+  { label: 'Nebula', keys: 'Mod+Shift+A' },
+  { label: 'All tabs', keys: 'Mod+Shift+Space' },
   { label: 'New tab', keys: 'Mod+T' },
   { label: 'Close tab', keys: 'Mod+W' },
   { label: 'Reopen closed tab', keys: 'Mod+Shift+T' },

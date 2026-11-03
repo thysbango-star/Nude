@@ -4,37 +4,46 @@
   --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "SF Pro Display", Inter, sans-serif;
   --mono: "Cascadia Code", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 
-  --accent: #a64fd0;          /* Nude lilac — overridden by Nude OS / system accent */
+  /* Matte design: graphite and soft grey, Nude orange as the one accent, the neon gradient only for Nebula. */
+  --accent: #e8742f;          /* Nude orange — overridden by Nude OS / system accent */
   --orange: #ed7d3a;          /* Nude brand orange (logo) */
-  --chrome: linear-gradient(100deg, #b3a6d2 0%, #c8bbe0 28%, #e2daea 58%, #e6d2e4 80%, #d6b6d0 100%);
-  --mode-bg: #ecc8fa;
-  --mode-text: #55275f;
-  --pill-bg: linear-gradient(90deg, #ffe0ff, #f1d3ff);
+  --chrome: #e7e7ea;          /* window frame */
+  --mode-bg: #ececef;
+  --mode-text: #26262b;
+  --pill-bg: #ececef;
   --neon: conic-gradient(from var(--neon-angle, 0deg), #ffd400, #ff2bd6, #7a3cff, #1f7bff, #22e3ff, #ffd400);
-  --orb: radial-gradient(circle at 30% 30%, #fff 0 6%, #ffb3f2 18%, #c86bff 45%, #6a5cff 72%, #3ab8ff 100%);
+  --orb: radial-gradient(circle at 32% 28%, #fff 0 7%, #ffc2ef 18%, #c86bff 44%, #5a5cff 70%, #2fc4ff 100%);
   --rovian: linear-gradient(135deg, #1450f0, #1aa3dc 55%, #6ff0c6);
-  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent);
   --accent-text: #fff;
+  --space-tint: #ecc4c8;      /* the highlighted space in Nebula (from the reference) */
+  --space-tint-text: #2a1416;
 
-  --bg: #f6f4f7;              /* page background */
-  --surface: #ffffff;         /* toolbar, cards */
-  --surface-2: #f6f6f7;       /* address bar */
-  --glass: rgba(255, 255, 255, 0.62);
-  --hover: rgba(46, 30, 60, 0.06);
-  --active: rgba(46, 30, 60, 0.11);
-  --border: rgba(46, 30, 60, 0.10);
-  --text: #2a272e;
-  --text-2: #67616e;
-  --text-3: #9a93a2;
-  --danger: #c6362c;
-  --danger-soft: rgba(198, 54, 44, 0.10);
+  --bg: #f3f3f5;              /* page background */
+  --surface: #ffffff;         /* cards, active tab */
+  --surface-2: #ededf0;       /* address bar, inactive tabs */
+  --surface-3: #e2e2e6;
+  --glass: rgba(244, 244, 246, 0.80);   /* matte glass: frosted, not shiny */
+  --glass-strong: rgba(250, 250, 251, 0.92);
+  --glass-edge: rgba(20, 20, 30, 0.07);
+  --hover: rgba(20, 20, 30, 0.055);
+  --active: rgba(20, 20, 30, 0.10);
+  --border: rgba(20, 20, 30, 0.09);
+  --text: #18181b;
+  --text-2: #5c5c66;
+  --text-3: #92929b;
+  --danger: #c8383a;
+  --danger-soft: rgba(200, 56, 58, 0.10);
   --warn: #b7791f;
   --warn-soft: rgba(183, 121, 31, 0.12);
   --ok: #2f8a57;
   --ok-soft: rgba(47, 138, 87, 0.12);
-  --shadow-sm: 0 1px 2px rgba(40, 25, 15, 0.06), 0 1px 1px rgba(40, 25, 15, 0.04);
-  --shadow: 0 8px 28px rgba(40, 25, 15, 0.14), 0 2px 6px rgba(40, 25, 15, 0.06);
-  --shadow-lg: 0 24px 64px rgba(40, 25, 15, 0.22);
+  --shadow-sm: 0 1px 2px rgba(10, 10, 20, 0.06);
+  --shadow: 0 10px 30px rgba(10, 10, 20, 0.12), 0 2px 6px rgba(10, 10, 20, 0.05);
+  --shadow-lg: 0 28px 70px rgba(10, 10, 20, 0.20);
+  /* Fine grain that makes glass read as matte (Samsung-style frosted), not glossy. */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --blur: blur(36px) saturate(1.12);
 
   --r-sm: 8px;
   --r: 12px;
@@ -52,52 +61,60 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --accent: #cf8cf2;
-    --accent-text: #1a1020;
-    --chrome: linear-gradient(100deg, #231d36 0%, #2d2442 35%, #33263f 70%, #2a1f30 100%);
-    --mode-bg: #4a2d5c;
-    --mode-text: #f2d8ff;
-    --pill-bg: linear-gradient(90deg, #4a2b57, #3a2a5a);
-    --bg: #131116;
-    --surface: #1c1a20;
-    --surface-2: #26232b;
-    --glass: rgba(32, 29, 38, 0.66);
-    --hover: rgba(240, 225, 255, 0.07);
-    --active: rgba(240, 225, 255, 0.12);
-    --border: rgba(240, 225, 255, 0.10);
-    --text: #f2edf6;
-    --text-2: #b3aabc;
-    --text-3: #7f7689;
+    --accent: #f08a4b;
+    --accent-text: #1b0f07;
+    --chrome: #111113;
+    --mode-bg: #1d1d21;
+    --mode-text: #ececf0;
+    --pill-bg: #1d1d21;
+    --space-tint: #e4b6ba;
+    --space-tint-text: #2a1416;
+    --bg: #0c0c0e;
+    --surface: #1c1c20;
+    --surface-2: #1f1f24;
+    --surface-3: #2a2a30;
+    --glass: rgba(26, 26, 30, 0.78);
+    --glass-strong: rgba(24, 24, 28, 0.93);
+    --glass-edge: rgba(255, 255, 255, 0.07);
+    --hover: rgba(255, 255, 255, 0.06);
+    --active: rgba(255, 255, 255, 0.11);
+    --border: rgba(255, 255, 255, 0.08);
+    --text: #f1f1f3;
+    --text-2: #a4a4ae;
+    --text-3: #6d6d77;
     --danger: #ff6b5e;
     --danger-soft: rgba(255, 107, 94, 0.14);
     --warn: #f0b44c;
     --warn-soft: rgba(240, 180, 76, 0.14);
     --ok: #5cc98a;
     --ok-soft: rgba(92, 201, 138, 0.14);
-    --shadow: 0 8px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.6);
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 28px 70px rgba(0, 0, 0, 0.65);
     color-scheme: dark;
   }
 }
 
-/* Private browsing: a distinct violet-night palette in both themes. */
-.private {
-  --chrome: linear-gradient(100deg, #1b1430 0%, #261a40 50%, #1d1530 100%);
-  --mode-bg: #3a2a66;
-  --mode-text: #e4dcff;
-  --pill-bg: linear-gradient(90deg, #35265e, #2b2350);
-  --accent: #a98bff;
+/* Private browsing: an ink-violet night palette in both themes. */
+:root.private {
+  --chrome: #0f0e14;
+  --mode-bg: #1d1a28;
+  --mode-text: #e6e1fb;
+  --pill-bg: #1d1a28;
+  --accent: #9d8cff;
   --accent-text: #120d1f;
-  --bg: #16121f;
-  --surface: #221c30;
-  --surface-2: #1c1728;
-  --glass: rgba(34, 28, 48, 0.66);
+  --bg: #0d0c12;
+  --surface: #1c1a26;
+  --surface-2: #1a1823;
+  --surface-3: #262333;
+  --glass: rgba(26, 24, 36, 0.80);
+  --glass-strong: rgba(22, 20, 31, 0.94);
+  --glass-edge: rgba(230, 220, 255, 0.08);
   --hover: rgba(230, 220, 255, 0.07);
   --active: rgba(230, 220, 255, 0.12);
-  --border: rgba(230, 220, 255, 0.10);
-  --text: #eee9fb;
-  --text-2: #b4abcc;
-  --text-3: #80779a;
+  --border: rgba(230, 220, 255, 0.09);
+  --text: #eeeafb;
+  --text-2: #aca4c6;
+  --text-3: #7a7394;
   color-scheme: dark;
 }
 

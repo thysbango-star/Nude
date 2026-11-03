@@ -1,0 +1,101 @@
+# Getting Nebula working
+
+Nebula (Nude's AI) has two parts:
+
+1. **The browser** (Windows, macOS, Android, iPhone/iPad) shows Nebula and sends your question, plus only what you chose to share.
+2. **The Nebula gateway** (`services/ai-gateway`) is a small server that holds the AI provider's API key and talks to the model. The key never goes into the apps, so nobody can pull it out of a download.
+
+Until a gateway is reachable, Nebula still answers safety questions ("Is this website safe?", pasted scam messages) on your device with Rovian Defender, and the panel shows **Set up Nebula**.
+
+## 1. Get an API key
+
+1. Go to <https://console.anthropic.com>, sign in, and add a payment method or credits under **Billing**.
+2. Open **API keys** → **Create key**. Copy it (it starts with `sk-ant-`). Treat it like a password.
+
+Any OpenAI-compatible provider also works (OpenAI, OpenRouter, or a local model through Ollama or LM Studio). See step 5.
+
+## 2a. Quickest: run the gateway on your own computer
+
+This is enough to use Nebula on the desktop browser on the same computer. Install Node.js 22 or newer, then in the project folder run:
+
+**Windows (PowerShell)**
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-..."
+npm start -w services/ai-gateway
+```
+
+**macOS / Linux**
+```bash
+ANTHROPIC_API_KEY=sk-ant-... npm start -w services/ai-gateway
+```
+
+It prints `Nebula gateway on http://127.0.0.1:8790 (provider: anthropic:claude-haiku-5-5+claude-sonnet-5-5)`. The desktop browser already points at `http://127.0.0.1:8790`, so open Nebula and ask something.
+
+## 2b. For every device: run it on a server
+
+Phones can't reach `127.0.0.1` on your computer, so for Android and iOS (and for friends) put the gateway on a server with HTTPS.
+
+1. On any machine with Docker:
+   ```bash
+   cp .env.example .env
+   # edit .env:
+   #   ANTHROPIC_API_KEY=sk-ant-...
+   #   NUDE_SERVICE_TOKEN=<a long random string, e.g. from: openssl rand -hex 24>
+   docker compose up -d ai-gateway
+   ```
+2. Put it behind HTTPS. With [Caddy](https://caddyserver.com), a two-line `Caddyfile` does it and fetches the certificate itself:
+   ```
+   nebula.yourdomain.com {
+     reverse_proxy localhost:8790
+   }
+   ```
+3. Check it: `curl https://nebula.yourdomain.com/health` should return `{"ok":true,...,"assistant":"Nebula"}`.
+
+Any host that runs a Docker container or Node 22 works the same way (a VPS, Fly.io, Railway, Render, a home server). Set the same environment variables there.
+
+## 3. Point the apps at it
+
+- **Desktop:** Menu → Settings → **Nude services** → *Nebula gateway* = `https://nebula.yourdomain.com`, *Access token* = your `NUDE_SERVICE_TOKEN`. Press **Check now**.
+- **Android / iPhone / iPad:** Settings → **Nude services** → same two fields.
+
+## 4. Speed and accuracy
+
+Nebula uses two models:
+
+| Setting | Model (default) | Used for |
+|---|---|---|
+| Fast | `claude-haiku-5-5` (`NUDE_AI_FAST_MODEL`) | Quick chat, tidying tabs into spaces |
+| Deep | `claude-sonnet-5-5` (`NUDE_AI_MODEL`) | Pages, tabs, files and images you share |
+
+**Auto** (the default) picks Fast for plain questions and Deep as soon as you share a page, tabs, a file or an image. You can switch it with the speed pill next to Nebula's send button, or in Settings → Nebula. Answers stream word by word, so the first words appear right away.
+
+Accuracy rules Nebula follows: it only uses the sources you share, cites them as `[S1]`, `[S2]`, says when the page doesn't contain the answer, and treats page text as untrusted (instructions hidden in a page are ignored). It can't override Rovian Defender.
+
+## 5. Other providers
+
+```bash
+# OpenAI
+NUDE_AI_PROVIDER=openai OPENAI_API_KEY=sk-... NUDE_AI_MODEL=gpt-4o NUDE_AI_FAST_MODEL=gpt-4o-mini npm start -w services/ai-gateway
+# A local model with Ollama (no key; runs on your machine)
+NUDE_AI_PROVIDER=openai OPENAI_BASE_URL=http://127.0.0.1:11434/v1 NUDE_AI_MODEL=llama3.1 npm start -w services/ai-gateway
+```
+
+Image questions (Media → pick an image → ask) need a vision-capable model. Claude models handle them.
+
+## 6. Limits and safety
+
+- `NUDE_SERVICE_TOKEN`: when set, only apps with the token can use your gateway (and your API credit).
+- `NUDE_AI_RATE_LIMIT`: requests per minute per address (default 30).
+- `NUDE_AI_MAX_TOKENS`: longest answer (default 1500).
+- Set a monthly spend limit in the Anthropic console as a backstop.
+
+## Troubleshooting
+
+| What you see | Fix |
+|---|---|
+| "Set up Nebula" / "Nebula isn't reachable" | The gateway isn't running, or the address in Settings is wrong. Open `<address>/health` in a browser. |
+| "development mode with no model configured" | The gateway started without `ANTHROPIC_API_KEY` (or `OPENAI_*`). Set it and restart. |
+| `401 Unauthorized` | The access token in the app doesn't match `NUDE_SERVICE_TOKEN`. |
+| `Anthropic API error 401` | The API key is wrong or was revoked. |
+| `Anthropic API error 400 … credit` | Add credits under Billing in the Anthropic console. |
+| Works on desktop, not on the phone | The phone can't reach `127.0.0.1`. Use a server with HTTPS (step 2b). |

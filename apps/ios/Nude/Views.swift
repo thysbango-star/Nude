@@ -66,6 +66,7 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var sheet: Sheet?
     @State private var aiPrompt: (String, Bool)?
+    @State private var nebulaOpen = false
     @State private var editing = false
     @State private var address = ""
     @FocusState private var addressFocused: Bool
@@ -94,10 +95,23 @@ struct ContentView: View {
             case .history: HistoryView()
             case .settings: SettingsView()
             case .security: SecurityView()
-            case .ai: AIView(initialPrompt: aiPrompt?.0, initialShare: aiPrompt?.1 ?? false)
+            case .ai: EmptyView()
             }
         }
-        .onChange(of: sheet) { s in if s == nil { aiPrompt = nil } }
+        .onChange(of: sheet) { s in
+            // Nebula isn't a sheet: it floats over the page and grows out of its button.
+            if s == .ai { sheet = nil; withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) { nebulaOpen = true } }
+        }
+        .overlay {
+            if nebulaOpen {
+                ZStack(alignment: wide ? .topTrailing : .bottomTrailing) {
+                    Color.black.opacity(0.25).ignoresSafeArea().onTapGesture { closeNebula() }.transition(.opacity)
+                    NebulaPanel(onClose: closeNebula, initialPrompt: aiPrompt?.0, initialShare: aiPrompt?.1 ?? false)
+                        .frame(maxWidth: wide ? 760 : .infinity, maxHeight: wide ? 720 : .infinity)
+                        .transition(.scale(scale: 0.55, anchor: wide ? .topTrailing : .bottomTrailing).combined(with: .opacity))
+                }
+            }
+        }
         .overlay(alignment: .top) { ToastView() }
         .overlay { if accounts.needsWelcome { WelcomeView().transition(.opacity) } }
         .animation(.easeInOut(duration: 0.3), value: accounts.needsWelcome)
@@ -113,6 +127,11 @@ struct ContentView: View {
                 : Alert(title: Text(d.host), message: Text(d.message), primaryButton: .cancel { d.done(false) }, secondaryButton: .default(Text("OK")) { d.done(true) })
         }
         .onOpenURL { url in if url.scheme == "http" || url.scheme == "https" { model.newTab(url: url.absoluteString) } }
+    }
+
+    private func closeNebula() {
+        withAnimation(.easeIn(duration: 0.16)) { nebulaOpen = false }
+        aiPrompt = nil
     }
 
     private func focusAddress() {
@@ -636,13 +655,21 @@ struct ToastView: View {
 struct TabsView: View {
     @EnvironmentObject var model: BrowserModel
     @Environment(\.dismiss) private var dismiss
+    @State private var shown = false
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 14)], spacing: 14) {
-                    ForEach(model.tabs) { t in TabCard(tab: t, active: t.id == model.activeID) { model.activate(t); dismiss() } }
-                }.padding()
+                    // Cards rise in one after another; closing one lets the rest glide into place.
+                    ForEach(Array(model.tabs.enumerated()), id: \.element.id) { i, t in
+                        TabCard(tab: t, active: t.id == model.activeID) { model.activate(t); dismiss() }
+                            .opacity(shown ? 1 : 0).offset(y: shown ? 0 : 18).scaleEffect(shown ? 1 : 0.96)
+                            .animation(.spring(response: 0.42, dampingFraction: 0.84).delay(Double(min(i, 12)) * 0.03), value: shown)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    }
+                }.padding().animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.tabs.count)
             }
+            .onAppear { shown = true }
             .navigationTitle("\(model.tabs.count) Tabs").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }

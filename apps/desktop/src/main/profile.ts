@@ -6,15 +6,16 @@ import { randomUUID } from 'node:crypto';
 import { JsonStore } from './store';
 import {
   DEFAULT_SETTINGS, type Bookmark, type DownloadInfo, type HistoryEntry, type InternalEvent,
-  type PermissionDecision, type PermissionKind, type Settings, type Shortcut, type SitePermission,
+  type PermissionDecision, type PermissionKind, type Settings, type Shortcut, type SitePermission, type TabGroup, type NebulaNote,
 } from '../shared/types';
 
-export interface SavedTab { url: string; title: string; pinned: boolean; favicon?: string }
+export interface SavedTab { url: string; title: string; pinned: boolean; favicon?: string; groupId?: string }
 export interface SavedWindow {
   bounds: { x: number; y: number; width: number; height: number };
   maximized: boolean;
   tabs: SavedTab[];
   activeIndex: number;
+  groups?: TabGroup[];
 }
 export interface SessionData { windows: SavedWindow[]; cleanExit: boolean }
 
@@ -48,8 +49,9 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   oneOf('protectionLevel', ['standard', 'enhanced', 'maximum']);
   oneOf('fontSize', ['small', 'medium', 'large']);
   oneOf('mode', ['everyday', 'shopping', 'research', 'study', 'focus']);
+  oneOf('nebulaSpeed', ['auto', 'fast', 'thorough']);
   if (out.toolbar !== undefined) {
-    const items = ['home', 'reader', 'split', 'overview', 'downloads', 'security', 'ai', 'voice'];
+    const items = ['home', 'reader', 'overview', 'downloads', 'security', 'ai', 'voice', 'bookmarks'];
     out.toolbar = Array.isArray(out.toolbar) ? [...new Set(out.toolbar.filter((t) => items.includes(t)))] as Settings['toolbar'] : undefined;
     if (!out.toolbar) delete out.toolbar;
   }
@@ -70,6 +72,8 @@ export class Profile extends EventEmitter {
   readonly permissions: JsonStore<SitePermission[]>;
   readonly downloads: JsonStore<DownloadInfo[]>;
   readonly session: JsonStore<SessionData>;
+  /** Answers and clips saved from Nebula. */
+  readonly notes: JsonStore<NebulaNote[]>;
   private historyIndex = new Map<string, HistoryEntry>();
 
   constructor(readonly dir: string) {
@@ -84,11 +88,13 @@ export class Profile extends EventEmitter {
       400, (raw) => (Array.isArray(raw) ? (raw as DownloadInfo[]) : []).map((d) =>
         d.status === 'progressing' || d.status === 'paused' ? { ...d, status: 'interrupted' as const } : d));
     this.session = new JsonStore<SessionData>(join(dir, 'session.json'), () => ({ windows: [], cleanExit: true }), 1000);
+    this.notes = new JsonStore<NebulaNote[]>(join(dir, 'nebula-notes.json'), () => []);
     for (const h of this.history.get()) this.historyIndex.set(h.url, h);
 
     const wire = (store: JsonStore<unknown>, topic: InternalEvent['topic']) =>
       store.onChange(() => this.emit('changed', { topic } satisfies InternalEvent));
     wire(this.settings as JsonStore<unknown>, 'settings');
+    wire(this.notes as JsonStore<unknown>, 'notes');
     wire(this.bookmarks as JsonStore<unknown>, 'bookmarks');
     wire(this.history as JsonStore<unknown>, 'history');
     wire(this.shortcuts as JsonStore<unknown>, 'shortcuts');
@@ -97,7 +103,7 @@ export class Profile extends EventEmitter {
   }
 
   flushAll() {
-    for (const s of [this.settings, this.bookmarks, this.history, this.shortcuts, this.permissions, this.downloads, this.session]) {
+    for (const s of [this.settings, this.bookmarks, this.history, this.shortcuts, this.permissions, this.downloads, this.session, this.notes] as JsonStore<unknown>[]) {
       try {
         s.flush();
       } catch (err) {
@@ -107,6 +113,16 @@ export class Profile extends EventEmitter {
   }
 
   // ---------- settings ----------
+  addNote(n: { text: string; title: string; url?: string }): NebulaNote {
+    const note: NebulaNote = { id: randomUUID(), text: n.text.slice(0, 50_000), title: n.title.slice(0, 200), url: n.url && /^https?:/.test(n.url) ? n.url.slice(0, 2000) : undefined, createdAt: Date.now() };
+    this.notes.set((list) => [note, ...list].slice(0, 500));
+    return note;
+  }
+
+  removeNote(id: string) {
+    this.notes.set((list) => list.filter((n) => n.id !== id));
+  }
+
   updateSettings(patch: unknown): Settings {
     const clean = sanitizeSettingsPatch(patch);
     return this.settings.set((prev) => ({ ...prev, ...clean }));

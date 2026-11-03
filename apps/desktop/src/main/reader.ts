@@ -232,6 +232,12 @@ export class ReaderStore {
   }
 
   /** Products on the page (structured data first, then visible cards). Used by Nebula in Shopping mode. */
+  /** Images and videos on the page, largest first, for Nebula's Media view. */
+  static async pageMedia(wc: WebContents): Promise<import('../shared/types').PageMedia[]> {
+    const r = await wc.executeJavaScriptInIsolatedWorld(993, [{ code: MEDIA }]);
+    return Array.isArray(r) ? r.slice(0, 60) : [];
+  }
+
   static async pageProducts(wc: WebContents): Promise<import('../shared/types').PageProduct[]> {
     const r = await wc.executeJavaScriptInIsolatedWorld(996, [{ code: PRODUCTS }]);
     return Array.isArray(r) ? r.slice(0, 30) : [];
@@ -253,3 +259,21 @@ export class ReaderStore {
     return String(r).slice(0, 20_000);
   }
 }
+
+/** Collects visible-size images (and video posters) with absolute https URLs. */
+const MEDIA = String.raw`(() => {
+  const seen = new Set(); const out = [];
+  const add = (src, alt, w, h, kind) => {
+    try { src = new URL(src, location.href).href; } catch { return; }
+    if (!/^https:\/\//.test(src) || seen.has(src) || w < 120 || h < 90) return;
+    seen.add(src); out.push({ src, alt: String(alt || '').slice(0, 200), width: Math.round(w), height: Math.round(h), kind });
+  };
+  for (const img of document.images) {
+    const r = img.getBoundingClientRect();
+    add(img.currentSrc || img.src, img.alt || img.title, r.width || img.naturalWidth, r.height || img.naturalHeight, 'image');
+  }
+  for (const v of document.querySelectorAll('video[poster]')) { const r = v.getBoundingClientRect(); add(v.poster, v.title || 'Video', r.width, r.height, 'video'); }
+  const og = document.querySelector('meta[property="og:image"]')?.content;
+  if (og) add(og, document.title, 1200, 630, 'image');
+  return out.sort((a, b) => b.width * b.height - a.width * a.height);
+})()`;

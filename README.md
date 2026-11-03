@@ -16,9 +16,13 @@
 ## The Nude experience
 
 - **Accounts and "Hello, name".** On first run Nude opens a welcome page where you create a local Nude account (or continue without one). The home page then greets you with *Hello, {your first name}* on the moving peach gradient. Accounts are stored on the device; passwords are kept only as salted hashes (scrypt on desktop, PBKDF2-SHA256 on Android and iOS) with a lockout after 5 wrong attempts. Syncing across devices isn't built yet.
-- **Nebula** is the AI assistant (formerly "Nude AI"). It reads a page only when you share it, cites what it used, can show product cards and highlight text on the page (with a neon frame so you see what it changed), and never overrides Rovian Defender.
+- **Nebula** is the AI assistant (formerly "Nude AI"). To switch it on, follow [docs/NEBULA_SETUP.md](docs/NEBULA_SETUP.md). It reads a page only when you share it, cites what it used, can show product cards and highlight text on the page (with a neon frame so you see what it changed), and never overrides Rovian Defender.
 - **Rovian Defender** is Nude Security: pre-navigation checks with the red *"This Website is Not Protected."* page, download checks, tracker and ad blocking. A blocked ad is replaced by the blue *"This Advert Has Been Blocked."* card; the *MALWARE* wording is shown only when the ad's host is actually flagged.
-- **Modes**: Everyday, Shopping, Research, Study and Focus (chip at the top left). Shopping mode gives Nebula *Smart Compare*, *Mix & Match* and *Price Pulse*.
+- **Full-width pages**: the page always gets the whole window. Nebula floats over it when you call it (toolbar orb, Ctrl+Shift+A, right-click → Ask Nebula, or "Ask Nebula" in the address bar) and closes with Esc. There's no split screen.
+- **Nebula's workspace** (from the design reference): Ask, Spaces (tab groups as columns, drag tabs between them, "Tidy tabs into spaces"), Media (pick an image on the page and ask about it), Downloads, Notes (saved answers), Modes and Archived (recently closed tabs).
+- **Tab switcher** (Ctrl+Shift+Space or the tabs button): previews grouped by space, search, and recently closed tabs.
+- **Matte design**: graphite and soft-grey frosted surfaces (Samsung-style matte glass, not glossy), Nude orange as the one accent, and the neon gradient only when Nebula is working. Motion is short (150–320 ms) and never delays navigation.
+- **Modes**: Everyday, Shopping, Research, Study and Focus (Nebula → Modes, or the menu). Shopping mode gives Nebula *Smart Compare*, *Mix & Match* and *Price Pulse*.
 - **Light and dark**: the sun/moon toggle in the toolbar, or follow the system.
 
 ## Download

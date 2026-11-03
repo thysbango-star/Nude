@@ -3,6 +3,18 @@ const svg = (body: string, extra = '') =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${extra}>${body}</svg>`;
 
 export const I = {
+  media: svg('<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 2.5-2 4.5 3.5"/>'),
+  notes: svg('<rect x="4" y="4" width="16" height="13" rx="2"/><path d="M8 21l4-4 4 4M8 9h8M8 12.5h5"/>'),
+  spaces: svg('<rect x="3.5" y="6" width="12" height="14" rx="2.5"/><path d="M8.5 6V5.5A2 2 0 0 1 10.5 3.5h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-3"/>'),
+  boosts: svg('<path d="M14.5 3.5l6 6-9.5 9.5-6-6z"/><path d="M5 13l-1.5 7.5L11 19M12 6l6 6"/>'),
+  archive: svg('<rect x="3.5" y="4" width="17" height="4.5" rx="1.2"/><path d="M5 8.5v9.5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5M10 12.5h4"/>'),
+  move: svg('<path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/>'),
+  dots: svg('<circle cx="5.5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="18.5" cy="12" r="1.2" fill="currentColor"/>'),
+  tabs: svg('<rect x="3.5" y="7" width="13" height="13" rx="2.5"/><path d="M8 7V6a2.5 2.5 0 0 1 2.5-2.5H18A2.5 2.5 0 0 1 20.5 6v7.5A2.5 2.5 0 0 1 18 16h-1.5"/>'),
+  ask: svg('<path d="M4.5 18.5V6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8z"/><path d="M9 9.5h6M9 12.5h4"/>'),
+  arrowUp: svg('<path d="M12 19V5M6 11l6-6 6 6"/>', 'stroke-width="2.2"'),
+  arrowLeft: svg('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
+  wand: svg('<path d="M4 20l11-11M14 4v3M12.5 5.5h3M19 9v3M17.5 10.5h3M18 3.5v1.5M17.25 4.25h1.5"/>'),
   chevronDown: svg('<path d="M6 9l6 6 6-6"/>'),
   sliders: svg('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>'),
