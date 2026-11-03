@@ -1,0 +1,105 @@
+name: Build & release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck -w apps/desktop
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npm run build -w apps/desktop
+      - name: Browser end-to-end tests
+        run: xvfb-run -a npm run test:e2e -w apps/desktop
+      - name: Services tests
+        run: |
+          for s in services/*/; do
+            if [ -f "$s/package.json" ]; then (cd "$s" && npm test); fi
+          done
+
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build -w apps/desktop
+        env: { NODE_ENV: production }
+      - name: Package (NSIS installer + portable zip)
+        working-directory: apps/desktop
+        run: npx electron-builder --win --publish never
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nude-windows
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.zip
+          if-no-files-found: error
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - name: Unit tests
+        working-directory: apps/android
+        run: gradle testDebugUnitTest --stacktrace
+      - name: Build APK
+        working-directory: apps/android
+        run: gradle assembleRelease --stacktrace
+        env:
+          NUDE_KEYSTORE_BASE64: ${{ secrets.NUDE_KEYSTORE_BASE64 }}
+          NUDE_KEYSTORE_PASSWORD: ${{ secrets.NUDE_KEYSTORE_PASSWORD }}
+          NUDE_KEY_ALIAS: ${{ secrets.NUDE_KEY_ALIAS }}
+          NUDE_KEY_PASSWORD: ${{ secrets.NUDE_KEY_PASSWORD }}
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp apps/android/app/build/outputs/apk/release/*.apk out/Nude-Android.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: nude-android, path: out/Nude-Android.apk, if-no-files-found: error }
+
+  release:
+    name: Publish downloads
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            ## Download Nude
+            - **Windows:** `Nude-Setup-…-x64.exe` (installer) or the `.zip` (portable, no install).
+            - **Android:** `Nude-Android.apk` — allow installs from your browser/files app when Android asks.
+
+            These builds aren't code-signed yet, so Windows SmartScreen may show "Windows protected your PC" — choose **More info → Run anyway**.

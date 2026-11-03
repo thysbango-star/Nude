@@ -1,0 +1,19 @@
+body { --rbg: var(--bg); --rtext: var(--text); background: var(--rbg); color: var(--rtext); }
+body[data-theme=light] { --rbg: #fdfcfa; --rtext: #222; color-scheme: light; }
+body[data-theme=sepia] { --rbg: #f4ecd8; --rtext: #4a3b28; color-scheme: light; }
+body[data-theme=dark] { --rbg: #161517; --rtext: #e6e1dc; color-scheme: dark; }
+.reader-bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 10px 18px; background: color-mix(in srgb, var(--rbg) 80%, transparent); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
+.reader-bar .grow { flex: 1; }
+.reader-bar .icon-btn { font-weight: 700; font-size: 13px; }
+.article { max-width: 680px; margin: 0 auto; padding: 48px 24px 96px; font-size: var(--reader-size, 19px); line-height: 1.7; animation: rise .35s var(--ease); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+body[data-font=serif] .article { font-family: Charter, "Iowan Old Style", "Sitka Text", Cambria, Georgia, serif; }
+.kicker { font: 700 12px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.article h1 { font-size: 1.9em; line-height: 1.2; margin: 10px 0 12px; font-family: inherit; }
+.meta { font: 14px var(--font); color: var(--text-2); margin-bottom: 32px; }
+.article h2 { font-size: 1.25em; margin: 1.6em 0 .5em; }
+.article p { margin: 0 0 1.1em; }
+.article blockquote { margin: 1.4em 0; padding-left: 1em; border-left: 3px solid var(--accent); font-style: italic; color: var(--text-2); }
+.article figure { margin: 1.6em 0; }
+.article img { max-width: 100%; border-radius: var(--r); }
+.article footer { margin-top: 48px; font: 14px var(--font); }

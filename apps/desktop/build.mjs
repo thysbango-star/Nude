@@ -20,10 +20,11 @@ const common = {
   minify: production,
   logLevel: 'info',
   target: 'es2023',
+  alias: { '@nude/security-engine': join(root, '../../packages/security-engine/src/index.ts') },
   define: { 'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development') },
 };
 
-const pageNames = ['newtab', 'history', 'bookmarks', 'downloads', 'settings'];
+const pageNames = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader'];
 
 const configs = [
   // Main process (Node, CommonJS)

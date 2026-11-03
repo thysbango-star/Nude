@@ -1,30 +1,28 @@
 // Download tracking: progress, pause/resume/cancel, open/show, persistent history (normal windows only).
 import { app, Notification, shell, type DownloadItem, type Session } from 'electron';
 import { existsSync } from 'node:fs';
-import { basename, extname, join } from 'node:path';
+import { basename } from 'node:path';
+import { uniquePath } from './downloads-util';
 import { randomUUID } from 'node:crypto';
 import type { Profile } from './profile';
 import type { DownloadInfo, DownloadSummary } from '../shared/types';
 
-/** Picks "name (1).ext", "name (2).ext"… if the file already exists. */
-export function uniquePath(dir: string, filename: string, exists: (p: string) => boolean = existsSync): string {
-  const safe = sanitizeFilename(filename) || 'download';
-  const ext = extname(safe);
-  const stem = safe.slice(0, safe.length - ext.length);
-  let candidate = join(dir, safe);
-  for (let i = 1; exists(candidate) && i < 10_000; i++) candidate = join(dir, `${stem} (${i})${ext}`);
-  return candidate;
-}
+export { uniquePath, sanitizeFilename } from './downloads-util';
 
-export function sanitizeFilename(name: string): string {
-  return basename(name)
-    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*‪-‮⁦-⁩]/g, '_') // control, reserved and bidi-override chars
-    .replace(/^[.\s]+|[.\s]+$/g, '')
-    .slice(0, 200);
+export interface DownloadSecurityHook {
+  /** Decides before the file is written. */
+  check(filename: string, mimeType: string, url: string, pageUrl: string): { action: 'allow' | 'warn' | 'block'; risk: DownloadInfo['risk']; notes: string[] };
+  /** Inspects the finished file; returns warnings (empty = nothing found). */
+  inspect(path: string, filename: string): string[];
+  /** Asks the user (via the window that started it) whether to keep a flagged file. */
+  prompt(id: string, wc: Electron.WebContents, info: { filename: string; risk: string; notes: string[] }): void;
+  flagged(info: DownloadInfo, notes: string[]): void;
+  blocked(info: DownloadInfo, wc: Electron.WebContents): void;
 }
 
 export class DownloadManager {
   private live = new Map<string, DownloadItem>();
+  security: DownloadSecurityHook | null = null;
   private privateItems = new Map<string, DownloadInfo>();
   private unseen = 0;
   onChange: () => void = () => {};
@@ -32,13 +30,16 @@ export class DownloadManager {
   constructor(private profile: Profile) {}
 
   attach(ses: Session, isPrivate: boolean) {
-    ses.on('will-download', (_event, item) => {
+    ses.on('will-download', (_event, item, wc) => {
       const id = randomUUID();
       const settings = this.profile.settings.get();
       const dir = settings.downloadsDirectory || app.getPath('downloads');
       if (!settings.askWhereToSave) item.setSavePath(uniquePath(dir, item.getFilename()));
       this.live.set(id, item);
 
+      const verdict = this.security?.check(item.getFilename(), item.getMimeType(), item.getURL(), wc?.getURL() ?? '')
+        ?? { action: 'allow' as const, risk: 'low' as const, notes: [] };
+      let awaiting = verdict.action === 'warn';
       const info = (): DownloadInfo => ({
         id,
         url: item.getURL(),
@@ -50,8 +51,28 @@ export class DownloadManager {
         status: item.isPaused() ? 'paused' : 'progressing',
         startedAt: Math.round(item.getStartTime() * 1000) || Date.now(),
         private: isPrivate,
+        risk: verdict.risk,
+        securityNotes: verdict.notes,
+        awaitingDecision: awaiting,
       });
+      if (verdict.action === 'block') {
+        item.cancel();
+        this.live.delete(id);
+        const blocked = { ...info(), status: 'cancelled' as const, blocked: true, endedAt: Date.now() };
+        this.store(blocked);
+        if (wc) this.security?.blocked(blocked, wc);
+        return;
+      }
+      if (awaiting) {
+        item.pause();
+        if (wc) this.security?.prompt(id, wc, { filename: item.getFilename(), risk: verdict.risk ?? 'medium', notes: verdict.notes });
+      }
       this.store(info());
+      this.decisions.set(id, (keep) => {
+        awaiting = false;
+        if (keep) { if (item.canResume()) item.resume(); } else item.cancel();
+        this.store(info());
+      });
 
       let last = 0;
       item.on('updated', (_e, state) => {
@@ -63,7 +84,15 @@ export class DownloadManager {
       item.once('done', (_e, state) => {
         this.live.delete(id);
         const status = state === 'completed' ? 'completed' : state === 'cancelled' ? 'cancelled' : 'interrupted';
-        const final = { ...info(), status, endedAt: Date.now() } as DownloadInfo;
+        this.decisions.delete(id);
+        let final = { ...info(), status, endedAt: Date.now() } as DownloadInfo;
+        if (status === 'completed' && this.security) {
+          const notes = this.security.inspect(final.savePath, final.filename);
+          if (notes.length) {
+            final = { ...final, risk: 'dangerous', securityNotes: [...(final.securityNotes ?? []), ...notes] };
+            this.security.flagged(final, notes);
+          }
+        }
         this.store(final);
         if (status === 'completed') {
           this.unseen++;
@@ -76,6 +105,12 @@ export class DownloadManager {
         this.onChange();
       });
     });
+  }
+
+  private decisions = new Map<string, (keep: boolean) => void>();
+
+  decide(id: string, keep: boolean) {
+    this.decisions.get(id)?.(keep);
   }
 
   private store(d: DownloadInfo) {

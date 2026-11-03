@@ -1,0 +1,30 @@
+.hero { display: flex; align-items: center; gap: 28px; padding: 26px; flex-wrap: wrap; }
+.score { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
+.score svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.score circle { fill: none; stroke-width: 10; stroke-linecap: round; }
+.score .track { stroke: var(--hover); }
+.score .val { stroke: var(--ok); transition: stroke-dashoffset 1s var(--ease); }
+.score.warn .val { stroke: var(--warn); } .score.danger .val { stroke: var(--danger); }
+.score > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.score b { font: 700 34px var(--font-display); }
+.score span { font-size: 11px; color: var(--text-3); }
+.hero-text { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.hero-text h2 { margin: 0; font-size: 22px; }
+.hero-text p { margin: 0; }
+.status-line { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ok); font-size: 13px; }
+.dot-live { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: pulse 2s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 8px transparent; } }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat b { font: 700 28px var(--font-display); margin-top: 8px; }
+.stat-icon { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; }
+.stat-icon svg { width: 19px; height: 19px; }
+.stat-icon.ok { background: var(--ok-soft); color: var(--ok); } .stat-icon.warn { background: var(--warn-soft); color: var(--warn); } .stat-icon.danger { background: var(--danger-soft); color: var(--danger); }
+.events { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow: auto; }
+.event { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.ev-main { flex: 1; min-width: 0; word-break: break-word; }
+.check-form { display: flex; gap: 8px; margin-top: 8px; }
+.check-form .input { flex: 1; min-width: 0; }
+.result { margin-top: 12px; padding: 12px 14px; border-radius: var(--r); font-size: 13px; }
+.result.ok { background: var(--ok-soft); } .result.warn { background: var(--warn-soft); } .result.danger { background: var(--danger-soft); }
+.result ul { margin: 6px 0 0; padding-left: 18px; }

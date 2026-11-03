@@ -38,7 +38,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
-  searchEngine: 'nude',
+  searchEngine: 'duckduckgo',
   searchSuggestions: true,
   startup: 'restore',
   homepage: 'nude://newtab',

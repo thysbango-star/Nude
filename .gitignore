@@ -13,3 +13,4 @@ apps/android/**/build/
 apps/android/local.properties
 *.keystore
 *.jks
+apps/desktop/node_modules

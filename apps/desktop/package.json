@@ -13,7 +13,9 @@
     "test": "tsx --test tests/unit/*.test.ts",
     "test:e2e": "node build.mjs && tsx --test --test-concurrency=1 tests/e2e/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "package": "node build.mjs && electron-builder --linux --win --mac"
+    "package": "node build.mjs && electron-builder --linux --win --mac",
+    "package:win": "node build.mjs && electron-builder --win --publish never",
+    "package:linux": "node build.mjs && electron-builder --linux --publish never"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
@@ -21,16 +23,92 @@
     "esbuild": "^0.28.2",
     "playwright": "^1.63.0",
     "tsx": "^4.23.12",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "electron-builder": "^26.0.12"
   },
   "build": {
     "appId": "os.nude.browser",
     "productName": "Nude",
-    "directories": { "output": "release" },
-    "files": ["dist/**", "package.json"],
-    "linux": { "target": ["AppImage", "deb"], "category": "Network;WebBrowser" },
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" },
-    "protocols": [{ "name": "Web", "schemes": ["http", "https"] }]
-  }
+    "electronVersion": "43.3.0",
+    "copyright": "\u00a9 Nude",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/**/*.map",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Nude-${version}-Windows-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nude",
+      "artifactName": "Nude-Setup-${version}-x64.${ext}",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network;WebBrowser",
+      "icon": "build/icon.png",
+      "artifactName": "Nude-${version}-Linux-${arch}.${ext}",
+      "maintainer": "Nude"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png"
+    },
+    "protocols": [
+      {
+        "name": "Web",
+        "schemes": [
+          "http",
+          "https"
+        ]
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "html",
+          "htm"
+        ],
+        "name": "HTML document",
+        "role": "Viewer"
+      }
+    ]
+  },
+  "author": {
+    "name": "Nude"
+  },
+  "homepage": "https://github.com/thysbango-star/Nude"
 }

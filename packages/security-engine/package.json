@@ -5,5 +5,10 @@
   "description": "Nude Security: URL, download and tracker analysis shared by the browser and Nude AI",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "scripts": { "test": "tsx --test tests/*.test.ts" }
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12"
+  }
 }

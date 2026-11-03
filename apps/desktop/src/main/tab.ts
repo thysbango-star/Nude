@@ -22,7 +22,7 @@ export interface TabOptions {
   pinned?: boolean;
   groupId?: string;
   /** Provided by setWindowOpenHandler.createWindow; Electron loads the URL itself. */
-  openerPreferences?: WebPreferences;
+  openerOptions?: Electron.BrowserWindowConstructorOptions;
 }
 
 export class Tab {
@@ -59,14 +59,17 @@ export class Tab {
       spellcheck: true,
       preload: INTERNAL_PRELOAD,
     };
-    this.view = new WebContentsView({ webPreferences: opts.openerPreferences ? { ...opts.openerPreferences, ...secure } : secure });
+    // A popup / target=_blank: Electron has already created the guest webContents (with the opener's
+    // sandboxed preferences) and passes it in the options; adopting it keeps window.opener working.
+    const guest = (opts.openerOptions as { webContents?: WebContents } | undefined)?.webContents;
+    this.view = guest ? new WebContentsView({ webContents: guest }) : new WebContentsView({ webPreferences: opts.openerOptions?.webPreferences ? { ...opts.openerOptions.webPreferences, ...secure } : secure });
     this.view.setBorderRadius(12);
     this.view.setBackgroundColor('#00000000');
     this.title = opts.title ?? 'New Tab';
     this.favicon = opts.favicon;
     this.pinned = opts.pinned ?? false;
     this.groupId = opts.groupId;
-    if (!opts.openerPreferences) {
+    if (!opts.openerOptions) {
       const url = opts.url ?? NEW_TAB_URL;
       if (opts.lazy) this.pendingUrl = url;
       else void this.load(url);

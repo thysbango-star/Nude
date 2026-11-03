@@ -2,13 +2,18 @@
   "name": "nude",
   "private": true,
   "description": "Nude Web Browser, Nude Search, Nude AI and Nude Security",
-  "workspaces": ["apps/desktop", "packages/*"],
+  "workspaces": [
+    "apps/desktop",
+    "packages/security-engine"
+  ],
   "scripts": {
     "build": "npm run build -w apps/desktop",
     "start": "npm run start -w apps/desktop",
-    "test": "npm run test -w apps/desktop",
+    "test": "npm run test -w packages/security-engine && npm run test -w apps/desktop",
     "test:e2e": "npm run test:e2e -w apps/desktop",
     "typecheck": "npm run typecheck -w apps/desktop"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

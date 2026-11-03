@@ -33,7 +33,7 @@ export function searchUrl(engine: SearchEngineId, query: string): string {
 
 export const INTERNAL_PAGES = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader', 'passwords'] as const;
 export type InternalPage = (typeof INTERNAL_PAGES)[number];
-export const NEW_TAB_URL = 'nude://newtab';
+export const NEW_TAB_URL = 'nude://newtab/';
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:', 'file:', 'nude:', 'about:', 'view-source:']);
 const BLOCKED_SCHEMES = new Set(['javascript:', 'data:', 'vbscript:', 'blob:', 'filesystem:']);
@@ -108,7 +108,7 @@ export function resolveInput(raw: string, engine: SearchEngineId): ResolvedInput
           if (!(INTERNAL_PAGES as readonly string[]).includes(page)) {
             return { type: 'blocked', reason: `nude://${page} isn't a Nude page.` };
           }
-          return { type: 'navigate', url: `nude://${page}${u.search}` };
+          return { type: 'navigate', url: `nude://${page}/${u.search}${u.hash}` };
         }
         if ((u.protocol === 'http:' || u.protocol === 'https:') && !u.hostname) return searchOf(text, engine);
         return { type: 'navigate', url: u.href };
@@ -135,7 +135,8 @@ function searchOf(query: string, engine: SearchEngineId): ResolvedInput {
 
 /** Text shown in the omnibox when it isn't focused. */
 export function displayUrl(url: string): string {
-  if (!url || url === NEW_TAB_URL || url === 'about:blank') return '';
+  if (!url || url.startsWith('nude://newtab') || url === 'about:blank') return '';
+  if (url.startsWith('nude://')) return url.replace(/\/(?=$|[?#])/, '');
   try {
     const u = new URL(url);
     if (u.protocol === 'https:') {

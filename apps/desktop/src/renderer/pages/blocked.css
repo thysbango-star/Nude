@@ -1,0 +1,26 @@
+body { background: radial-gradient(900px 500px at 50% -10%, var(--warn-soft), transparent 70%), var(--bg); }
+body.severe { background: radial-gradient(900px 500px at 50% -10%, var(--danger-soft), transparent 70%), var(--bg); }
+.warn-page { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
+.warn-card { max-width: 640px; width: 100%; animation: rise .35s var(--ease); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.warn-icon { width: 76px; height: 76px; border-radius: 24px; display: grid; place-items: center; background: var(--warn-soft); color: var(--warn); margin-bottom: 20px; }
+.severe .warn-icon { background: var(--danger-soft); color: var(--danger); }
+.warn-icon svg { width: 40px; height: 40px; }
+.brand-line { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.brand-line svg { width: 14px; height: 14px; }
+h1 { font-size: 32px; margin: 6px 0 10px; }
+.addr { display: inline-block; font: 13px var(--mono); padding: 4px 10px; border-radius: var(--pill); background: var(--hover); margin-bottom: 14px; word-break: break-all; }
+.lead { font-size: 16px; color: var(--text-2); margin: 0 0 18px; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.facts > div { padding: 12px 14px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+.why { padding: 14px 16px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border); margin-bottom: 14px; }
+.why ul { margin: 6px 0 0; padding-left: 20px; color: var(--text-2); }
+.advice { display: flex; gap: 10px; padding: 12px 14px; border-radius: var(--r); background: var(--accent-soft); margin-bottom: 22px; }
+.advice svg { width: 18px; height: 18px; color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn.big { height: 44px; padding: 0 22px; font-size: 14px; }
+.details { margin-top: 26px; color: var(--text-2); }
+.details summary { cursor: pointer; font-weight: 600; }
+.details .btn { margin-top: 8px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 560px) { .facts { grid-template-columns: 1fr; } }

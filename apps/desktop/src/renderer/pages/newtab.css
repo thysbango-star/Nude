@@ -1,0 +1,39 @@
+body { background:
+  radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+  radial-gradient(900px 600px at 100% 0%, color-mix(in srgb, #8f7cff 12%, transparent), transparent 60%), var(--bg); }
+.home { max-width: 760px; margin: 0 auto; padding: 12vh 24px 48px; display: flex; flex-direction: column; gap: 40px; min-height: 100vh; animation: rise .4s var(--ease); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.hero { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.brand { font: 600 34px/1.1 var(--font-display); letter-spacing: -0.02em; display: flex; align-items: center; gap: 12px; }
+.mark { width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), #8f7cff); box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 40%, transparent); }
+.mark svg { width: 24px; height: 24px; }
+.searchbar { width: 100%; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 8px 0 20px; border-radius: var(--pill); background: var(--glass); backdrop-filter: blur(24px) saturate(1.5); border: 1px solid var(--border); box-shadow: var(--shadow); transition: box-shadow var(--t), border-color var(--t); }
+.searchbar:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: var(--shadow), 0 0 0 5px var(--accent-soft); }
+.searchbar > svg { width: 20px; height: 20px; color: var(--text-3); }
+.searchbar input { flex: 1; height: 100%; border: 0; outline: 0; background: transparent; font-size: 17px; }
+.go { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--accent-text); display: grid; place-items: center; }
+.go svg { width: 18px; height: 18px; }
+.private-note { display: flex; gap: 14px; max-width: 600px; padding: 16px 18px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); color: var(--text-2); font-size: 13.5px; }
+.private-note svg { width: 28px; height: 28px; color: var(--accent); flex-shrink: 0; }
+.private-note b { color: var(--text); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 6px 10px; border-radius: var(--r-lg); transition: background var(--t-fast), transform var(--t) var(--spring); cursor: pointer; }
+.tile:hover { background: var(--glass); transform: translateY(-2px); }
+.tile span { font-size: 12.5px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.tile-icon { width: 52px; height: 52px; border-radius: 17px; display: grid; place-items: center; background: var(--surface); box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
+.tile-icon img { width: 26px; height: 26px; border-radius: 6px; }
+.tile-icon svg { width: 22px; height: 22px; color: var(--text-2); }
+.letter { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font: 700 16px var(--font-display); }
+.tile-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-sm); display: grid; place-items: center; opacity: 0; transition: opacity var(--t-fast); }
+.tile-x svg { width: 12px; height: 12px; }
+.tile:hover .tile-x { opacity: 1; }
+.recent h2 { font-size: 15px; color: var(--text-2); font-weight: 600; margin-bottom: 12px; }
+.recent-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.recent-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-lg); background: var(--glass); border: 1px solid var(--border); color: var(--text); text-decoration: none !important; transition: transform var(--t) var(--spring), box-shadow var(--t); min-width: 0; }
+.recent-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.recent-card img, .recent-card > svg { width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; color: var(--text-3); }
+.recent-card div { min-width: 0; display: flex; flex-direction: column; }
+.recent-card b { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-card span { font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats { margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--text-2); font-size: 13px; }
+.stats svg { width: 18px; height: 18px; color: var(--ok); }

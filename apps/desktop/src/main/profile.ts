@@ -75,14 +75,14 @@ export class Profile extends EventEmitter {
     super();
     this.settings = new JsonStore(join(dir, 'settings.json'), () => ({ ...DEFAULT_SETTINGS }), 200,
       (raw) => ({ ...DEFAULT_SETTINGS, ...sanitizeSettingsPatch(raw) }));
-    this.bookmarks = new JsonStore(join(dir, 'bookmarks.json'), () => []);
-    this.history = new JsonStore(join(dir, 'history.json'), () => [], 2000);
-    this.shortcuts = new JsonStore(join(dir, 'shortcuts.json'), () => DEFAULT_SHORTCUTS.map((s) => ({ ...s })));
-    this.permissions = new JsonStore(join(dir, 'permissions.json'), () => []);
-    this.downloads = new JsonStore(join(dir, 'downloads.json'), () => [],
+    this.bookmarks = new JsonStore<Bookmark[]>(join(dir, 'bookmarks.json'), () => []);
+    this.history = new JsonStore<HistoryEntry[]>(join(dir, 'history.json'), () => [], 2000);
+    this.shortcuts = new JsonStore<Shortcut[]>(join(dir, 'shortcuts.json'), () => DEFAULT_SHORTCUTS.map((s) => ({ ...s })));
+    this.permissions = new JsonStore<SitePermission[]>(join(dir, 'permissions.json'), () => []);
+    this.downloads = new JsonStore<DownloadInfo[]>(join(dir, 'downloads.json'), () => [],
       400, (raw) => (Array.isArray(raw) ? (raw as DownloadInfo[]) : []).map((d) =>
         d.status === 'progressing' || d.status === 'paused' ? { ...d, status: 'interrupted' as const } : d));
-    this.session = new JsonStore(join(dir, 'session.json'), () => ({ windows: [], cleanExit: true }), 1000);
+    this.session = new JsonStore<SessionData>(join(dir, 'session.json'), () => ({ windows: [], cleanExit: true }), 1000);
     for (const h of this.history.get()) this.historyIndex.set(h.url, h);
 
     const wire = (store: JsonStore<unknown>, topic: InternalEvent['topic']) =>

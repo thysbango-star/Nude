@@ -1,0 +1,91 @@
+/* Nude design language — shared by the browser UI and nude:// pages. */
+:root {
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "SF Pro Text", Inter, Ubuntu, Roboto, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "SF Pro Display", Inter, sans-serif;
+  --mono: "Cascadia Code", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --accent: #b5674d;          /* Nude clay — overridden by Nude OS / system accent */
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-text: #fff;
+
+  --bg: #f4f1ee;              /* window */
+  --surface: #ffffff;         /* cards, omnibox */
+  --surface-2: #faf8f6;
+  --glass: rgba(255, 255, 255, 0.62);
+  --hover: rgba(60, 40, 30, 0.06);
+  --active: rgba(60, 40, 30, 0.11);
+  --border: rgba(60, 40, 30, 0.10);
+  --text: #26201c;
+  --text-2: #6b625b;
+  --text-3: #9b928b;
+  --danger: #c6362c;
+  --danger-soft: rgba(198, 54, 44, 0.10);
+  --warn: #b7791f;
+  --warn-soft: rgba(183, 121, 31, 0.12);
+  --ok: #2f8a57;
+  --ok-soft: rgba(47, 138, 87, 0.12);
+  --shadow-sm: 0 1px 2px rgba(40, 25, 15, 0.06), 0 1px 1px rgba(40, 25, 15, 0.04);
+  --shadow: 0 8px 28px rgba(40, 25, 15, 0.14), 0 2px 6px rgba(40, 25, 15, 0.06);
+  --shadow-lg: 0 24px 64px rgba(40, 25, 15, 0.22);
+
+  --r-sm: 8px;
+  --r: 12px;
+  --r-lg: 18px;
+  --r-xl: 26px;
+  --pill: 999px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --t-fast: 120ms;
+  --t: 220ms;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #d98a6c;
+    --accent-text: #1a1210;
+    --bg: #121113;
+    --surface: #1d1b1f;
+    --surface-2: #19171a;
+    --glass: rgba(32, 29, 34, 0.62);
+    --hover: rgba(255, 240, 230, 0.06);
+    --active: rgba(255, 240, 230, 0.11);
+    --border: rgba(255, 240, 230, 0.09);
+    --text: #f1ece8;
+    --text-2: #b0a69f;
+    --text-3: #7d746e;
+    --danger: #ff6b5e;
+    --danger-soft: rgba(255, 107, 94, 0.14);
+    --warn: #f0b44c;
+    --warn-soft: rgba(240, 180, 76, 0.14);
+    --ok: #5cc98a;
+    --ok-soft: rgba(92, 201, 138, 0.14);
+    --shadow: 0 8px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+/* Private browsing: a distinct violet-night palette in both themes. */
+.private {
+  --accent: #a98bff;
+  --accent-text: #120d1f;
+  --bg: #16121f;
+  --surface: #221c30;
+  --surface-2: #1c1728;
+  --glass: rgba(34, 28, 48, 0.66);
+  --hover: rgba(230, 220, 255, 0.07);
+  --active: rgba(230, 220, 255, 0.12);
+  --border: rgba(230, 220, 255, 0.10);
+  --text: #eee9fb;
+  --text-2: #b4abcc;
+  --text-3: #80779a;
+  color-scheme: dark;
+}
+
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { transition: none !important; animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+}
