@@ -88,7 +88,8 @@ after(async () => {
   await Promise.race([app?.close().catch(() => {}), new Promise((r) => setTimeout(r, 5000))]);
   proc?.kill('SIGKILL');
   server?.close();
-  rmSync(profile, { recursive: true, force: true });
+  // Chromium may still be flushing files for a moment after exit.
+  try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* temp dir; ignore */ }
 });
 
 test('starts with a new tab page', async () => {
