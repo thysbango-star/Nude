@@ -86,19 +86,35 @@ jobs:
 
   release:
     name: Publish downloads
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Publishes (or updates) the GitHub Release for the version in apps/desktop/package.json
+    # on every push to main, and on version tags.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [windows, android]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: echo "version=$(node -p "require('./apps/desktop/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Nude ${{ steps.v.outputs.version }}
+          make_latest: true
+          overwrite_files: true
           files: dist/*
-          generate_release_notes: true
           body: |
-            ## Download Nude
-            - **Windows:** `Nude-Setup-…-x64.exe` (installer) or the `.zip` (portable, no install).
-            - **Android:** `Nude-Android.apk` — allow installs from your browser/files app when Android asks.
+            ## Download Nude ${{ steps.v.outputs.version }}
 
-            These builds aren't code-signed yet, so Windows SmartScreen may show "Windows protected your PC" — choose **More info → Run anyway**.
+            **Windows 10/11 (64-bit)**
+            - `Nude-Setup-${{ steps.v.outputs.version }}-x64.exe` — installer (recommended)
+            - `Nude-${{ steps.v.outputs.version }}-Windows-x64.zip` — portable, no install: unzip and run `Nude.exe`
+
+            This build isn't code-signed yet, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
+
+            **Android 10+**
+            - `Nude-Android.apk` — open it on your phone and allow installing from your browser or Files app when asked.
+
+            Built from commit ${{ github.sha }}.
