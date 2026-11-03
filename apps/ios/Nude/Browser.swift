@@ -103,12 +103,14 @@ final class Tab: NSObject, ObservableObject, Identifiable {
         webView = nil
     }
 
-    /// Page text, read in an isolated JavaScript world (the page can't tamper with it). Only used when the user shares the page with Nude AI.
+    /// Page text for Nude AI — only read when the user shares the page. Uses the classic Objective-C
+    /// evaluateJavaScript API so the app runs on iOS 16+ (the newer Swift-only overload needs iOS 26 libraries).
+    /// The text is treated as untrusted data by the AI gateway either way.
     func pageText() async -> (title: String, text: String) {
         guard let w = webView else { return ("", "") }
         return await withCheckedContinuation { cont in
-            w.evaluateJavaScript("JSON.stringify({t: document.title, b: (document.body && document.body.innerText || '').slice(0, 60000)})", in: nil, in: .defaultClient) { result in
-                if case .success(let v) = result, let s = v as? String, let data = s.data(using: .utf8),
+            w.evaluateJavaScript("JSON.stringify({t: document.title, b: (document.body && document.body.innerText || '').slice(0, 60000)})") { value, _ in
+                if let s = value as? String, let data = s.data(using: .utf8),
                    let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
                     cont.resume(returning: (obj["t"] ?? "", obj["b"] ?? ""))
                 } else { cont.resume(returning: ("", "")) }
