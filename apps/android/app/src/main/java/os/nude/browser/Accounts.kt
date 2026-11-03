@@ -49,7 +49,7 @@ class Accounts(context: Context) {
         val rec = JSONObject().put("id", account.id).put("name", n).put("email", e)
             .put("salt", b64(salt)).put("hash", b64(hash(password, salt))).put("failures", 0)
         save(all().map { it.second } + rec)
-        setCurrent(account)
+        select(account)
         return null
     }
 
@@ -70,7 +70,7 @@ class Accounts(context: Context) {
         }
         rec.put("failures", 0).remove("lockedUntil")
         save(records.map { it.second })
-        setCurrent(found.first)
+        select(found.first)
         return null
     }
 
@@ -86,7 +86,7 @@ class Accounts(context: Context) {
 
     fun showWelcome() { needsWelcome = true }
 
-    private fun setCurrent(a: Account) {
+    private fun select(a: Account) {
         prefs.edit().putString("current", a.id).putBoolean("welcomed", true).apply()
         current = a
         needsWelcome = false

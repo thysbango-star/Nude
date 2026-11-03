@@ -29,8 +29,9 @@ final class Accounts: ObservableObject {
     init() {
         let id = d.string(forKey: "account.current")
         let recs = Accounts.load(d)
-        current = recs.first { $0.account.id == id }?.account
-        needsWelcome = current == nil && !d.bool(forKey: "account.welcomed")
+        let signedIn = recs.first { $0.account.id == id }?.account
+        current = signedIn
+        needsWelcome = signedIn == nil && !d.bool(forKey: "account.welcomed")
     }
 
     var known: [Account] { Accounts.load(d).map(\.account) }
