@@ -49,10 +49,19 @@ window.addEventListener('resize', reportBounds);
 
 // ------------------------------------------------------------------ overlay (menus, suggestions, overview)
 let overlayCloser: (() => void) | null = null;
-async function openOverlay(build: (layer: HTMLElement) => void, onClose?: () => void, useSnapshot = true) {
+/** Bumped on every open/close so a slow open can't resurrect an overlay that was closed meanwhile. */
+let overlayGen = 0;
+async function openOverlay(build: (layer: HTMLElement) => void, onClose?: () => void, useSnapshot = true): Promise<boolean> {
   closeOverlay();
-  const snap = useSnapshot ? await invoke<string | null>('overlay', true) : (await invoke('overlay', true), null);
-  if (snap) { els.snapshot.src = snap; els.snapshot.hidden = false; }
+  const gen = ++overlayGen;
+  const snap = await invoke<string | null>('overlay', true);
+  if (gen !== overlayGen) {
+    // Closed (or replaced) while we were waiting for the snapshot.
+    if (!overlayCloser) void invoke('overlay', false);
+    onClose?.();
+    return false;
+  }
+  if (snap && useSnapshot) { els.snapshot.src = snap; els.snapshot.hidden = false; }
   els.overlay.hidden = false;
   els.overlay.innerHTML = '';
   build(els.overlay);
@@ -64,8 +73,10 @@ async function openOverlay(build: (layer: HTMLElement) => void, onClose?: () => 
     onClose?.();
     void invoke('overlay', false);
   };
+  return true;
 }
 function closeOverlay() {
+  overlayGen++;
   const c = overlayCloser;
   overlayCloser = null;
   c?.();
@@ -479,8 +490,9 @@ async function updateSuggestions(deleting: boolean) {
   selected = -1;
   if (!suggestionsOpen) {
     suggestionsOpen = true;
-    await openOverlay(() => {}, () => { suggestionsOpen = false; }, true);
-    els.address.focus();
+    const opened = await openOverlay(() => {}, () => { suggestionsOpen = false; }, true);
+    if (!opened) return;
+    if (document.activeElement !== els.address) { closeOverlay(); return; }
   }
   paintSuggestions();
 }
