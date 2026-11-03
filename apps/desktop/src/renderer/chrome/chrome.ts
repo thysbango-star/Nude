@@ -124,6 +124,8 @@ function render(s: WindowState) {
   renderPageState();
   positionSplitHandle();
   if (!prev || prev.activeTabId !== s.activeTabId) aiPanel.onTabChanged();
+  const prevUrl = prev?.tabs.find((t) => t.id === prev.activeTabId)?.url;
+  if (suggestionsOpen && document.activeElement !== els.address && prevUrl !== active()?.url) closeOverlay();
   document.title = active()?.title ? `${active()!.title} — Nude` : 'Nude';
   requestAnimationFrame(reportBounds);
 }
@@ -435,6 +437,7 @@ els.address.addEventListener('focus', () => {
 });
 els.address.addEventListener('blur', () => {
   els.omnibox.classList.remove('focused');
+  suggestSeq++; // discard suggestion responses still in flight
   setTimeout(() => { if (document.activeElement !== els.address && suggestionsOpen) closeOverlay(); }, 120);
   if (state) renderToolbar(state);
 });
@@ -452,6 +455,7 @@ els.address.addEventListener('keydown', (e) => {
     paintSuggestions();
   } else if (e.key === 'Enter') {
     e.preventDefault();
+    suggestSeq++; // a late suggestion response must not reopen the dropdown
     const s = selected >= 0 ? suggestions[selected] : null;
     const newTab = e.altKey || e.metaKey;
     if (s?.kind === 'tab' && s.tabId) void invoke('activate', s.tabId);
@@ -464,6 +468,7 @@ els.address.addEventListener('keydown', (e) => {
     closeOverlay();
     els.address.blur();
   } else if (e.key === 'Escape') {
+    suggestSeq++;
     if (suggestionsOpen) closeOverlay();
     else { els.address.value = displayUrl(active()?.url ?? ''); els.address.select(); }
     if (!suggestionsOpen && document.activeElement === els.address) { els.address.blur(); void invoke('overlay', false); }
@@ -492,7 +497,7 @@ async function updateSuggestions(deleting: boolean) {
     suggestionsOpen = true;
     const opened = await openOverlay(() => {}, () => { suggestionsOpen = false; }, true);
     if (!opened) return;
-    if (document.activeElement !== els.address) { closeOverlay(); return; }
+    if (seq !== suggestSeq || document.activeElement !== els.address) { closeOverlay(); return; }
   }
   paintSuggestions();
 }

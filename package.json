@@ -4,7 +4,8 @@
   "description": "Nude Web Browser, Nude Search, Nude AI and Nude Security",
   "workspaces": [
     "apps/desktop",
-    "packages/security-engine"
+    "packages/security-engine",
+    "services/*"
   ],
   "scripts": {
     "build": "npm run build -w apps/desktop",
