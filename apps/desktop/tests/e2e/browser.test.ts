@@ -111,7 +111,7 @@ test('target=_blank opens a new tab', async () => {
     const wc = views.map((v) => v.webContents).find((w) => w.getURL().endsWith('/'))!;
     return wc.executeJavaScript('document.getElementById("nt").click()', true);
   });
-  const s = await waitFor(state, (s) => s.tabs.length === before + 1);
+  const s = await waitFor(state, (s) => s.tabs.length === before + 1 && s.tabs.some((t) => t.url.endsWith('/second')));
   assert.ok(s.tabs.some((t) => t.url.endsWith('/second')));
 });
 
