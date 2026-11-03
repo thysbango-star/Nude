@@ -1,0 +1,58 @@
+# XcodeGen project spec. Generate the Xcode project with:  brew install xcodegen && xcodegen generate
+name: Nude
+options:
+  bundleIdPrefix: os.nude
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Nude:
+    type: application
+    platform: iOS
+    sources: [Nude]
+    info:
+      path: Nude/Info.plist
+      properties:
+        CFBundleDisplayName: Nude
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSCameraUsageDescription: Websites you allow can use your camera, for example for video calls.
+        NSMicrophoneUsageDescription: Websites you allow can use your microphone, for example for video calls.
+        NSLocationWhenInUseUsageDescription: Websites you allow can see your location, for example for maps.
+        NSPhotoLibraryAddUsageDescription: Lets you save images from websites to your photo library.
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: os.nude.browser
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+  NudeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [NudeTests]
+    dependencies:
+      - target: Nude
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Nude:
+    build:
+      targets:
+        Nude: all
+        NudeTests: [test]
+    test:
+      targets: [NudeTests]

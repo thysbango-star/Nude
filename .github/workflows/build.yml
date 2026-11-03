@@ -84,12 +84,64 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: nude-android, path: out/Nude-Android.apk, if-no-files-found: error }
 
+  macos:
+    name: macOS app
+    runs-on: macos-15
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --no-audit --no-fund
+      - name: Build
+        run: npm run build -w apps/desktop
+        env: { NODE_ENV: production }
+      - name: Package universal app (Apple silicon + Intel)
+        working-directory: apps/desktop
+        run: npx electron-builder --mac dir --universal --publish never
+        env: { CSC_IDENTITY_AUTO_DISCOVERY: 'false' }
+      - name: Ad-hoc sign and make .dmg
+        run: |
+          APP=$(find apps/desktop/release -maxdepth 2 -name 'Nude.app' -type d | head -1)
+          echo "Packaging $APP"
+          codesign --force --deep --sign - "$APP"
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          mkdir -p dmg out && cp -R "$APP" dmg/ && ln -s /Applications dmg/Applications
+          hdiutil create -volname "Nude" -srcfolder dmg -ov -format UDZO "out/Nude-$VERSION-macOS.dmg"
+      - uses: actions/upload-artifact@v4
+        with: { name: nude-macos, path: out/*.dmg, if-no-files-found: error }
+
+  ios:
+    name: iPhone & iPad app
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Xcode project
+        working-directory: apps/ios
+        run: brew install xcodegen && xcodegen generate
+      - name: Unit tests (iOS Simulator)
+        working-directory: apps/ios
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          echo "Simulator: $UDID"
+          xcodebuild test -project Nude.xcodeproj -scheme Nude -destination "id=$UDID" CODE_SIGNING_ALLOWED=NO -quiet
+      - name: Build unsigned .ipa (for sideloading / re-signing)
+        working-directory: apps/ios
+        run: |
+          xcodebuild build -project Nude.xcodeproj -scheme Nude -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -quiet
+          mkdir -p Payload ../../out
+          cp -R build/Build/Products/Release-iphoneos/Nude.app Payload/
+          zip -qry ../../out/Nude-iOS-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: nude-ios, path: out/Nude-iOS-unsigned.ipa, if-no-files-found: error }
+
   release:
     name: Publish downloads
     # Publishes (or updates) the GitHub Release for the version in apps/desktop/package.json
     # on every push to main, and on version tags.
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    needs: [windows, android]
+    needs: [windows, android, macos, ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,7 +166,13 @@ jobs:
 
             This build isn't code-signed yet, so Windows SmartScreen may show "Windows protected your PC". Click **More info → Run anyway**.
 
+            **Mac (macOS 12+, Apple silicon and Intel)**
+            - `Nude-${{ steps.v.outputs.version }}-macOS.dmg` — open it and drag Nude to Applications. It isn't notarised yet: the first time, right-click Nude → **Open** (or System Settings → Privacy & Security → **Open Anyway**). If macOS says it's "damaged", run `xattr -cr /Applications/Nude.app` in Terminal.
+
             **Android 10+**
             - `Nude-Android.apk` — open it on your phone and allow installing from your browser or Files app when asked.
+
+            **iPhone & iPad (iOS/iPadOS 16+)**
+            - `Nude-iOS-unsigned.ipa` — Apple doesn't allow installing apps directly. Sideload it with [Sideloadly](https://sideloadly.io) or [AltStore](https://altstore.io) using your Apple ID (free Apple IDs must re-sign every 7 days), or distribute through TestFlight with an Apple Developer account.
 
             Built from commit ${{ github.sha }}.
