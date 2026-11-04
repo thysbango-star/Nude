@@ -24,6 +24,10 @@ async function render() {
       ${others(info.all, a)}
       <div class="setting"><div class="text"><b>Add another Rovian account</b><span>Keep work and personal accounts side by side and switch between them.</span></div><button class="btn" id="add-rovian">Add account</button></div>
     </section>
+    <section class="card"><h2>Your phone</h2>
+      <div class="setting"><div class="text"><b>Sign in to PassGate</b><span>Scan a code from Nude with PassGate on your phone to sign in. PassGate gets your verified identity, never your password or tokens.</span></div><button class="btn primary" id="phone-pg">Show code</button></div>
+      <div class="setting"><div class="text"><b>Rovian Defender on your phone</b><span>See how Rovian Defender is protecting this PC from your phone.</span></div><button class="btn" id="phone-rd">Link phone</button></div>
+    </section>
     <section class="card"><h2>Profile</h2>
       <div class="setting"><div class="text"><b>Name</b><span>Nude greets you with this on the home page.</span></div><input class="input" id="name" value="${esc(a.name)}" maxlength="80"><button class="btn" id="save-name">Save</button></div>
       ${a.photo ? '<div class="setting"><div class="text"><b>Photo</b></div><button class="btn" id="rm-photo">Remove photo</button></div>' : ''}
@@ -46,9 +50,12 @@ async function render() {
       <input class="input" id="del-pw" type="password" autocomplete="current-password" style="width:100%">
       <div class="btns"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn danger" value="ok">Delete account</button></div></form></dialog>`;
   const startRovian = async (purpose: 'signin' | 'link') => {
-    const r = await api.invoke<{ ok: boolean; error?: string }>('account.rovian', purpose);
+    const r = await api.invoke<{ ok: boolean; error?: string; external?: boolean }>('account.rovian', purpose, true);
     if (!r.ok) toast(r.error ?? 'Couldn\'t start signing in with Rovian.');
+    else if (r.external) toast('Rovian Account opened in your web browser. Approve there and Nude will continue.');
   };
+  document.getElementById('phone-pg')?.addEventListener('click', () => void api.invoke('open', 'nude://phone/#passgate'));
+  document.getElementById('phone-rd')?.addEventListener('click', () => void api.invoke('open', 'nude://phone/#defender'));
   document.getElementById('link-rovian')?.addEventListener('click', () => void startRovian('signin'));
   document.getElementById('add-rovian')?.addEventListener('click', () => void startRovian('link'));
   document.querySelectorAll<HTMLElement>('[data-switch]').forEach((b) => b.addEventListener('click', async () => {

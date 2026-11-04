@@ -7,6 +7,14 @@ import { RovianAuth, ROVIAN, RovianAuthError, challengeFor, makeVerifier } from 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const other = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', use: 'sig', alg: 'RS256' };
+const ec = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+const ecJwk = { ...ec.publicKey.export({ format: 'jwk' }), kid: 'e1', use: 'sig', alg: 'ES256' };
+function esToken(claims: Record<string, unknown>, kid = 'e1') {
+  const head = b64({ alg: 'ES256', kid, typ: 'JWT' });
+  const body = b64(claims);
+  const sig = sign('sha256', Buffer.from(`${head}.${body}`), { key: ec.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url');
+  return `${head}.${body}.${sig}`;
+}
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
 function idToken(claims: Record<string, unknown>, opts: { alg?: string; kid?: string; key?: typeof privateKey } = {}) {
@@ -33,7 +41,7 @@ function rovian(issue: (form: URLSearchParams, nonce: string) => { status?: numb
     calls.push({ url, body: init?.body, headers: init?.headers });
     const reply = (status: number, body: unknown) => ({ ok: status < 400, status, json: async () => body });
     if (url.endsWith('/openid-configuration')) return reply(200, disco);
-    if (url.endsWith('/jwks.json')) return reply(200, { keys: [jwk] });
+    if (url.endsWith('/jwks.json')) return reply(200, { keys: [jwk, ecJwk] });
     if (url === DISCO.token_endpoint) {
       const form = new URLSearchParams(init?.body);
       // The server checks PKCE: the verifier must hash to the challenge from the authorize request.
@@ -155,7 +163,20 @@ for (const [name, make, code] of [
 test('a token endpoint error fails the sign-in', async () => {
   const { auth, begin } = rovian(() => ({ status: 400, body: { error: 'invalid_grant' } }));
   const u = await begin();
-  await rejects(auth.complete(cb({ code: 'abc', state: u.searchParams.get('state')! })), 'token_400');
+  await rejects(auth.complete(cb({ code: 'abc', state: u.searchParams.get('state')! })), 'token_400_invalid_grant');
+});
+
+test('accepts an ES256 ID token signed by a P-256 key in the JWKS', async () => {
+  const { auth, begin } = rovian((_f, nonce) => ({ body: { id_token: esToken(good(nonce, { username: 'simon' })), access_token: 'a' } }));
+  const u = await begin();
+  const r = await auth.complete(cb({ code: 'abc', state: u.searchParams.get('state')! }));
+  assert.equal(r.identity.rovianId, 'simon@rovian.cloud');
+});
+
+test('rejects an ES256 header that points at an RSA key', async () => {
+  const { auth, begin } = rovian((_f, nonce) => ({ body: { id_token: esToken(good(nonce), 'k1') } }));
+  const u = await begin();
+  await rejects(auth.complete(cb({ code: 'abc', state: u.searchParams.get('state')! })), 'id_token_key');
 });
 
 test('refuses a discovery document for another issuer', async () => {

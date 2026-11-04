@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Only to download threat lists from a Rovian threat-intel server you choose. Checks run on the phone. -->
+    <!-- To read the encrypted protection report from Nude on your PC, over your own Wi-Fi. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- To look for apps from outside the Play Store that hold sensitive permissions (App check). -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- To scan the code Nude shows on your PC (asked only when you tap Scan). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:allowBackup="false"
@@ -12,29 +14,24 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:label="Rovian Defender"
         android:supportsRtl="true"
+        android:hardwareAccelerated="true"
         android:theme="@style/Theme.Rovian"
         android:networkSecurityConfig="@xml/network_security_config">
         <activity
             android:name=".DefenderActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode|density"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- "Share → Rovian Defender" from any app: a link or a message to check. -->
-            <intent-filter android:label="Check with Rovian Defender">
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-            <!-- Share a file to check it. -->
-            <intent-filter android:label="Check with Rovian Defender">
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="application/*" />
-            </intent-filter>
         </activity>
+        <!-- The QR scanner: follow the phone's orientation instead of forcing landscape. -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="fullSensor"
+            tools:replace="android:screenOrientation" />
     </application>
 </manifest>

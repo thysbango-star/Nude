@@ -292,5 +292,5 @@ export interface ClearDataOptions {
 }
 
 export interface InternalEvent {
-  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes' | 'nebula';
+  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes' | 'nebula' | 'phone';
 }

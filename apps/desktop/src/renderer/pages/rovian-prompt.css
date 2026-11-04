@@ -1,0 +1,38 @@
+/* Sign in with Rovian prompt: a matte card that floats over the page's top right corner. */
+html, body { margin: 0; background: transparent; overflow: hidden; font-family: var(--font); color: var(--text); }
+#root { padding: 10px 14px 0 0; display: flex; justify-content: flex-end; }
+.card {
+  width: 352px; box-sizing: border-box; padding: 16px 18px 14px; border-radius: 20px;
+  background: var(--glass-strong); border: 1px solid var(--glass-edge);
+  backdrop-filter: blur(24px) saturate(1.1);
+  box-shadow: 0 22px 50px -18px rgba(10, 12, 30, 0.42), 0 2px 8px rgba(10, 12, 30, 0.08);
+  transform-origin: top right;
+}
+.card.in { animation: pop 420ms cubic-bezier(.2, .9, .2, 1.05) both; }
+.card.out { animation: away 170ms ease-in both; }
+@keyframes pop { from { opacity: 0; transform: translateY(-10px) scale(0.94); } }
+@keyframes away { to { opacity: 0; transform: translateY(-6px) scale(0.97); } }
+header { display: flex; align-items: center; gap: 10px; }
+.mark { width: 28px; height: 23px; flex: none; }
+.theme-dark .mark, .theme-dark .rv img { filter: invert(1) brightness(1.4); }
+h1 { flex: 1; margin: 0; font-size: 14px; font-weight: 500; line-height: 1.35; color: var(--text-2); }
+h1 b { color: var(--text); font-weight: 600; }
+.x { flex: none; width: 30px; height: 30px; margin: -4px -6px 0 0; border: 0; border-radius: 10px; background: none; color: var(--text-3); cursor: pointer; display: grid; place-items: center; transition: background 150ms, color 150ms; }
+.x:hover { background: var(--hover); color: var(--text); }
+.x svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; }
+.who { display: flex; align-items: center; gap: 12px; margin: 14px 0 14px; padding: 10px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
+.av { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 600; font-size: 14px; overflow: hidden; }
+.av img { width: 100%; height: 100%; object-fit: cover; }
+.av.rv { background: var(--surface-2); }
+.av.rv img { width: 26px; height: 22px; object-fit: contain; }
+.id { min-width: 0; display: flex; flex-direction: column; }
+.id b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.id span { font-size: 12.5px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.go { width: 100%; height: 42px; border: 0; border-radius: 12px; background: #1450f0; color: #fff; font: 600 14px var(--font); cursor: pointer;
+  transition: transform 200ms cubic-bezier(.2, .9, .2, 1), box-shadow 200ms, background 200ms; }
+.go:hover { background: #0f43d1; box-shadow: 0 10px 22px -10px rgba(20, 80, 240, 0.75); }
+.go:active { transform: scale(0.98); }
+.go:focus-visible, .x:focus-visible, .never:focus-visible { outline: 2px solid #1450f0; outline-offset: 2px; }
+.fine { margin: 10px 2px 0; font-size: 11.5px; line-height: 1.45; color: var(--text-3); }
+.never { border: 0; background: none; padding: 0; font: inherit; color: var(--text-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { .card.in, .card.out { animation: none; } }

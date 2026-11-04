@@ -23,8 +23,8 @@ android {
         applicationId = "os.rovian.passgate"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     signingConfigs {
@@ -57,9 +57,10 @@ android {
 }
 
 dependencies {
+    // QR scanning for the code Nude shows on your PC (works without Google Play services).
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation(project(":core"))
     implementation("androidx.biometric:biometric:1.1.0")
-    implementation("androidx.browser:browser:1.8.0")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     testImplementation("junit:junit:4.13.2")
 }

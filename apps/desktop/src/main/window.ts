@@ -1,15 +1,22 @@
 // One browser window: the Nude UI (the window's own webContents) plus one WebContentsView per tab.
 import {
-  BrowserWindow, Menu, clipboard, nativeTheme, screen, shell, type Session, type WebContents, type MenuItemConstructorOptions,
+  BrowserWindow, Menu, WebContentsView, clipboard, nativeTheme, screen, shell, type Session, type WebContents, type MenuItemConstructorOptions,
 } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { Tab, type TabOptions } from './tab';
-import { CHROME_HTML, CHROME_PRELOAD } from './paths';
+import { CHROME_HTML, CHROME_PRELOAD, INTERNAL_PRELOAD } from './paths';
+import { CLICK_SCRIPT, DETECT_SCRIPT, chooseOffer, siteLabel } from './rovian-prompt';
+import { registrableDomain } from '@nude/security-engine';
 import type { NudeApp } from './app';
 import type { ChromeCommand, ContentBounds, FindState, TabGroup, WindowState } from '../shared/types';
 import { NEW_TAB_URL, resolveInput, searchUrl } from '../shared/omnibox';
 import { matchShortcut, type ShortcutCommand } from '../shared/shortcuts';
 import type { SavedWindow } from './profile';
+
+/** The Sign in with Rovian prompt: a small card at the top right of the page (its page draws the shadow). */
+const PROMPT_W = 396;
+const PROMPT_H = 286;
+const DETECT_WORLD = 1001;
 
 const IGNORED_LOAD_ERRORS = new Set([-3 /* ABORTED */, -20 /* BLOCKED_BY_CLIENT (Rovian Defender) */]);
 
@@ -26,6 +33,9 @@ export class BrowserWindowController {
   private stateTimer: NodeJS.Timeout | null = null;
   private uiReady = false;
   readonly partitionKey: string | null;
+  private prompt: WebContentsView | null = null;
+  private promptReady = false;
+  private promptShownFor: number | null = null;
 
   constructor(readonly app: NudeApp, readonly session: Session, readonly isPrivate: boolean, saved?: SavedWindow, partitionKey?: string) {
     this.partitionKey = partitionKey ?? null;
@@ -65,7 +75,7 @@ export class BrowserWindowController {
     this.win.on('resize', () => this.app.saveSessionSoon());
     this.win.on('move', () => this.app.saveSessionSoon());
     this.win.on('close', () => this.app.beforeWindowClose(this));
-    this.win.on('closed', () => this.app.windowClosed(this));
+    this.win.on('closed', () => { if (this.prompt && !this.prompt.webContents.isDestroyed()) this.prompt.webContents.close(); this.app.windowClosed(this); });
 
     if (saved?.groups?.length) this.groups = saved.groups.slice(0, 50).map((g) => ({ id: String(g.id), name: String(g.name).slice(0, 60), color: String(g.color), collapsed: false }));
     if (saved?.tabs.length) {
@@ -287,6 +297,101 @@ export class BrowserWindowController {
       visible.add(this.activeTab.id);
     }
     for (const t of this.tabs) t.view.setVisible(!this.overlayOpen && visible.has(t.id) && !t.error && !t.crashed);
+    this.updatePrompt();
+  }
+
+  // ---------------------------------------------------------------- Sign in with Rovian prompt
+  ownsPrompt(wc: WebContents) { return this.prompt?.webContents === wc; }
+
+  /** Looks for a Rovian sign-in offer on the tab's page (soon after it loads, and again for late-drawn buttons). */
+  scheduleRovianDetect(tab: Tab, delay = 700) {
+    if (this.isPrivate) return;
+    if (tab.rovianDetectTimer) clearTimeout(tab.rovianDetectTimer);
+    tab.rovianDetectTimer = setTimeout(() => {
+      tab.rovianDetectTimer = null;
+      void this.detectRovian(tab).then((found) => { if (!found && delay < 2000) this.scheduleRovianDetect(tab, 2500); });
+    }, delay);
+  }
+
+  private async detectRovian(tab: Tab): Promise<boolean> {
+    const wc = tab.wc;
+    if (wc.isDestroyed() || tab.closing || !/^https?:/.test(wc.getURL())) return false;
+    const url = wc.getURL();
+    let site = '';
+    try { site = registrableDomain(new URL(url).hostname); } catch { return false; }
+    if (this.app.rovianPromptNever(site)) return false;
+    let raw: unknown = null;
+    try { raw = await wc.executeJavaScriptInIsolatedWorld(DETECT_WORLD, [{ code: DETECT_SCRIPT }]); } catch { return false; }
+    if (wc.isDestroyed() || wc.getURL() !== url) return false;
+    const offer = chooseOffer(url, raw);
+    const had = Boolean(tab.rovianOffer);
+    tab.rovianOffer = offer;
+    if (Boolean(offer) !== had || offer) this.updatePrompt();
+    return Boolean(offer);
+  }
+
+  private ensurePrompt(): WebContentsView {
+    if (this.prompt) return this.prompt;
+    const v = new WebContentsView({ webPreferences: {
+      session: this.session, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false, preload: INTERNAL_PRELOAD,
+    } });
+    v.setBackgroundColor('#00000000');
+    v.webContents.on('did-finish-load', () => { this.promptReady = true; this.promptShownFor = null; this.updatePrompt(); });
+    v.webContents.on('will-navigate', (e) => e.preventDefault());
+    v.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    void v.webContents.loadURL('nude://rovian-prompt/');
+    this.win.contentView.addChildView(v);
+    v.setVisible(false);
+    this.prompt = v;
+    return v;
+  }
+
+  /** Shows the prompt for the active tab's offer, or hides it. */
+  updatePrompt() {
+    const tab = this.activeTab;
+    const b = this.contentBounds;
+    const show = Boolean(tab?.rovianOffer && !tab.rovianDismissed && !this.overlayOpen && !this.htmlFullscreen && !tab.error && !tab.crashed && b.width >= 520 && b.height >= 360);
+    if (!show) {
+      if (this.prompt) this.prompt.setVisible(false);
+      this.promptShownFor = null;
+      return;
+    }
+    const v = this.ensurePrompt();
+    if (!this.promptReady) return;
+    v.setBounds({ x: b.x + b.width - PROMPT_W, y: b.y, width: PROMPT_W, height: PROMPT_H });
+    if (this.promptShownFor !== tab!.id) {
+      this.promptShownFor = tab!.id;
+      const acct = this.app.accounts.current();
+      v.webContents.send('internal:event', {
+        topic: 'rovian-prompt',
+        site: siteLabel(tab!.wc.getURL()),
+        account: acct && acct.provider === 'rovian' ? { name: acct.name, id: acct.rovianId ?? acct.email, initials: acct.initials, color: acct.color, photo: acct.photo ?? null } : null,
+      });
+      this.win.contentView.addChildView(v); // on top of the tab views
+    }
+    v.setVisible(true);
+  }
+
+  /** The signed-in account changed: redraw the prompt. */
+  refreshPrompt() { this.promptShownFor = null; this.updatePrompt(); }
+
+  /** The prompt's buttons. */
+  rovianPromptAction(action: string) {
+    const tab = this.activeTab;
+    if (!tab?.rovianOffer) return;
+    const offer = tab.rovianOffer;
+    const url = tab.wc.getURL();
+    tab.rovianDismissed = true;
+    this.updatePrompt();
+    if (action === 'continue') {
+      this.app.identityLog('website-rovian', `Chose Sign in with Rovian on ${siteLabel(url)}`);
+      if (offer.url) void tab.load(offer.url);
+      else void tab.wc.executeJavaScriptInIsolatedWorld(DETECT_WORLD, [{ code: CLICK_SCRIPT }], true).catch(() => {});
+      tab.wc.focus();
+    } else if (action === 'never') {
+      try { this.app.setRovianPromptNever(registrableDomain(new URL(url).hostname)); } catch { /* ignore */ }
+      this.sendCommand({ type: 'toast', message: `Nude won't offer Rovian sign-in on ${siteLabel(url)}. You can change this in Settings.` });
+    }
   }
 
   private sizeOf() {
@@ -492,6 +597,7 @@ export class BrowserWindowController {
     wc.on('did-start-loading', changed);
     wc.on('did-stop-loading', () => {
       changed();
+      this.scheduleRovianDetect(tab);
       void tab.probeReader().then(changed);
       if (tab.id === this.activeTabId) void tab.captureThumbnail();
     });
@@ -503,6 +609,10 @@ export class BrowserWindowController {
         tab.readerAvailable = false;
         tab.trackersBlocked = 0;
         this.app.permissions.cancelForTab(tab.id);
+        // A new page: forget the last page's offer (and the dismissal, unless it's the same site).
+        let sameSite = false;
+        try { sameSite = registrableDomain(new URL(details.url).hostname) === registrableDomain(new URL(wc.getURL()).hostname); } catch { /* ignore */ }
+        if (tab.rovianOffer || !sameSite) { tab.rovianOffer = null; if (!sameSite) tab.rovianDismissed = false; this.updatePrompt(); }
       }
     });
     wc.on('did-navigate', (_e, url) => {
@@ -516,6 +626,7 @@ export class BrowserWindowController {
     });
     wc.on('did-navigate-in-page', (_e, url, isMainFrame) => {
       if (isMainFrame && !this.isPrivate) this.app.profile.recordVisit(url, wc.getTitle());
+      if (isMainFrame) this.scheduleRovianDetect(tab);
       changed();
       this.app.saveSessionSoon();
     });

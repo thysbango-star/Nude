@@ -52,6 +52,7 @@ export const I = {
   clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   tab: svg('<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18"/>'),
   shield: svg('<path d="M12 3l7.5 3v5.5c0 4.4-3.1 8.2-7.5 9.5-4.4-1.3-7.5-5.1-7.5-9.5V6z"/>'),
+  phone: svg('<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/>'),
   shieldCheck: svg('<path d="M12 3l7.5 3v5.5c0 4.4-3.1 8.2-7.5 9.5-4.4-1.3-7.5-5.1-7.5-9.5V6z"/><path d="M8.8 12.2l2.2 2.2 4.4-4.6"/>'),
   shieldX: svg('<path d="M12 3l7.5 3v5.5c0 4.4-3.1 8.2-7.5 9.5-4.4-1.3-7.5-5.1-7.5-9.5V6z"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/>'),
   download: svg('<path d="M12 4v11M7 11l5 5 5-5"/><path d="M5 20h14"/>'),

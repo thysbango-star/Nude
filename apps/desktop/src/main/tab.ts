@@ -44,6 +44,10 @@ export class Tab {
   /** Next did-navigate came from the omnibox (counts as typed in history). */
   typedNavigation = false;
   closing = false;
+  /** This page offers Sign in with Rovian (checked by Nude), and whether you closed the prompt for it. */
+  rovianOffer: import('./rovian-prompt').RovianOffer | null = null;
+  rovianDismissed = false;
+  rovianDetectTimer: NodeJS.Timeout | null = null;
 
   constructor(readonly ctrl: BrowserWindowController, opts: TabOptions) {
     const secure: WebPreferences = {

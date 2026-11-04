@@ -1,128 +1,89 @@
 package os.rovian.passgate
 
 import android.content.Context
-import android.os.Build
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyInfo
-import android.security.keystore.KeyProperties
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import org.json.JSONArray
 import org.json.JSONObject
-import os.rovian.core.RovianIdentity
-import java.io.File
-import java.security.KeyStore
-import java.util.Base64
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.GCMParameterSpec
+import os.rovian.core.LinkedPc
+import os.rovian.core.SecureFile
 
-/** A connected Rovian account: the verified identity only. PassGate never stores Rovian tokens or passwords. */
-data class LinkedAccount(val identity: RovianIdentity, val linkedAt: Long, val lastUsed: Long, val preferred: Boolean)
+/** Your account as Nude on the PC knows it: verified claims only. */
+data class Acc(
+    val name: String, val email: String, val provider: String, val rovianId: String?, val username: String?, val emailVerified: Boolean,
+    val initials: String, val color: String?, val lastSignIn: Long, val linkedAt: Long,
+)
+data class AccRef(val name: String, val id: String, val provider: String, val current: Boolean)
+data class IEvent(val t: Long, val kind: String, val detail: String)
+data class Dev(val app: String, val name: String, val lastSeen: Long)
 
-/** Something that happened, for the activity list. No secrets. */
-data class Activity(val time: Long, val kind: String, val detail: String)
+/** What PassGate shows: read from Nude on the linked PC. No passwords, no tokens. */
+data class Identity(
+    val pcName: String, val platform: String, val nudeVersion: String, val account: Acc?, val accounts: List<AccRef>,
+    val events: List<IEvent>, val devices: List<Dev>, val level: String, val time: Long,
+)
+
+fun parseIdentity(j: JSONObject): Identity {
+    val pc = j.optJSONObject("pc") ?: JSONObject()
+    val a = j.optJSONObject("account")
+    fun s(o: JSONObject, k: String) = o.optString(k).takeIf { it.isNotBlank() && it != "null" }
+    val acc = a?.let {
+        Acc(it.optString("name", "You"), it.optString("email"), it.optString("provider", "local"), s(it, "rovianId"), s(it, "username"),
+            it.optBoolean("emailVerified"), it.optString("initials", "?"), s(it, "color"), it.optLong("lastSignIn"), it.optLong("linkedAt"))
+    }
+    val accs = j.optJSONArray("accounts")
+    val ev = j.optJSONArray("events")
+    val dv = j.optJSONArray("devices")
+    return Identity(
+        pc.optString("name", "Your PC"), pc.optString("platform"), pc.optString("nude"), acc,
+        (0 until (accs?.length() ?: 0)).mapNotNull { i -> accs!!.optJSONObject(i)?.let { AccRef(it.optString("name"), it.optString("id"), it.optString("provider"), it.optBoolean("current")) } },
+        (0 until (ev?.length() ?: 0)).mapNotNull { i -> ev!!.optJSONObject(i)?.let { IEvent(it.optLong("t"), it.optString("kind"), it.optString("detail").take(200)) } },
+        (0 until (dv?.length() ?: 0)).mapNotNull { i -> dv!!.optJSONObject(i)?.let { Dev(it.optString("app"), it.optString("name"), it.optLong("lastSeen")) } },
+        j.optJSONObject("protection")?.optString("level") ?: "standard", j.optLong("time"),
+    )
+}
 
 /**
- * PassGate's data, encrypted with an AES-256-GCM key that lives in the Android Keystore (hardware-backed where the
- * phone supports it). The key never leaves the Keystore; the file on disk is ciphertext.
+ * PassGate's data, encrypted with a key in the Android Keystore: the link to your PC and the last identity it sent.
+ * The link key only ever came from the QR code you scanned.
  */
-class Vault(private val ctx: Context) {
-    private val file = File(ctx.filesDir, "passgate.vault")
-    val accounts = mutableStateListOf<LinkedAccount>()
-    val activity = mutableStateListOf<Activity>()
-    var lockEnabled by mutableStateOf(true)
-        private set
+class Vault(ctx: Context) {
+    private val file = SecureFile(ctx, "passgate-vault", "passgate.vault")
+    private var raw: JSONObject? = null
+
+    var pc by mutableStateOf<LinkedPc?>(null); private set
+    var identity by mutableStateOf<Identity?>(null); private set
+    var identityAt by mutableLongStateOf(0L); private set
+    var lockEnabled by mutableStateOf(true); private set
     var loadError by mutableStateOf<String?>(null)
-        private set
 
-    init { load() }
-
-    private fun key(): SecretKey {
-        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (ks.getKey(ALIAS, null) as? SecretKey)?.let { return it }
-        val g = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-        g.init(KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build())
-        return g.generateKey()
-    }
-
-    /** True when the vault key is held in secure hardware (TEE or StrongBox); null if Android won't say. */
-    fun hardwareBacked(): Boolean? = try {
-        val k = key()
-        val info = SecretKeyFactory.getInstance(k.algorithm, "AndroidKeyStore").getKeySpec(k, KeyInfo::class.java) as KeyInfo
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) info.securityLevel != KeyProperties.SECURITY_LEVEL_SOFTWARE
-        else @Suppress("DEPRECATION") info.isInsideSecureHardware
-    } catch (e: Exception) { null }
-
-    private fun load() {
-        if (!file.exists()) return
+    init {
         try {
-            val raw = Base64.getDecoder().decode(file.readText())
-            val c = Cipher.getInstance("AES/GCM/NoPadding")
-            c.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, raw, 0, 12))
-            val j = JSONObject(String(c.doFinal(raw, 12, raw.size - 12), Charsets.UTF_8))
-            val a = j.optJSONArray("accounts") ?: JSONArray()
-            for (i in 0 until a.length()) a.getJSONObject(i).let {
-                accounts += LinkedAccount(RovianIdentity.fromJson(it.getJSONObject("identity")), it.optLong("linkedAt"), it.optLong("lastUsed"), it.optBoolean("preferred"))
+            file.read()?.let { text ->
+                val j = JSONObject(text)
+                lockEnabled = j.optBoolean("lock", true)
+                pc = j.optJSONObject("pc")?.let(LinkedPc::fromJson)
+                raw = j.optJSONObject("identity")
+                identity = raw?.let(::parseIdentity)
+                identityAt = j.optLong("identityAt")
             }
-            val ev = j.optJSONArray("activity") ?: JSONArray()
-            for (i in 0 until ev.length()) ev.getJSONObject(i).let { activity += Activity(it.getLong("t"), it.getString("k"), it.getString("d")) }
-            lockEnabled = j.optBoolean("lock", true)
         } catch (e: Exception) {
-            // The key was removed (e.g. screen lock reset) or the file is damaged: start fresh rather than guess.
-            loadError = "PassGate couldn't open its saved data on this phone, so it started fresh. Add your accounts again."
+            // The Keystore key was removed (e.g. the screen lock was reset) or the file is damaged: start fresh.
             file.delete()
+            loadError = "PassGate couldn't open its saved data on this phone, so it started fresh. Scan the code on your PC again."
         }
     }
 
+    fun hardwareBacked() = file.hardwareBacked()
+
     private fun save() {
-        val j = JSONObject()
-        j.put("accounts", JSONArray().apply { accounts.forEach { put(JSONObject().put("identity", it.identity.toJson()).put("linkedAt", it.linkedAt).put("lastUsed", it.lastUsed).put("preferred", it.preferred)) } })
-        j.put("activity", JSONArray().apply { activity.forEach { put(JSONObject().put("t", it.time).put("k", it.kind).put("d", it.detail)) } })
-        j.put("lock", lockEnabled)
-        val c = Cipher.getInstance("AES/GCM/NoPadding")
-        c.init(Cipher.ENCRYPT_MODE, key())
-        val out = c.iv + c.doFinal(j.toString().toByteArray(Charsets.UTF_8))
-        val tmp = File(file.path + ".tmp")
-        tmp.writeText(Base64.getEncoder().encodeToString(out))
-        tmp.renameTo(file)
+        file.write(JSONObject().put("lock", lockEnabled).put("pc", pc?.toJson()).put("identity", raw).put("identityAt", identityAt).toString())
     }
 
-    fun log(kind: String, detail: String) {
-        activity.add(0, Activity(System.currentTimeMillis(), kind, detail.take(200)))
-        while (activity.size > 60) activity.removeAt(activity.lastIndex)
-        save()
-    }
-
-    /** Adds or refreshes an account (matched by Rovian's subject id). The first account becomes preferred. */
-    fun link(id: RovianIdentity): LinkedAccount {
-        val now = System.currentTimeMillis()
-        val i = accounts.indexOfFirst { it.identity.sub == id.sub }
-        val acc = if (i >= 0) accounts[i].copy(identity = id, lastUsed = now) else LinkedAccount(id, now, now, accounts.isEmpty())
-        if (i >= 0) accounts[i] = acc else accounts += acc
-        log(if (i >= 0) "signin" else "linked", "${if (i >= 0) "Signed in" else "Connected"} ${id.rovianId ?: id.email} with Rovian")
-        return acc
-    }
-
-    fun makePreferred(sub: String) {
-        for (i in accounts.indices) accounts[i] = accounts[i].copy(preferred = accounts[i].identity.sub == sub)
-        log("preferred", "Made ${accounts.first { it.identity.sub == sub }.identity.let { it.rovianId ?: it.email }} the default account")
-    }
-
-    fun remove(sub: String) {
-        val a = accounts.firstOrNull { it.identity.sub == sub } ?: return
-        accounts.remove(a)
-        if (accounts.none { it.preferred } && accounts.isNotEmpty()) accounts[0] = accounts[0].copy(preferred = true)
-        log("removed", "Removed ${a.identity.rovianId ?: a.identity.email} from PassGate")
-    }
-
-    fun setLock(on: Boolean) { lockEnabled = on; log("settings", if (on) "Turned on the PassGate lock" else "Turned off the PassGate lock") }
-    fun clearActivity() { activity.clear(); save() }
-
-    companion object { private const val ALIAS = "passgate-vault" }
+    fun link(p: LinkedPc) { pc = p; raw = null; identity = null; identityAt = 0; save() }
+    fun updatePc(p: LinkedPc) { pc = p; save() }
+    fun setIdentity(j: JSONObject) { raw = j; identity = parseIdentity(j); identityAt = System.currentTimeMillis(); save() }
+    fun signOut() { pc = null; raw = null; identity = null; identityAt = 0; save() }
+    fun setLock(on: Boolean) { lockEnabled = on; save() }
 }

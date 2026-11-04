@@ -24,7 +24,7 @@ const common = {
   define: { 'process.env.NODE_ENV': JSON.stringify(production ? 'production' : 'development') },
 };
 
-const pageNames = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader', 'welcome', 'account'];
+const pageNames = ['newtab', 'history', 'bookmarks', 'downloads', 'settings', 'security', 'blocked', 'reader', 'welcome', 'account', 'rovian-prompt', 'phone'];
 
 const configs = [
   // Main process (Node, CommonJS)

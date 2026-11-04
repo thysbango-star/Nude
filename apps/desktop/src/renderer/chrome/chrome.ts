@@ -628,6 +628,7 @@ async function showMenu() {
       <button class="menu-item" data-a="downloads">${I.download}<span>Downloads</span>${k('Ctrl+J')}</button>
       <button class="menu-item" data-a="bookmarks">${I.bookmarks}<span>Bookmarks</span>${k('Ctrl+Shift+O')}</button>
       <button class="menu-item" data-a="security">${I.shield}<span>Rovian Defender</span></button>
+      <button class="menu-item" data-a="phone">${I.phone}<span>Connect your phone</span></button>
       <div class="menu-sep"></div>
       <button class="menu-item" data-a="find">${I.find}<span>Find in page</span>${k('Ctrl+F')}</button>
       <button class="menu-item" data-a="print">${I.print}<span>Print…</span>${k('Ctrl+P')}</button>
@@ -654,7 +655,7 @@ async function showMenu() {
         newTab: () => invoke('newTab'), newWindow: () => invoke('newWindow', false), newPrivate: () => invoke('newWindow', true),
         reopen: () => invoke('reopen'), fullscreen: () => invoke('fullscreen'), bookmarks: () => invoke('openInternal', 'bookmarks'),
         history: () => invoke('openInternal', 'history'), downloads: () => invoke('openInternal', 'downloads'),
-        security: () => invoke('openInternal', 'security'), find: () => invoke('shortcut', 'find'),
+        security: () => invoke('openInternal', 'security'), phone: () => invoke('openInternal', 'phone'), find: () => invoke('shortcut', 'find'),
         print: () => invoke('shortcut', 'print'), settings: () => invoke('openInternal', 'settings'), shortcuts: () => showShortcuts(),
         account: () => invoke('openInternal', 'account'), signin: () => invoke('openInternal', 'welcome'),
       };

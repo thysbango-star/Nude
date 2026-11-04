@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Rovian Defender is always dark (deep Rovian blue), like the design. -->
     <style name="Theme.Rovian" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/rovian_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

@@ -21,10 +21,13 @@ export interface Account {
 
 export interface PublicAccount {
   id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string;
-  provider: 'local' | 'rovian'; rovianId?: string | null; username?: string | null; lastSignIn?: number;
+  provider: 'local' | 'rovian'; rovianId?: string | null; username?: string | null; lastSignIn?: number; emailVerified?: boolean; linkedAt?: number;
 }
 
-interface AccountsData { accounts: Account[]; currentId: string | null; guest: boolean; /** "Remember me" was off: sign out when Nude next starts. */ forgetOnQuit?: boolean }
+interface AccountsData { accounts: Account[]; currentId: string | null; guest: boolean; /** "Remember me" was off: sign out when Nude next starts. */ forgetOnQuit?: boolean; /** Sign-in activity (no secrets), newest first. */ events?: IdentityEvent[] }
+
+/** Something that happened to your identity in Nude: shown in PassGate. */
+export interface IdentityEvent { t: number; kind: string; detail: string }
 
 const COLORS = ['#B44BD6', '#E0733A', '#3F8FB0', '#4F9A6D', '#C45B9A', '#5B6FD8', '#C9963B'];
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
@@ -39,6 +42,7 @@ export function toPublic(a: Account): PublicAccount {
     id: a.id, name: a.name, firstName: parts[0] ?? a.name, email: a.email, color: a.color, photo: a.photo,
     initials: ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?',
     provider: a.rovian ? 'rovian' : 'local', rovianId: a.rovian?.rovianId, username: a.rovian?.username, lastSignIn: a.rovian?.lastSignIn,
+    emailVerified: a.rovian?.emailVerified, linkedAt: a.rovian?.linkedAt,
   };
 }
 
@@ -86,7 +90,8 @@ export class Accounts {
       id: randomUUID(), name, email, color: COLORS[this.store.get().accounts.length % COLORS.length],
       created: Date.now(), salt, hash: hashPassword(password, salt),
     };
-    this.store.set((d) => ({ accounts: [...d.accounts, account], currentId: account.id, guest: false }));
+    this.store.set((d) => ({ ...d, accounts: [...d.accounts, account], currentId: account.id, guest: false }));
+    this.logEvent('signup', `Created the Nude account ${email}`);
     this.onChange();
     return { ok: true, account: toPublic(account) };
   }
@@ -101,15 +106,19 @@ export class Accounts {
     if (!a || !ok) {
       const count = (f?.count ?? 0) + 1;
       this.failures.set(email, { count, until: count >= 5 ? Date.now() + 30_000 * (count - 4) : 0 });
+      if (a) this.logEvent('signin-failed', `Wrong password for ${email}`);
       return { ok: false, error: 'That email and password don\'t match an account on this device.' };
     }
     this.failures.delete(email);
     this.store.set((d) => ({ ...d, currentId: a.id, guest: false }));
+    this.logEvent('signin', `Signed in to Nude as ${email}`);
     this.onChange();
     return { ok: true, account: toPublic(a) };
   }
 
   signOut() {
+    const was = this.current();
+    if (was) this.logEvent('signout', `Signed out of ${was.rovianId ?? was.email}`);
     this.store.set((d) => ({ ...d, currentId: null, guest: false, forgetOnQuit: false }));
     this.onChange();
   }
@@ -169,6 +178,7 @@ export class Accounts {
     else a = { id: randomUUID(), name: id.name, email: id.email, color: COLORS[d.accounts.length % COLORS.length], created: now, rovian };
     const next = a;
     this.store.set((x) => ({
+      ...x,
       accounts: x.accounts.some((y) => y.id === next.id) ? x.accounts.map((y) => (y.id === next.id ? next : y)) : [...x.accounts, next],
       currentId: makeCurrent ? next.id : x.currentId, guest: makeCurrent ? false : x.guest,
     }));
@@ -182,15 +192,23 @@ export class Accounts {
     if (!a) return { ok: false, error: 'That account isn\'t on this device any more.' };
     if (!a.rovian) return { ok: false, error: 'password' };
     this.store.set((x) => ({ ...x, currentId: a.id, guest: false }));
+    this.logEvent('switch', `Switched to ${a.rovian.rovianId ?? a.email}`);
     this.onChange();
     return { ok: true };
   }
+
+  logEvent(kind: string, detail: string) {
+    this.store.set((d) => ({ ...d, events: [{ t: Date.now(), kind: kind.slice(0, 40), detail: detail.slice(0, 200) }, ...(d.events ?? [])].slice(0, 100) }));
+  }
+
+  events(): IdentityEvent[] { return this.store.get().events ?? []; }
 
   /** Forget a Rovian account on this device (it stays in Rovian Account). */
   forgetRovian(id: string) {
     const a = this.store.get().accounts.find((x) => x.id === id);
     if (!a?.rovian) return false;
     this.store.set((x) => ({
+      ...x,
       accounts: a.salt ? x.accounts.map((y) => (y.id === id ? { ...y, rovian: undefined } : y)) : x.accounts.filter((y) => y.id !== id),
       currentId: x.currentId === id && !a.salt ? null : x.currentId, guest: x.guest,
     }));

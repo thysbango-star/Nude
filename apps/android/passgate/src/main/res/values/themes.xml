@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Rovian" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- PassGate: soft rose glass over a dusky gradient (light status bar icons on the rose top). -->
+    <style name="Theme.Rovian" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/rovian_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

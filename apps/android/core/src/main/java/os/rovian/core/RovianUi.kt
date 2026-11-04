@@ -85,3 +85,25 @@ fun Rise(delayMs: Int = 0, modifier: Modifier = Modifier, content: @Composable B
     val p by animateFloatAsState(if (shown) 1f else 0f, tween(320, easing = FastOutSlowInEasing), label = "rise")
     Box(modifier.graphicsLayer { alpha = p; translationY = (1 - p) * 36f; scaleX = 0.97f + 0.03f * p; scaleY = 0.97f + 0.03f * p }, content = content)
 }
+
+/** Poppins, bundled (SIL Open Font License), for PassGate and Rovian Defender. */
+val Poppins = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(R.font.poppins_light, androidx.compose.ui.text.font.FontWeight.Light),
+    androidx.compose.ui.text.font.Font(R.font.poppins_regular, androidx.compose.ui.text.font.FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(R.font.poppins_medium, androidx.compose.ui.text.font.FontWeight.Medium),
+    androidx.compose.ui.text.font.Font(R.font.poppins_medium, androidx.compose.ui.text.font.FontWeight.SemiBold),
+    androidx.compose.ui.text.font.Font(R.font.poppins_bold, androidx.compose.ui.text.font.FontWeight.Bold),
+)
+
+/** Material typography in Poppins. */
+fun poppinsTypography(): androidx.compose.material3.Typography {
+    val t = androidx.compose.material3.Typography()
+    fun androidx.compose.ui.text.TextStyle.p() = copy(fontFamily = Poppins)
+    return t.copy(
+        displayLarge = t.displayLarge.p(), displayMedium = t.displayMedium.p(), displaySmall = t.displaySmall.p(),
+        headlineLarge = t.headlineLarge.p(), headlineMedium = t.headlineMedium.p(), headlineSmall = t.headlineSmall.p(),
+        titleLarge = t.titleLarge.p(), titleMedium = t.titleMedium.p(), titleSmall = t.titleSmall.p(),
+        bodyLarge = t.bodyLarge.p(), bodyMedium = t.bodyMedium.p(), bodySmall = t.bodySmall.p(),
+        labelLarge = t.labelLarge.p(), labelMedium = t.labelMedium.p(), labelSmall = t.labelSmall.p(),
+    )
+}

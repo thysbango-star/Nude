@@ -1,6 +1,6 @@
 // Application controller: windows, sessions, the nude:// protocol, IPC and session restore.
 import {
-  app, ipcMain, nativeTheme, session, shell, systemPreferences, dialog, net,
+  app, ipcMain, nativeTheme, session, shell, systemPreferences, dialog, net, webContents, safeStorage,
   type IpcMainInvokeEvent, type Session, type WebContents,
 } from 'electron';
 import { readFile } from 'node:fs/promises';
@@ -15,6 +15,11 @@ import { AiBridge, type AiRequest } from './ai';
 import { Accounts } from './accounts';
 import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { RovianAuth, RovianAuthError } from './rovian-auth';
+import { RovianLoopback } from './rovian-loopback';
+import { JsonStore } from './store';
+import { PhoneLink, type LinkApp, type PublicDevice } from './phone-link';
+import { qrSvg } from '../shared/qr';
+import { hostname } from 'node:os';
 import { BrowserWindowController } from './window';
 import { PAGES_DIR } from './paths';
 import { configureNudeSearch, NEW_TAB_URL, SEARCH_ENGINES, searchUrl } from '../shared/omnibox';
@@ -38,6 +43,8 @@ export class NudeApp {
   readonly accounts: Accounts;
   readonly localNebula: LocalNebula;
   readonly rovian = new RovianAuth((url, init) => net.fetch(url, init) as never);
+  /** Receives Rovian's redirect when you sign in from your usual browser. */
+  readonly rovianLoopback = new RovianLoopback((url) => this.finishRovian(url, null));
   /** The outcome of the last Rovian sign-in, shown once by the page that started it. Never contains tokens. */
   private rovianResult = new Map<number, { ok: boolean; message: string; name?: string }>();
   /** "Remember me" for a Rovian sign-in in progress, by tab. */
@@ -92,7 +99,14 @@ export class NudeApp {
     this.ai = new AiBridge(this);
     this.localNebula = new LocalNebula(dir, () => this.broadcast({ topic: 'nebula' }));
     this.accounts = new Accounts(dir);
+    this.phoneLink = new PhoneLink(dir, { identity: (d) => this.phoneIdentity(d), report: (d) => this.phoneReport(d) },
+      safeStorage.isEncryptionAvailable()
+        ? { seal: (x) => safeStorage.encryptString(x).toString('base64'), open: (x) => safeStorage.decryptString(Buffer.from(x, 'base64')) }
+        : undefined);
+    this.phoneLink.onChange = () => this.broadcast({ topic: 'phone' });
+    this.promptStore = new JsonStore<{ never: string[] }>(join(dir, 'rovian-prompt.json'), () => ({ never: [] }), 200);
     this.accounts.onChange = () => {
+      for (const w of this.windows) w.refreshPrompt();
       for (const w of this.windows) w.pushState();
       this.broadcast({ topic: 'account' });
     };
@@ -222,6 +236,9 @@ export class NudeApp {
       await this.persistSession.clearCache();
     }
     this.security.flush();
+    this.phoneLink.flush();
+    this.phoneLink.stop();
+    this.rovianLoopback.stop();
     this.profile.flushAll();
   }
 
@@ -247,27 +264,100 @@ export class NudeApp {
   }
 
   /** Step 4–7 of Sign in with Rovian, then back to Nude: the home page on sign-in, the account page when linking. */
-  private async finishRovian(wc: WebContents, url: string) {
+  identityLog(kind: string, detail: string) { this.accounts.logEvent(kind, detail); }
+
+  private promptStore!: JsonStore<{ never: string[] }>;
+  phoneLink!: PhoneLink;
+
+  private pcInfo() { return { name: (hostname() || 'This PC').slice(0, 40), platform: process.platform, nude: app.getVersion() }; }
+
+  /** What PassGate on a linked phone sees: your verified identity and sign-in activity. Never passwords or tokens. */
+  private phoneIdentity(_d: PublicDevice) {
+    const cur = this.accounts.current();
+    return {
+      pc: this.pcInfo(),
+      account: cur ? {
+        name: cur.name, email: cur.email, provider: cur.provider, rovianId: cur.rovianId ?? null, username: cur.username ?? null,
+        emailVerified: cur.emailVerified ?? false, initials: cur.initials, color: cur.color, lastSignIn: cur.lastSignIn ?? null, linkedAt: cur.linkedAt ?? null,
+      } : null,
+      accounts: this.accounts.list().map((a) => ({ name: a.name, id: a.rovianId ?? a.email, provider: a.provider, current: a.id === cur?.id })),
+      events: this.accounts.events().slice(0, 50),
+      devices: this.phoneLink.devices().map((x) => ({ app: x.app, name: x.name, lastSeen: x.lastSeen })),
+      protection: { level: this.profile.settings.get().protectionLevel },
+      time: Date.now(),
+    };
+  }
+
+  /** What Rovian Defender on a linked phone sees: how protection is working on this PC. Real counts only. */
+  private phoneReport(_d: PublicDevice) {
+    const s = this.security.summary();
+    const settings = this.profile.settings.get();
+    const host = (u?: string) => { try { return u ? new URL(u).hostname : null; } catch { return null; } };
+    const cur = this.accounts.current();
+    return {
+      pc: this.pcInfo(),
+      user: cur ? { firstName: cur.firstName, initials: cur.initials, color: cur.color } : null,
+      level: s.level,
+      levelName: PROTECTION_LEVELS[s.level].name,
+      levelSummary: PROTECTION_LEVELS[s.level].summary,
+      stats: s.stats,
+      lastScan: s.lastScan,
+      listsUpdated: s.listsUpdated,
+      knownThreats: s.knownThreats,
+      threatService: Boolean(settings.threatIntelUrl),
+      httpsOnly: s.level === 'maximum',
+      trustedSites: s.trusted.length,
+      events: s.events.slice(0, 60).map((e) => ({ t: e.time, type: e.type, host: host(e.url), category: e.category ?? null, detail: e.detail })),
+      time: Date.now(),
+    };
+  }
+  rovianPromptNever(site: string) { return this.promptStore.get().never.includes(site); }
+  setRovianPromptNever(site: string, never = true) {
+    this.promptStore.set((d) => ({ never: never ? [...new Set([...d.never, site])].slice(-500) : d.never.filter((x) => x !== site) }));
+  }
+  rovianPromptSites() { return this.promptStore.get().never; }
+
+  /**
+   * Finishes Sign in with Rovian, from either a Nude tab (wcHint) or the loopback receiver (your usual browser).
+   * Either way the result lands back in the Nude tab that started it.
+   */
+  private async finishRovian(url: string, wcHint: WebContents | null): Promise<{ ok: boolean; message: string }> {
+    const ownerId = this.rovian.ownerOf(url);
+    let wc: WebContents | null = wcHint ?? (ownerId !== null ? webContents.fromId(ownerId) ?? null : null);
+    if (wc?.isDestroyed()) wc = null;
     let target = 'nude://account/';
+    let result: { ok: boolean; message: string; name?: string };
     try {
       const r = await this.rovian.complete(url);
       const acct = this.accounts.withRovian(r.identity, r.purpose === 'signin');
-      if (r.purpose === 'signin') this.accounts.setRemember(this.rovianRemember.get(wc.id) !== false);
-      this.rovianResult.set(wc.id, { ok: true, message: r.purpose === 'signin' ? `Signed in as ${acct.rovianId ?? acct.email}` : `Added ${acct.rovianId ?? acct.email}`, name: acct.firstName });
+      if (r.purpose === 'signin') this.accounts.setRemember(wc ? this.rovianRemember.get(wc.id) !== false : true);
+      result = { ok: true, message: r.purpose === 'signin' ? `Signed in as ${acct.rovianId ?? acct.email}` : `Added ${acct.rovianId ?? acct.email}`, name: acct.firstName };
       this.security.log({ type: 'scan', detail: `Signed in with Rovian Account (${acct.rovianId ?? acct.email}).` });
+      this.identityLog('rovian-signin', `Signed in to Nude with Rovian (${acct.rovianId ?? acct.email})`);
       if (r.purpose === 'signin') target = NEW_TAB_URL;
     } catch (e) {
-      const msg = e instanceof RovianAuthError ? e.userMessage : 'Signing in with Rovian didn\'t work. Please try again.';
-      this.rovianResult.set(wc.id, { ok: false, message: msg });
+      const msg = e instanceof RovianAuthError ? e.withReference : 'Signing in with Rovian didn\'t work. Please try again.';
+      result = { ok: false, message: msg };
       this.security.log({ type: 'scan', detail: `A Rovian sign-in didn't complete (${e instanceof RovianAuthError ? e.code : 'error'}).` });
+      this.identityLog('rovian-failed', `A Rovian sign-in didn't complete (${e instanceof RovianAuthError ? e.code : 'error'})`);
       target = this.accounts.needsWelcome() ? 'nude://welcome/' : 'nude://account/';
     }
-    this.rovianRemember.delete(wc.id);
-    if (!wc.isDestroyed()) {
+    if (!this.rovian.waiting) this.rovianLoopback.stop();
+    if (wc) {
+      this.rovianRemember.delete(wc.id);
+      this.rovianResult.set(wc.id, result);
       const found = this.findTab(wc);
-      if (found) void found.tab.load(target); else void wc.loadURL(target);
-      this.windowFor(wc)?.sendCommand({ type: 'toast', message: this.rovianResult.get(wc.id)!.message });
+      if (found) {
+        void found.tab.load(target);
+        // Coming back from the other browser: bring Nude to the front.
+        if (!wcHint) { if (found.win.win.isMinimized()) found.win.win.restore(); found.win.win.show(); found.win.win.focus(); app.focus({ steal: true }); }
+      } else void wc.loadURL(target);
+      this.windowFor(wc)?.sendCommand({ type: 'toast', message: result.message });
+    } else if (result.ok) {
+      (this.lastFocused ?? this.createWindow(false)).addTab({ url: target });
+      this.lastFocused?.sendCommand({ type: 'toast', message: result.message });
     }
+    return { ok: result.ok, message: result.ok ? `${result.message}. Nude has your verified Rovian identity, never your password or tokens.` : result.message };
   }
 
   closedTabs() {
@@ -293,7 +383,7 @@ export class NudeApp {
   private checkNavigation(wc: WebContents | null, url: string): boolean {
     // Rovian's redirect back to Nude: handled here, before any request leaves the device.
     if (this.rovian.isCallback(url)) {
-      if (wc) void this.finishRovian(wc, url);
+      if (wc) void this.finishRovian(url, wc);
       return true;
     }
     const found = wc && this.findTab(wc);
@@ -577,6 +667,13 @@ export class NudeApp {
       const isPrivate = found?.win.isPrivate ?? false;
       const str = (x: unknown, max = 8192) => (typeof x === 'string' ? x.slice(0, max) : '');
       const p = this.profile;
+      // The Sign in with Rovian prompt may only press its own buttons.
+      if (page === 'rovian-prompt' && cmd !== 'settings.get') {
+        const win = this.windows.find((x) => x.ownsPrompt(e.sender));
+        if (!win || !cmd.startsWith('prompt.')) throw new Error('Unauthorized');
+        win.rovianPromptAction(cmd.slice(7));
+        return;
+      }
       // The warning page may only read its own verdict and continue/go back.
       if (page === 'blocked' && !cmd.startsWith('blocked.') && cmd !== 'settings.get') throw new Error('Unauthorized');
       switch (cmd) {
@@ -597,15 +694,40 @@ export class NudeApp {
           // Start Sign in with Rovian in this tab: Rovian's own sign-in and consent pages, with the address bar visible.
           if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
           if (isPrivate) return { ok: false, error: 'Rovian sign-in isn\'t available in private windows.' };
+          // Default: your usual web browser (RFC 8252's recommendation), where you may already be signed in to
+          // Rovian and every human check works. 'tab' signs in inside this Nude tab instead.
+          const inTab = a[2] === 'tab';
           try {
+            this.rovian.cancelFor(e.sender.id);
+            if (!inTab) await this.rovianLoopback.start();
             const authUrl = await this.rovian.begin(a[0] === 'link' ? 'link' : 'signin', e.sender.id);
             this.rovianRemember.set(e.sender.id, a[1] !== false);
-            if (found) void found.tab.load(authUrl); else void e.sender.loadURL(authUrl);
-            return { ok: true };
+            if (inTab) { if (found) void found.tab.load(authUrl); else void e.sender.loadURL(authUrl); }
+            else await shell.openExternal(authUrl);
+            return { ok: true, external: !inTab };
           } catch (err) {
-            return { ok: false, error: err instanceof RovianAuthError ? err.userMessage : 'Couldn\'t start signing in with Rovian.' };
+            if (!this.rovian.waiting) this.rovianLoopback.stop();
+            return { ok: false, error: err instanceof RovianAuthError ? err.withReference : 'Couldn\'t start signing in with Rovian.' };
           }
         }
+        case 'account.rovianCancel': {
+          this.rovian.cancelFor(e.sender.id);
+          if (!this.rovian.waiting) this.rovianLoopback.stop();
+          return { ok: true };
+        }
+        case 'phone.offer': {
+          if (page !== 'phone') throw new Error('Unauthorized');
+          if (isPrivate) return { ok: false, error: 'Linking a phone isn\'t available in private windows.' };
+          const which: LinkApp = a[0] === 'defender' ? 'defender' : 'passgate';
+          try {
+            const o = await this.phoneLink.offer(which);
+            if (!o.hosts.length) return { ok: false, error: 'This PC isn\'t connected to a Wi-Fi or wired network, so your phone can\'t reach it.' };
+            return { ok: true, svg: qrSvg(o.text, { ecc: 'M', dark: '#17151c', light: '#ffffff' }), expires: o.expires, hosts: o.hosts, port: o.port };
+          } catch (err) { return { ok: false, error: (err as Error).message }; }
+        }
+        case 'phone.devices': if (page !== 'phone' && page !== 'settings') throw new Error('Unauthorized'); return { devices: this.phoneLink.devices(), listening: this.phoneLink.listening, account: this.accounts.current() };
+        case 'phone.remove': if (page !== 'phone' && page !== 'settings') throw new Error('Unauthorized'); this.phoneLink.remove(str(a[0], 60)); return { ok: true };
+        case 'phone.end': if (page !== 'phone') throw new Error('Unauthorized'); this.phoneLink.endOffers(); return { ok: true };
         case 'account.rovianResult': { const r = this.rovianResult.get(e.sender.id) ?? null; this.rovianResult.delete(e.sender.id); return r; }
         case 'account.switch': return this.accounts.switchTo(str(a[0], 100));
         case 'account.forgetRovian': return { ok: this.accounts.forgetRovian(str(a[0], 100)) };

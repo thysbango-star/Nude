@@ -6,13 +6,16 @@
 // identity claims leave this file. Nothing here is logged.
 import { createHash, createPublicKey, randomBytes, verify as verifySignature } from 'node:crypto';
 
-interface JsonWebKey { kty?: string; kid?: string; use?: string; alg?: string; n?: string; e?: string; [k: string]: unknown }
+interface JsonWebKey { kty?: string; kid?: string; use?: string; alg?: string; n?: string; e?: string; crv?: string; x?: string; y?: string; [k: string]: unknown }
 
 export const ROVIAN = {
   issuer: 'https://oaupnrdlgxavdvefhbnp.supabase.co/auth/v1',
   clientId: '84d370e0-9203-4a58-b516-d05ded71bac3',
   scope: 'openid email profile',
-  /** Loopback redirect (RFC 8252): Nude intercepts it inside the browser, so the request never leaves the device. */
+  /**
+   * Loopback redirect (RFC 8252). Signing in from a Nude tab, Nude catches it before any request is made; signing in
+   * from your usual browser, Nude listens for it on 127.0.0.1 only, so it never leaves the computer.
+   */
   redirectUri: 'http://127.0.0.1:47811/nude-browser/callback',
   identityDomain: 'rovian.cloud',
 } as const;
@@ -34,6 +37,8 @@ export type RovianPurpose = 'signin' | 'link';
 
 /** A failure with a message that's safe and friendly to show. */
 export class RovianAuthError extends Error {
+  /** The message plus a short reference code that helps diagnose a failed sign-in (never secret). */
+  get withReference() { return `${this.userMessage} (Reference: ${this.code})`; }
   constructor(readonly userMessage: string, readonly code: string) { super(code); }
 }
 
@@ -84,6 +89,17 @@ export class RovianAuth {
     return d;
   }
 
+  /** Which tab started the sign-in a callback belongs to, without consuming it. */
+  ownerOf(callbackUrl: string): number | null {
+    try {
+      const state = new URL(callbackUrl).searchParams.get('state');
+      return state ? this.pending.get(state)?.webContentsId ?? null : null;
+    } catch { return null; }
+  }
+
+  /** True while a sign-in is waiting for Rovian's answer. */
+  get waiting() { this.sweep(); return this.pending.size > 0; }
+
   /** Step 1–2: a fresh verifier, S256 challenge, state and nonce; returns the authorization URL. */
   async begin(purpose: RovianPurpose, webContentsId: number | null): Promise<string> {
     const d = await this.discovery();
@@ -118,7 +134,7 @@ export class RovianAuth {
     if (!code) throw new RovianAuthError('Rovian Account didn\'t send a sign-in code. Please try again.', 'missing_code');
 
     const d = await this.discovery();
-    let tokens: { id_token?: unknown; access_token?: unknown };
+    let tokens: { id_token?: unknown; access_token?: unknown; error?: unknown };
     try {
       const r = await this.fetchImpl(d.token_endpoint, {
         method: 'POST',
@@ -126,8 +142,8 @@ export class RovianAuth {
         body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: ROVIAN.redirectUri, client_id: ROVIAN.clientId, code_verifier: p.verifier }).toString(),
         signal: AbortSignal.timeout(15_000),
       });
-      tokens = await r.json() as typeof tokens;
-      if (!r.ok) throw new RovianAuthError('Rovian Account didn\'t accept the sign-in. Please start again.', `token_${r.status}`);
+      tokens = await r.json().catch(() => ({})) as typeof tokens;
+      if (!r.ok) throw new RovianAuthError('Rovian Account didn\'t accept the sign-in. Please start again.', `token_${r.status}${typeof tokens.error === 'string' ? `_${tokens.error.replace(/[^\w]/g, '').slice(0, 40)}` : ''}`);
     } catch (e) {
       if (e instanceof RovianAuthError) throw e;
       throw new RovianAuthError('Nude couldn\'t finish signing you in with Rovian. Check your connection and try again.', 'token_unreachable');
@@ -160,7 +176,11 @@ export class RovianAuth {
     };
   }
 
-  /** Step 6: RS256 signature against Rovian's JWKS, then iss, aud, exp and nonce. Any failure fails the sign-in. */
+  /**
+   * Step 6: the signature against Rovian's JWKS (RS256; ES256 too, since Supabase's asymmetric keys can be either),
+   * then iss, aud, exp and nonce. The algorithm must match the key type; "none" and HMAC are always rejected.
+   * Any failure fails the sign-in.
+   */
   async verifyIdToken(idToken: string, nonce: string): Promise<Record<string, unknown>> {
     const fail = (code: string): never => { throw new RovianAuthError('Nude couldn\'t verify your Rovian sign-in, so it didn\'t sign you in. Please try again.', code); };
     const parts = idToken.split('.');
@@ -171,12 +191,17 @@ export class RovianAuth {
       header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
       claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
     } catch { return fail('id_token_format'); }
-    if (header.alg !== 'RS256') fail('id_token_alg');
-    const key = await this.signingKey(header.kid);
+    if (header.alg !== 'RS256' && header.alg !== 'ES256') fail('id_token_alg');
+    const alg = header.alg as 'RS256' | 'ES256';
+    const key = await this.signingKey(header.kid, alg);
     if (!key) fail('id_token_key');
     let ok = false;
     try {
-      ok = verifySignature('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), createPublicKey({ key: key as import('node:crypto').JsonWebKeyInput['key'], format: 'jwk' }), Buffer.from(parts[2], 'base64url'));
+      const pub = createPublicKey({ key: key as import('node:crypto').JsonWebKeyInput['key'], format: 'jwk' });
+      const data = Buffer.from(`${parts[0]}.${parts[1]}`);
+      const sig = Buffer.from(parts[2], 'base64url');
+      ok = alg === 'RS256' ? verifySignature('RSA-SHA256', data, pub, sig)
+        : sig.length === 64 && verifySignature('sha256', data, { key: pub, dsaEncoding: 'ieee-p1363' }, sig);
     } catch { ok = false; }
     if (!ok) fail('id_token_signature');
     const now = Math.floor(this.now() / 1000);
@@ -191,8 +216,10 @@ export class RovianAuth {
     return claims;
   }
 
-  private async signingKey(kid: string | undefined): Promise<JsonWebKey | null> {
-    const find = (keys: JsonWebKey[]) => keys.find((k) => k.kty === 'RSA' && (k.use === undefined || k.use === 'sig') && (!kid || k.kid === kid)) ?? null;
+  private async signingKey(kid: string | undefined, alg: 'RS256' | 'ES256'): Promise<JsonWebKey | null> {
+    const fits = (k: JsonWebKey) => (alg === 'RS256' ? k.kty === 'RSA' : k.kty === 'EC' && k.crv === 'P-256')
+      && (k.alg === undefined || k.alg === alg) && (k.use === undefined || k.use === 'sig');
+    const find = (keys: JsonWebKey[]) => keys.find((k) => fits(k) && (!kid || k.kid === kid)) ?? null;
     if (this.jwks && this.now() - this.jwks.at < 3_600_000) {
       const k = find(this.jwks.keys);
       if (k) return k;
