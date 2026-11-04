@@ -1,5 +1,7 @@
 package os.nude.browser
 
+import os.rovian.core.Security
+
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException

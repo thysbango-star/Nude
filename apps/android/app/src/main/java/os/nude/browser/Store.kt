@@ -1,5 +1,7 @@
 package os.nude.browser
 
+import os.rovian.core.Security
+
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject

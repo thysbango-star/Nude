@@ -2,6 +2,8 @@
 
 package os.nude.browser
 
+import os.rovian.core.Security
+
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -451,7 +453,7 @@ private fun HomePage(browser: Browser, tab: Tab, onSearch: () -> Unit) {
             }
             Spacer(Modifier.height(28.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(R.drawable.ic_rovian_mark), null, Modifier.size(14.dp, 16.dp))
+                Image(painterResource(os.rovian.core.R.drawable.ic_rovian_mark), null, Modifier.size(14.dp, 16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(buildAnnotatedString {
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ink)) { append("Rovian") }
@@ -540,7 +542,7 @@ private fun BlockedPage(browser: Browser, tab: Tab, v: Security.Verdict) {
     var why by remember(v.url) { mutableStateOf(false) }
     val ink = Color(0xFF0B0B0F)
     Box(Modifier.fillMaxSize().background(Color.White)) {
-        Image(painterResource(R.drawable.ic_rovian_block), null, Modifier.size(220.dp, 253.dp).align(Alignment.TopStart).offset(x = (-70).dp, y = 40.dp))
+        Image(painterResource(os.rovian.core.R.drawable.ic_rovian_block), null, Modifier.size(220.dp, 253.dp).align(Alignment.TopStart).offset(x = (-70).dp, y = 40.dp))
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
             Spacer(Modifier.height(300.dp))
             Text(buildAnnotatedString {
@@ -594,7 +596,7 @@ private fun BlockedPage(browser: Browser, tab: Tab, v: Security.Verdict) {
             }
             Spacer(Modifier.height(24.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(painterResource(R.drawable.ic_rovian_mark), null, Modifier.size(18.dp, 21.dp))
+                Image(painterResource(os.rovian.core.R.drawable.ic_rovian_mark), null, Modifier.size(18.dp, 21.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(buildAnnotatedString {
                     withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = ink)) { append("Rovian") }

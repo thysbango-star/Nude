@@ -2,6 +2,8 @@
 
 package os.nude.browser
 
+import os.rovian.core.Security
+
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Build

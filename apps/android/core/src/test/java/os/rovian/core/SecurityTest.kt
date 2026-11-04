@@ -1,4 +1,4 @@
-package os.nude.browser
+package os.rovian.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals

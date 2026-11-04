@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "Nude"
-include(":app")
+include(":app", ":core", ":defender", ":passgate")

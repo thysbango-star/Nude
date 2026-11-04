@@ -1,4 +1,4 @@
-package os.nude.browser
+package os.rovian.core
 
 import java.net.URI
 

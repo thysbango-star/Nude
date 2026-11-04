@@ -1,5 +1,7 @@
 package os.nude.browser
 
+import os.rovian.core.Security
+
 import android.app.Application
 
 class NudeApplication : Application() {

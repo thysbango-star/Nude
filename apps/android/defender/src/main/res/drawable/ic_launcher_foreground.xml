@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rovian Defender launcher: the Rovian shield, scaled into the adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.27" android:scaleY="0.27" android:translateX="27" android:translateY="22.95">
+        <group>
+        <clip-path android:pathData="M100,6 C132,20 162,25 192,25 C194,118 160,190 100,226 C40,190 6,118 8,25 C38,25 68,20 100,6 Z"/>
+        <path android:pathData="M0,0 L200,0 L200,230 L0,230 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="linear" android:startX="20" android:startY="218" android:endX="180" android:endY="12">
+                    <item android:offset="0" android:color="#FF6FF0C6"/>
+                    <item android:offset="0.3" android:color="#FF1AA8DA"/>
+                    <item android:offset="0.62" android:color="#FF1450F0"/>
+                    <item android:offset="0.82" android:color="#FF1AA3DC"/>
+                    <item android:offset="1" android:color="#FF74F4C8"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="13" android:strokeLineCap="round" android:pathData="M96,118 C132,128 170,92 162,-8"/>
+        <group android:rotation="120" android:pivotX="100" android:pivotY="116">
+            <path android:strokeColor="#FFFFFFFF" android:strokeWidth="13" android:strokeLineCap="round" android:pathData="M96,118 C132,128 170,92 162,-8"/>
+        </group>
+        <group android:rotation="240" android:pivotX="100" android:pivotY="116">
+            <path android:strokeColor="#FFFFFFFF" android:strokeWidth="13" android:strokeLineCap="round" android:pathData="M96,118 C132,128 170,92 162,-8"/>
+        </group>
+        <path android:fillColor="#FFFFFFFF" android:pathData="M91,116 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0"/>
+    </group>
+    </group>
+</vector>
