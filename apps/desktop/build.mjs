@@ -89,6 +89,10 @@ function copyStatic() {
   // Design tokens are shared by the chrome UI and internal pages.
   copyCss(join(src, 'renderer/design/tokens.css'), join(out, 'renderer/chrome/tokens.css'));
   copyCss(join(src, 'renderer/design/tokens.css'), join(out, 'renderer/pages/tokens.css'));
+  // Bundled fonts (SIL Open Font License): Poppins and Lora Italic, for the sign-in screen.
+  for (const f of readdirSync(join(src, 'renderer/design/fonts'))) {
+    if (f.endsWith('.woff')) cpSync(join(src, 'renderer/design/fonts', f), join(out, 'renderer/pages', f));
+  }
   // Brand artwork (Nude logo, Rovian Defender marks) for the UI and nude:// pages.
   for (const f of readdirSync(join(src, 'renderer/design/brand'))) {
     cpSync(join(src, 'renderer/design/brand', f), join(out, 'renderer/chrome', f));

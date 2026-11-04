@@ -40,6 +40,8 @@ export class NudeApp {
   readonly rovian = new RovianAuth((url, init) => net.fetch(url, init) as never);
   /** The outcome of the last Rovian sign-in, shown once by the page that started it. Never contains tokens. */
   private rovianResult = new Map<number, { ok: boolean; message: string; name?: string }>();
+  /** "Remember me" for a Rovian sign-in in progress, by tab. */
+  private rovianRemember = new Map<number, boolean>();
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
   private closed: ClosedTab[] = [];
@@ -250,6 +252,7 @@ export class NudeApp {
     try {
       const r = await this.rovian.complete(url);
       const acct = this.accounts.withRovian(r.identity, r.purpose === 'signin');
+      if (r.purpose === 'signin') this.accounts.setRemember(this.rovianRemember.get(wc.id) !== false);
       this.rovianResult.set(wc.id, { ok: true, message: r.purpose === 'signin' ? `Signed in as ${acct.rovianId ?? acct.email}` : `Added ${acct.rovianId ?? acct.email}`, name: acct.firstName });
       this.security.log({ type: 'scan', detail: `Signed in with Rovian Account (${acct.rovianId ?? acct.email}).` });
       if (r.purpose === 'signin') target = NEW_TAB_URL;
@@ -259,6 +262,7 @@ export class NudeApp {
       this.security.log({ type: 'scan', detail: `A Rovian sign-in didn't complete (${e instanceof RovianAuthError ? e.code : 'error'}).` });
       target = this.accounts.needsWelcome() ? 'nude://welcome/' : 'nude://account/';
     }
+    this.rovianRemember.delete(wc.id);
     if (!wc.isDestroyed()) {
       const found = this.findTab(wc);
       if (found) void found.tab.load(target); else void wc.loadURL(target);
@@ -372,14 +376,14 @@ export class NudeApp {
     }
     const page = u.hostname;
     let file = u.pathname === '/' || u.pathname === '' ? `${page}.html` : u.pathname.replace(/^\/+/, '');
-    if (!/^[a-z0-9_-]+\.(html|js|css|svg|png|map)$/i.test(file)) return new Response('Not found', { status: 404 });
+    if (!/^[a-z0-9_-]+\.(html|js|css|svg|png|map|woff)$/i.test(file)) return new Response('Not found', { status: 404 });
     if (file.endsWith('.html') && file !== `${page}.html`) file = `${page}.html`;
     const full = normalize(join(PAGES_DIR, file));
     if (!full.startsWith(normalize(PAGES_DIR))) return new Response('Not found', { status: 404 });
     try {
       const body = await readFile(full);
       const type = file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'text/javascript; charset=utf-8'
-        : file.endsWith('.css') ? 'text/css; charset=utf-8' : file.endsWith('.svg') ? 'image/svg+xml' : file.endsWith('.png') ? 'image/png' : 'application/json';
+        : file.endsWith('.css') ? 'text/css; charset=utf-8' : file.endsWith('.svg') ? 'image/svg+xml' : file.endsWith('.png') ? 'image/png' : file.endsWith('.woff') ? 'font/woff' : 'application/json';
       return new Response(body, { headers: { 'content-type': type, 'content-security-policy': CSP, 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' } });
     } catch {
       return new Response('Not found', { status: 404 });
@@ -579,11 +583,15 @@ export class NudeApp {
         case 'account.get': return { current: this.accounts.current(), all: this.accounts.list(), needsWelcome: this.accounts.needsWelcome() };
         case 'account.signUp': {
           if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
-          return this.accounts.signUp(str(a[0], 100), str(a[1], 260), str(a[2], 500));
+          const r = this.accounts.signUp(str(a[0], 100), str(a[1], 260), str(a[2], 500));
+          if (r.ok) this.accounts.setRemember(a[3] !== false);
+          return r;
         }
         case 'account.signIn': {
           if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
-          return this.accounts.signIn(str(a[0], 260), str(a[1], 500));
+          const r = this.accounts.signIn(str(a[0], 260), str(a[1], 500));
+          if (r.ok) this.accounts.setRemember(a[2] !== false);
+          return r;
         }
         case 'account.rovian': {
           // Start Sign in with Rovian in this tab: Rovian's own sign-in and consent pages, with the address bar visible.
@@ -591,6 +599,7 @@ export class NudeApp {
           if (isPrivate) return { ok: false, error: 'Rovian sign-in isn\'t available in private windows.' };
           try {
             const authUrl = await this.rovian.begin(a[0] === 'link' ? 'link' : 'signin', e.sender.id);
+            this.rovianRemember.set(e.sender.id, a[1] !== false);
             if (found) void found.tab.load(authUrl); else void e.sender.loadURL(authUrl);
             return { ok: true };
           } catch (err) {

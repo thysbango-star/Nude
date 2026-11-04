@@ -24,7 +24,7 @@ export interface PublicAccount {
   provider: 'local' | 'rovian'; rovianId?: string | null; username?: string | null; lastSignIn?: number;
 }
 
-interface AccountsData { accounts: Account[]; currentId: string | null; guest: boolean }
+interface AccountsData { accounts: Account[]; currentId: string | null; guest: boolean; /** "Remember me" was off: sign out when Nude next starts. */ forgetOnQuit?: boolean }
 
 const COLORS = ['#B44BD6', '#E0733A', '#3F8FB0', '#4F9A6D', '#C45B9A', '#5B6FD8', '#C9963B'];
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
@@ -49,6 +49,13 @@ export class Accounts {
 
   constructor(dir: string) {
     this.store = new JsonStore<AccountsData>(join(dir, 'accounts.json'), () => ({ accounts: [], currentId: null, guest: false }), 100);
+    // Checked at startup rather than on quit, so it also holds after a crash or a forced shutdown.
+    if (this.store.get().forgetOnQuit) this.store.set((d) => ({ ...d, currentId: null, forgetOnQuit: false }));
+  }
+
+  /** "Remember me": when off, this sign-in lasts until Nude is closed. */
+  setRemember(remember: boolean) {
+    this.store.set((d) => ({ ...d, forgetOnQuit: !remember }));
   }
 
   current(): PublicAccount | null {
@@ -103,7 +110,7 @@ export class Accounts {
   }
 
   signOut() {
-    this.store.set((d) => ({ ...d, currentId: null, guest: false }));
+    this.store.set((d) => ({ ...d, currentId: null, guest: false, forgetOnQuit: false }));
     this.onChange();
   }
 
