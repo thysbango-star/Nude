@@ -162,7 +162,11 @@ jobs:
     name: Publish downloads
     # Publishes (or updates) the GitHub Release for the version in apps/desktop/package.json
     # on every push to main, and on version tags.
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    # Windows and Android must succeed. If GitHub has no Mac runner free, the Mac and iPhone files from the
+    # last successful build stay up instead of blocking the whole release.
+    if: >-
+      always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      && needs.windows.result == 'success' && needs.android.result == 'success'
     needs: [windows, android, macos, ios]
     runs-on: ubuntu-latest
     steps:
