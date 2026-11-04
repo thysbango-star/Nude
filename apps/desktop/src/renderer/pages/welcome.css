@@ -37,3 +37,16 @@ input::placeholder { color: rgba(255, 255, 255, 0.3); }
 .known-acc .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; overflow: hidden; flex-shrink: 0; }
 .known-acc .av img { width: 100%; height: 100%; object-fit: cover; }
 .known-acc b { display: block; font-size: 14px; } .known-acc small { color: rgba(255, 255, 255, 0.55); }
+/* Continue with Rovian: a calm light button, so it reads as an identity provider, not another Nude action. */
+.btn.rovian { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 48px; border-radius: 14px; margin-top: 4px;
+  background: #f5f3ef; color: #121216; box-shadow: none; font-weight: 700; transition: transform 160ms cubic-bezier(.2,.9,.3,1.2), background 160ms; }
+.btn.rovian:hover { background: #fff; }
+.btn.rovian:active { transform: scale(0.98); }
+.btn.rovian img { width: 20px; height: 23px; }
+.btn.rovian.busy { pointer-events: none; opacity: 0.7; }
+.btn.rovian.busy img { animation: rv-pulse 0.9s ease-in-out infinite alternate; }
+@keyframes rv-pulse { to { transform: scale(0.85); opacity: 0.6; } }
+#rovian-msg { margin-top: 10px; text-align: left; }
+.or { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; color: rgba(244, 240, 246, 0.45); font-size: 12px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, 0.12); }
+.known-acc .via { width: 16px; height: 18px; margin-left: auto; opacity: 0.85; }

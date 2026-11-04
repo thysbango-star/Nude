@@ -3,6 +3,7 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { join } from 'node:path';
 import { JsonStore } from './store';
+import type { RovianIdentity } from './rovian-auth';
 
 export interface Account {
   id: string;
@@ -11,11 +12,17 @@ export interface Account {
   color: string;
   photo?: string; // data: URL, max ~200 KB
   created: number;
-  salt: string;
-  hash: string;
+  /** Local accounts only. Rovian accounts have no password on this device. */
+  salt?: string;
+  hash?: string;
+  /** Verified Rovian identity (no tokens are ever stored). */
+  rovian?: { sub: string; username: string | null; rovianId: string | null; emailVerified: boolean; linkedAt: number; lastSignIn: number };
 }
 
-export interface PublicAccount { id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string }
+export interface PublicAccount {
+  id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string;
+  provider: 'local' | 'rovian'; rovianId?: string | null; username?: string | null; lastSignIn?: number;
+}
 
 interface AccountsData { accounts: Account[]; currentId: string | null; guest: boolean }
 
@@ -31,6 +38,7 @@ export function toPublic(a: Account): PublicAccount {
   return {
     id: a.id, name: a.name, firstName: parts[0] ?? a.name, email: a.email, color: a.color, photo: a.photo,
     initials: ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?',
+    provider: a.rovian ? 'rovian' : 'local', rovianId: a.rovian?.rovianId, username: a.rovian?.username, lastSignIn: a.rovian?.lastSignIn,
   };
 }
 
@@ -81,7 +89,7 @@ export class Accounts {
     const f = this.failures.get(email);
     if (f && f.until > Date.now()) return { ok: false, error: `Too many attempts. Try again in ${Math.ceil((f.until - Date.now()) / 1000)} seconds.` };
     const a = this.store.get().accounts.find((x) => x.email === email);
-    const ok = a && typeof password === 'string' &&
+    const ok = a && a.hash && a.salt && typeof password === 'string' &&
       timingSafeEqual(Buffer.from(hashPassword(password, a.salt), 'hex'), Buffer.from(a.hash, 'hex'));
     if (!a || !ok) {
       const count = (f?.count ?? 0) + 1;
@@ -121,6 +129,7 @@ export class Accounts {
     const d = this.store.get();
     const a = d.accounts.find((x) => x.id === d.currentId);
     if (!a) return { ok: false, error: 'Not signed in.' };
+    if (!a.salt || !a.hash) return { ok: false, error: 'This account signs in with Rovian. Change your password in your Rovian Account.' };
     if (hashPassword(String(oldPw), a.salt) !== a.hash) return { ok: false, error: 'Your current password is incorrect.' };
     if (typeof newPw !== 'string' || newPw.length < 8) return { ok: false, error: 'Use a password with at least 8 characters.' };
     const salt = randomBytes(16).toString('hex');
@@ -132,9 +141,53 @@ export class Accounts {
     const d = this.store.get();
     const a = d.accounts.find((x) => x.id === d.currentId);
     if (!a) return { ok: false, error: 'Not signed in.' };
-    if (hashPassword(String(password), a.salt) !== a.hash) return { ok: false, error: 'Password is incorrect.' };
+    // Rovian accounts have no local password; removing one only forgets it on this device.
+    if (a.salt && a.hash && hashPassword(String(password), a.salt) !== a.hash) return { ok: false, error: 'Password is incorrect.' };
     this.store.set((x) => ({ accounts: x.accounts.filter((y) => y.id !== a.id), currentId: null, guest: false }));
     this.onChange();
     return { ok: true };
+  }
+
+  /**
+   * Signs in (or links) with a verified Rovian identity. The account is matched by Rovian's subject id. An existing
+   * local account is only joined to it when Rovian has verified the same email address.
+   */
+  withRovian(id: RovianIdentity, makeCurrent: boolean): PublicAccount {
+    const d = this.store.get();
+    const now = Date.now();
+    let a = d.accounts.find((x) => x.rovian?.sub === id.sub)
+      ?? (id.emailVerified && id.email ? d.accounts.find((x) => !x.rovian && x.email === id.email) : undefined);
+    const rovian = { sub: id.sub, username: id.username, rovianId: id.rovianId, emailVerified: id.emailVerified, linkedAt: a?.rovian?.linkedAt ?? now, lastSignIn: now };
+    if (a) a = { ...a, name: id.name || a.name, email: id.email || a.email, rovian };
+    else a = { id: randomUUID(), name: id.name, email: id.email, color: COLORS[d.accounts.length % COLORS.length], created: now, rovian };
+    const next = a;
+    this.store.set((x) => ({
+      accounts: x.accounts.some((y) => y.id === next.id) ? x.accounts.map((y) => (y.id === next.id ? next : y)) : [...x.accounts, next],
+      currentId: makeCurrent ? next.id : x.currentId, guest: makeCurrent ? false : x.guest,
+    }));
+    this.onChange();
+    return toPublic(next);
+  }
+
+  /** Switch to another account already on this device. Local password accounts still need their password. */
+  switchTo(id: string): { ok: boolean; error?: string } {
+    const a = this.store.get().accounts.find((x) => x.id === id);
+    if (!a) return { ok: false, error: 'That account isn\'t on this device any more.' };
+    if (!a.rovian) return { ok: false, error: 'password' };
+    this.store.set((x) => ({ ...x, currentId: a.id, guest: false }));
+    this.onChange();
+    return { ok: true };
+  }
+
+  /** Forget a Rovian account on this device (it stays in Rovian Account). */
+  forgetRovian(id: string) {
+    const a = this.store.get().accounts.find((x) => x.id === id);
+    if (!a?.rovian) return false;
+    this.store.set((x) => ({
+      accounts: a.salt ? x.accounts.map((y) => (y.id === id ? { ...y, rovian: undefined } : y)) : x.accounts.filter((y) => y.id !== id),
+      currentId: x.currentId === id && !a.salt ? null : x.currentId, guest: x.guest,
+    }));
+    this.onChange();
+    return true;
   }
 }

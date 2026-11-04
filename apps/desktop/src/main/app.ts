@@ -14,6 +14,7 @@ import { ReaderStore } from './reader';
 import { AiBridge, type AiRequest } from './ai';
 import { Accounts } from './accounts';
 import { LocalNebula, RECOMMENDED } from './local-nebula';
+import { RovianAuth, RovianAuthError } from './rovian-auth';
 import { BrowserWindowController } from './window';
 import { PAGES_DIR } from './paths';
 import { configureNudeSearch, NEW_TAB_URL, SEARCH_ENGINES, searchUrl } from '../shared/omnibox';
@@ -36,6 +37,9 @@ export class NudeApp {
   readonly ai: AiBridge;
   readonly accounts: Accounts;
   readonly localNebula: LocalNebula;
+  readonly rovian = new RovianAuth((url, init) => net.fetch(url, init) as never);
+  /** The outcome of the last Rovian sign-in, shown once by the page that started it. Never contains tokens. */
+  private rovianResult = new Map<number, { ok: boolean; message: string; name?: string }>();
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
   private closed: ClosedTab[] = [];
@@ -240,6 +244,28 @@ export class NudeApp {
     return { url: s.aiGatewayUrl.replace(/\/+$/, ''), token: s.serviceToken, local: false };
   }
 
+  /** Step 4–7 of Sign in with Rovian, then back to Nude: the home page on sign-in, the account page when linking. */
+  private async finishRovian(wc: WebContents, url: string) {
+    let target = 'nude://account/';
+    try {
+      const r = await this.rovian.complete(url);
+      const acct = this.accounts.withRovian(r.identity, r.purpose === 'signin');
+      this.rovianResult.set(wc.id, { ok: true, message: r.purpose === 'signin' ? `Signed in as ${acct.rovianId ?? acct.email}` : `Added ${acct.rovianId ?? acct.email}`, name: acct.firstName });
+      this.security.log({ type: 'scan', detail: `Signed in with Rovian Account (${acct.rovianId ?? acct.email}).` });
+      if (r.purpose === 'signin') target = NEW_TAB_URL;
+    } catch (e) {
+      const msg = e instanceof RovianAuthError ? e.userMessage : 'Signing in with Rovian didn\'t work. Please try again.';
+      this.rovianResult.set(wc.id, { ok: false, message: msg });
+      this.security.log({ type: 'scan', detail: `A Rovian sign-in didn't complete (${e instanceof RovianAuthError ? e.code : 'error'}).` });
+      target = this.accounts.needsWelcome() ? 'nude://welcome/' : 'nude://account/';
+    }
+    if (!wc.isDestroyed()) {
+      const found = this.findTab(wc);
+      if (found) void found.tab.load(target); else void wc.loadURL(target);
+      this.windowFor(wc)?.sendCommand({ type: 'toast', message: this.rovianResult.get(wc.id)!.message });
+    }
+  }
+
   closedTabs() {
     return [...this.closed].reverse();
   }
@@ -261,6 +287,11 @@ export class NudeApp {
 
   // ------------------------------------------------------------------ security navigation hook
   private checkNavigation(wc: WebContents | null, url: string): boolean {
+    // Rovian's redirect back to Nude: handled here, before any request leaves the device.
+    if (this.rovian.isCallback(url)) {
+      if (wc) void this.finishRovian(wc, url);
+      return true;
+    }
     const found = wc && this.findTab(wc);
     if (!found) return false;
     const { tab, win } = found;
@@ -554,6 +585,21 @@ export class NudeApp {
           if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
           return this.accounts.signIn(str(a[0], 260), str(a[1], 500));
         }
+        case 'account.rovian': {
+          // Start Sign in with Rovian in this tab: Rovian's own sign-in and consent pages, with the address bar visible.
+          if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
+          if (isPrivate) return { ok: false, error: 'Rovian sign-in isn\'t available in private windows.' };
+          try {
+            const authUrl = await this.rovian.begin(a[0] === 'link' ? 'link' : 'signin', e.sender.id);
+            if (found) void found.tab.load(authUrl); else void e.sender.loadURL(authUrl);
+            return { ok: true };
+          } catch (err) {
+            return { ok: false, error: err instanceof RovianAuthError ? err.userMessage : 'Couldn\'t start signing in with Rovian.' };
+          }
+        }
+        case 'account.rovianResult': { const r = this.rovianResult.get(e.sender.id) ?? null; this.rovianResult.delete(e.sender.id); return r; }
+        case 'account.switch': return this.accounts.switchTo(str(a[0], 100));
+        case 'account.forgetRovian': return { ok: this.accounts.forgetRovian(str(a[0], 100)) };
         case 'account.guest': this.accounts.continueAsGuest(); return { ok: true };
         case 'account.signOut': this.accounts.signOut(); return { ok: true };
         case 'account.update': return this.accounts.update((a[0] ?? {}) as { name?: string; photo?: string | null });
