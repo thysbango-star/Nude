@@ -16,3 +16,5 @@ kbd { font: 12px var(--mono); padding: 3px 8px; border-radius: 6px; background: 
 .about-mark { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), #8f7cff); }
 .about-mark svg { width: 26px; height: 26px; }
 section.card { scroll-margin-top: 20px; }
+.link-x { border: 0; background: none; padding: 0 0 0 4px; font: inherit; color: var(--text-3); cursor: pointer; }
+.link-x:hover { color: var(--danger); }

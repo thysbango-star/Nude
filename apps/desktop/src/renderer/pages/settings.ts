@@ -63,6 +63,8 @@ async function render() {
         ${sw('offerToSavePasswords', 'Offer to save passwords', 'Coming soon: Nude Passwords with Nude OS biometric unlock.')}
         <div class="setting"><div class="text"><b>Clear browsing data</b><span>History, cookies, cached files and more.</span></div><button class="btn" id="clear-btn">Clear data…</button></div>
         <div class="setting"><div class="text"><b>Security dashboard</b><span>See what Rovian Defender has blocked.</span></div><a class="btn" href="nude://security" data-open="nude://security">Open</a></div>
+        <div class="setting"><div class="text"><b>Your phone</b><span>Sign in to PassGate and see Rovian Defender's report on your phone.</span></div><a class="btn" href="nude://phone" data-open="nude://phone">Connect</a></div>
+        <div class="setting" id="rv-prompt"><div class="text"><b>Sign in with Rovian on websites</b><span>Nude offers Rovian sign-in at the top right of sites that support it.</span><span id="rv-never"></span></div></div>
       </section>
 
       <section class="card" id="permissions"><h2>Site permissions</h2><div id="perms"><div class="loading">Loading…</div></div>
@@ -114,6 +116,7 @@ async function render() {
       <label class="check"><input type="checkbox" id="c-perms">Site permissions</label>
       <div class="btns"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="ok">Clear data</button></div></form></dialog>`;
   void renderPerms();
+  void renderRovianPrompt();
   void renderOllama();
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
   if (location.hash === '#privacy') $<HTMLDialogElement>('#clear-dlg').showModal();
@@ -152,6 +155,16 @@ async function renderOllama() {
     ${st.share ? `<div class="setting"><div class="text"><b>On your phone</b><span>Settings → Nude services → <i>Nebula gateway</i>: <code class="sel">${esc(st.share.url)}</code> (Android) or <code class="sel">${esc(st.share.localUrl)}</code> (iPhone, iPad)<br>
       <i>Access token</i>: <code class="sel">${esc(st.share.token)}</code></span></div>
       <button class="btn" data-copy-share="${esc(st.share.url)}|${esc(st.share.token)}">Copy</button><button class="btn" data-reset-token title="Phones using the old code will need the new one">New code</button></div>` : ''}`;
+}
+
+async function renderRovianPrompt() {
+  const box = document.getElementById('rv-never');
+  if (!box) return;
+  const r = await api.invoke<{ never: string[] }>('rovianPrompt.list');
+  box.innerHTML = r.never.length
+    ? `<br>Not offered on: ${r.never.map((x) => `<span class="pill">${esc(x)} <button class="link-x" data-rv-allow="${esc(x)}" aria-label="Offer again on ${esc(x)}">×</button></span>`).join(' ')}`
+    : '';
+  box.querySelectorAll<HTMLElement>('[data-rv-allow]').forEach((b) => b.addEventListener('click', async () => { await api.invoke('rovianPrompt.allow', b.dataset.rvAllow); void renderRovianPrompt(); }));
 }
 
 async function renderPerms() {

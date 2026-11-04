@@ -725,6 +725,8 @@ export class NudeApp {
             return { ok: true, svg: qrSvg(o.text, { ecc: 'M', dark: '#17151c', light: '#ffffff' }), expires: o.expires, hosts: o.hosts, port: o.port };
           } catch (err) { return { ok: false, error: (err as Error).message }; }
         }
+        case 'rovianPrompt.list': if (page !== 'settings') throw new Error('Unauthorized'); return { never: this.rovianPromptSites() };
+        case 'rovianPrompt.allow': if (page !== 'settings') throw new Error('Unauthorized'); this.setRovianPromptNever(str(a[0], 260), false); return { ok: true };
         case 'phone.devices': if (page !== 'phone' && page !== 'settings') throw new Error('Unauthorized'); return { devices: this.phoneLink.devices(), listening: this.phoneLink.listening, account: this.accounts.current() };
         case 'phone.remove': if (page !== 'phone' && page !== 'settings') throw new Error('Unauthorized'); this.phoneLink.remove(str(a[0], 60)); return { ok: true };
         case 'phone.end': if (page !== 'phone') throw new Error('Unauthorized'); this.phoneLink.endOffers(); return { ok: true };
