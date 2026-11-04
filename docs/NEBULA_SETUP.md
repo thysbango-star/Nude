@@ -71,6 +71,30 @@ Nebula uses two models:
 
 Accuracy rules Nebula follows: it only uses the sources you share, cites them as `[S1]`, `[S2]`, says when the page doesn't contain the answer, and treats page text as untrusted (instructions hidden in a page are ignored). It can't override Rovian Defender.
 
+## Free options
+
+Nebula doesn't need Anthropic. The gateway works with any OpenAI-compatible provider, and several have free tiers (limits checked November 2026; they change, so check the provider's page):
+
+| Provider | Model | Free limits | Notes |
+|---|---|---|---|
+| Google AI Studio (Gemini) | `gemini-3.6-flash` | Requests per minute and per day are capped (429 when you hit them) | No card needed. Handles images. Free-tier prompts may be used by Google to improve its products. |
+| Groq | `openai/gpt-oss-120b` | 30 per minute, 1,000 per day | Very fast. Text only (no image questions). |
+| OpenRouter | any model ending in `:free` | 20 per minute, 50 per day (1,000 per day after buying $10 of credit once) | Many models through one key. |
+| Ollama on your own PC | e.g. `llama3.1` | Unlimited | Completely free and private, but needs a reasonably strong computer, and phones can only use it if that PC is reachable. |
+
+**Gemini (free):** create a key at <https://aistudio.google.com/apikey>, then:
+```powershell
+$env:NUDE_AI_PROVIDER = "openai"
+$env:OPENAI_API_KEY = "<your Gemini key>"
+$env:OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+$env:NUDE_AI_MODEL = "gemini-3.6-flash"
+npm start -w services/ai-gateway
+```
+
+**Groq (free):** create a key at <https://console.groq.com/keys>, then the same with `OPENAI_BASE_URL=https://api.groq.com/openai/v1` and `NUDE_AI_MODEL=openai/gpt-oss-120b`.
+
+The same variables go in `.env` for the Docker setup. Free tiers are fine for you and a few testers; for a public release you'd move to a paid tier (or let people bring their own key).
+
 ## 5. Other providers
 
 ```bash
