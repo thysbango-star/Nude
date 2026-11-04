@@ -38,6 +38,13 @@ export interface Settings {
   mode: BrowseMode;
   /** Nebula answer speed: auto picks fast for chat and thorough when pages or images are shared. */
   nebulaSpeed: 'auto' | 'fast' | 'thorough';
+  /** Where Nebula's model runs: auto (Ollama on this computer if it's running, otherwise the gateway), ollama, or gateway. */
+  nebulaEngine: 'auto' | 'ollama' | 'gateway';
+  /** Ollama model to use; empty = pick the best one that's installed. */
+  ollamaModel: string;
+  ollamaUrl: string;
+  /** Let phones on the same Wi-Fi use this computer's Nebula. */
+  nebulaShareOnNetwork: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -68,6 +75,10 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceOutput: false,
   mode: 'everyday',
   nebulaSpeed: 'auto',
+  nebulaEngine: 'auto',
+  ollamaModel: '',
+  ollamaUrl: 'http://127.0.0.1:11434',
+  nebulaShareOnNetwork: false,
 };
 
 export interface Bookmark {
@@ -281,5 +292,5 @@ export interface ClearDataOptions {
 }
 
 export interface InternalEvent {
-  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes';
+  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes' | 'nebula';
 }

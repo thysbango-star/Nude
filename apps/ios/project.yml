@@ -33,6 +33,10 @@ targets:
         NSLocationWhenInUseUsageDescription: Websites you allow can see your location, for example for maps.
         NSPhotoLibraryAddUsageDescription: Lets you save images from websites to your photo library.
         ITSAppUsesNonExemptEncryption: false
+        # Nebula can run on your own computer (Ollama) and be reached over home Wi-Fi.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: Lets Nebula use the AI running on your own computer over your Wi-Fi.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: os.nude.browser

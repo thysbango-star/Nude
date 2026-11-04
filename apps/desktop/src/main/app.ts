@@ -13,6 +13,7 @@ import { SecurityService } from './security';
 import { ReaderStore } from './reader';
 import { AiBridge, type AiRequest } from './ai';
 import { Accounts } from './accounts';
+import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { BrowserWindowController } from './window';
 import { PAGES_DIR } from './paths';
 import { configureNudeSearch, NEW_TAB_URL, SEARCH_ENGINES, searchUrl } from '../shared/omnibox';
@@ -34,6 +35,7 @@ export class NudeApp {
   readonly reader = new ReaderStore();
   readonly ai: AiBridge;
   readonly accounts: Accounts;
+  readonly localNebula: LocalNebula;
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
   private closed: ClosedTab[] = [];
@@ -82,6 +84,7 @@ export class NudeApp {
       },
     });
     this.ai = new AiBridge(this);
+    this.localNebula = new LocalNebula(dir, () => this.broadcast({ topic: 'nebula' }));
     this.accounts = new Accounts(dir);
     this.accounts.onChange = () => {
       for (const w of this.windows) w.pushState();
@@ -224,6 +227,17 @@ export class NudeApp {
 
   hasClosedTabs() {
     return this.closed.length > 0;
+  }
+
+  /** Where Nebula's requests go: Ollama on this computer (free) or the Nebula gateway. */
+  async nebulaEndpoint(): Promise<{ url: string; token: string; local: boolean } | null> {
+    const s = this.profile.settings.get();
+    if (s.nebulaEngine !== 'gateway') {
+      const local = await this.localNebula.endpoint(s);
+      if (local) return { url: local.url, token: local.token, local: true };
+      if (s.nebulaEngine === 'ollama') return null;
+    } else this.localNebula.stop();
+    return { url: s.aiGatewayUrl.replace(/\/+$/, ''), token: s.serviceToken, local: false };
   }
 
   closedTabs() {
@@ -432,12 +446,14 @@ export class NudeApp {
         case 'noteRemove': this.profile.removeNote(str(a[0], 100)); return;
         case 'setSpeed': this.profile.updateSettings({ nebulaSpeed: str(a[0], 10) as never }); return;
         case 'nebulaStatus': {
-          const url = this.profile.settings.get().aiGatewayUrl.replace(/\/+$/, '');
+          const speed = this.profile.settings.get().nebulaSpeed;
+          const ep = await this.nebulaEndpoint();
+          if (!ep) return { ok: false, provider: '', url: '', speed };
           try {
-            const r = await net.fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+            const r = await net.fetch(`${ep.url}/health`, { signal: AbortSignal.timeout(3000) });
             const j = await r.json() as { provider?: string };
-            return { ok: r.ok, provider: j.provider ?? '', url, speed: this.profile.settings.get().nebulaSpeed };
-          } catch { return { ok: false, provider: '', url, speed: this.profile.settings.get().nebulaSpeed }; }
+            return { ok: r.ok && j.provider !== 'mock', provider: j.provider ?? '', url: ep.url, speed };
+          } catch { return { ok: false, provider: '', url: ep.url, speed }; }
         }
         case 'thumbnails': {
           await Promise.all(w.tabs.filter((t) => t.id === w.activeTabId).map((t) => t.captureThumbnail()));
@@ -549,6 +565,10 @@ export class NudeApp {
         }
         case 'settings.get': return { settings: p.settings.get(), engines: Object.values(SEARCH_ENGINES).map((x) => ({ id: x.id, name: x.name })), levels: PROTECTION_LEVELS, private: isPrivate, version: app.getVersion(), chrome: process.versions.chrome, electron: process.versions.electron, platform: process.platform, isDefault: app.isDefaultProtocolClient('https'), shortcuts: SHORTCUT_HELP };
         case 'settings.set': return p.updateSettings(a[0]);
+        case 'nebula.local': return { ...(await this.localNebula.status(p.settings.get())), recommended: RECOMMENDED };
+        case 'nebula.pull': if (!isPrivate) void this.localNebula.pull(p.settings.get(), String(a[0] ?? '')); return;
+        case 'nebula.cancelPull': this.localNebula.cancelPull(); return;
+        case 'nebula.resetToken': this.localNebula.resetToken(); this.broadcast({ topic: 'nebula' }); return;
         case 'settings.makeDefault': app.setAsDefaultProtocolClient('http'); app.setAsDefaultProtocolClient('https'); return app.isDefaultProtocolClient('https');
         case 'settings.chooseDownloads': {
           const r = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });

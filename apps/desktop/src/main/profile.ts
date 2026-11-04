@@ -50,6 +50,9 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   oneOf('fontSize', ['small', 'medium', 'large']);
   oneOf('mode', ['everyday', 'shopping', 'research', 'study', 'focus']);
   oneOf('nebulaSpeed', ['auto', 'fast', 'thorough']);
+  oneOf('nebulaEngine', ['auto', 'ollama', 'gateway']);
+  if (out.ollamaModel !== undefined) out.ollamaModel = String(out.ollamaModel).replace(/[^\w.:/-]/g, '').slice(0, 100);
+  if (out.ollamaUrl !== undefined && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(String(out.ollamaUrl))) out.ollamaUrl = 'http://127.0.0.1:11434';
   if (out.toolbar !== undefined) {
     const items = ['home', 'reader', 'overview', 'downloads', 'security', 'ai', 'voice', 'bookmarks'];
     out.toolbar = Array.isArray(out.toolbar) ? [...new Set(out.toolbar.filter((t) => items.includes(t)))] as Settings['toolbar'] : undefined;

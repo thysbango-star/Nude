@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { buildPrompt, sanitizeUntrusted } from '../src/prompt';
-import { anthropicProvider, mockProvider, openAiCompatibleProvider } from '../src/providers';
+import { anthropicProvider, mockProvider, ollamaProvider, openAiCompatibleProvider } from '../src/providers';
 import { pickSpeed } from '../src/prompt';
 import { createGateway } from '../src/server';
 
@@ -102,5 +102,27 @@ test('Nebula picks the fast model for quick chat and the thorough one for shared
   for await (const _ of p.stream({ ...prompt, maxTokens: 10, signal: new AbortController().signal, speed: 'thorough' })) { /* drain */ }
   for await (const _ of p.stream({ system: 's', messages: [{ role: 'user', content: 'hi' }], maxTokens: 10, signal: new AbortController().signal, speed: 'fast' })) { /* drain */ }
   assert.deepEqual(seen, [{ model: 'big', images: 1 }, { model: 'quick', images: 0 }]);
+  upstream.close();
+});
+
+test('Ollama provider streams from /api/chat with a big enough context and base64 images', async () => {
+  let got: { model: string; options: { num_ctx: number }; messages: { images?: string[] }[] } | undefined;
+  const upstream = createServer(async (req, res) => {
+    let body = '';
+    for await (const c of req) body += c;
+    assert.equal(req.url, '/api/chat');
+    got = JSON.parse(body);
+    res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+    res.write('{"message":{"content":"Hel"},"done":false}\n');
+    res.end('{"message":{"content":"lo"},"done":false}\n{"done":true}\n');
+  });
+  const base = await listen(upstream);
+  const p = ollamaProvider('gemma3:4b', base, fetch, 'gemma3:4b', 16384);
+  let text = '';
+  for await (const t of p.stream({ system: 's', messages: [{ role: 'user', content: 'hi', images: ['data:image/png;base64,QUJD'] }], maxTokens: 50, signal: new AbortController().signal })) text += t;
+  assert.equal(text, 'Hello');
+  assert.equal(got?.model, 'gemma3:4b');
+  assert.equal(got?.options.num_ctx, 16384);
+  assert.deepEqual(got?.messages[1].images, ['QUJD']);
   upstream.close();
 });

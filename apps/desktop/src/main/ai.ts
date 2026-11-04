@@ -73,9 +73,11 @@ export class AiBridge {
     const ctrl = new AbortController();
     this.controllers.set(req.requestId, ctrl);
     try {
-      const res = await net.fetch(`${settings.aiGatewayUrl.replace(/\/+$/, '')}/v1/chat`, {
+      const ep = await this.app.nebulaEndpoint();
+      if (!ep) throw new Error(settings.nebulaEngine === 'ollama' ? 'Ollama isn\'t running or has no model yet. Open Settings → Nebula to set it up' : 'no Nebula service is set up');
+      const res = await net.fetch(`${ep.url}/v1/chat`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(settings.serviceToken ? { authorization: `Bearer ${settings.serviceToken}` } : {}) },
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(ep.token ? { authorization: `Bearer ${ep.token}` } : {}) },
         body: JSON.stringify({ messages: req.messages.slice(-20), sources, stream: true, mode: req.mode ?? settings.mode, speed: req.speed ?? settings.nebulaSpeed }),
         signal: ctrl.signal,
       });
@@ -112,7 +114,7 @@ export class AiBridge {
           send({ type: 'notice', message: 'Answered on your device by Rovian Defender — the Nebula service isn\'t reachable.' });
           send({ type: 'done' });
         } else {
-          send({ type: 'error', message: `Nebula isn't reachable (${(err as Error).message}). Set up Nebula in Settings → Nebula (see docs/NEBULA_SETUP.md).` });
+          send({ type: 'error', message: `Nebula isn't reachable (${(err as Error).message}). Set it up in Settings → Nebula: the free option is Ollama on this computer.` });
         }
       }
     } finally {
@@ -126,9 +128,11 @@ export class AiBridge {
     const list = tabs.map((t) => { let host = ''; try { host = new URL(t.url).hostname; } catch { /* ignore */ } return `${t.id}\t${t.title.slice(0, 120)}\t${host}`; }).join('\n');
     const prompt = `Sort these browser tabs into 2-6 spaces by topic. Reply with JSON only: [{"name": "Short name", "tabIds": [1,2]}]. Every id must come from the list. Leave out tabs that don't fit a group.\n\nid\ttitle\tsite\n${list}`;
     try {
-      const res = await net.fetch(`${settings.aiGatewayUrl.replace(/\/+$/, '')}/v1/chat`, {
+      const ep = await this.app.nebulaEndpoint();
+      if (!ep) return null;
+      const res = await net.fetch(`${ep.url}/v1/chat`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(settings.serviceToken ? { authorization: `Bearer ${settings.serviceToken}` } : {}) },
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream', ...(ep.token ? { authorization: `Bearer ${ep.token}` } : {}) },
         body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], sources: [], speed: 'fast' }),
         signal: AbortSignal.timeout(20_000),
       });

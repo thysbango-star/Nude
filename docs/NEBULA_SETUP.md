@@ -3,9 +3,42 @@
 Nebula (Nude's AI) has two parts:
 
 1. **The browser** (Windows, macOS, Android, iPhone/iPad) shows Nebula and sends your question, plus only what you chose to share.
-2. **The Nebula gateway** (`services/ai-gateway`) is a small server that holds the AI provider's API key and talks to the model. The key never goes into the apps, so nobody can pull it out of a download.
+2. **A model**: either **Ollama** on your own computer (free, below), or **the Nebula gateway** (`services/ai-gateway`), a small server that holds a hosted AI provider's API key. That key never goes into the apps, so nobody can pull it out of a download.
 
-Until a gateway is reachable, Nebula still answers safety questions ("Is this website safe?", pasted scam messages) on your device with Rovian Defender, and the panel shows **Set up Nebula**.
+Until Nebula has a model, it still answers safety questions ("Is this website safe?", pasted scam messages) on your device with Rovian Defender, and the panel shows **Set up Nebula**.
+
+## The free way: Ollama on your computer (recommended)
+
+Ollama runs the AI model on your own computer. It's free, needs no API key or account, and nothing you share with Nebula leaves your computer. The Nude desktop app talks to it directly, so there's no server to set up.
+
+**What you need:** Windows 10/11 or a Mac, about 4 GB of free disk space, and 8 GB of RAM or more (16 GB is better).
+
+1. **Install Ollama.** Go to <https://ollama.com/download>, download the installer for your computer and run it. On Windows it then sits in the system tray (the little llama icon by the clock). It starts by itself with your computer.
+2. **Open Nude → Menu (•••) → Settings → Nebula.** "Where Nebula runs" is set to *Automatic*, which uses Ollama as soon as it's running. You should see **Ollama is running**.
+3. **Download a model.** Press **Download** next to `gemma3:4b` (3.3 GB). The bar shows progress; it takes a few minutes on a fast connection. Pick by your computer:
+   - `gemma3:4b`: best for most laptops (8 GB RAM or more). It can read images too.
+   - `gemma3:12b`: smarter but slower (16 GB RAM, or a graphics card). Nude uses `gemma3:4b` for quick chat when both are installed.
+   - `gemma3:1b`: for older computers (text only).
+4. **Try it.** Click the Nebula orb, choose **Ask**, and type a question. The first answer takes a few extra seconds while the model loads into memory; after that it stays loaded for 30 minutes.
+5. **Phones (optional).** Turn on **Let my phone use this computer's Nebula**. Windows asks whether Nude may use the network: allow it on **private networks**. Nude then shows an address and an access token. In Nude on your phone (same Wi-Fi), go to **Settings → Nude services** and enter them as *Nebula gateway* and *Access token*. Use the address marked Android or iPhone/iPad. The computer has to be on and awake for the phone to use it.
+
+If you prefer the terminal, `ollama pull gemma3:4b` downloads the same model.
+
+**Tips**
+- Speed depends on your computer. A graphics card (NVIDIA, AMD or Apple silicon) makes answers much faster. On a laptop without one, expect a few words per second.
+- Long pages are trimmed to about 24,000 characters for local models so they fit in the model's memory. Nude asks Ollama for a 16,000-token context.
+- Local models are less accurate than the big hosted ones. Nebula still cites what it used, so you can check it.
+
+**If something's wrong**
+
+| What you see | Fix |
+|---|---|
+| "Ollama isn't running" | Open Ollama from the Start menu (or Applications on a Mac), then press **Check again**. |
+| "isn't downloaded" | Download the model in Settings → Nebula, or run `ollama pull gemma3:4b`. |
+| Very slow answers | Use `gemma3:4b` or `gemma3:1b`, close other heavy apps, or plug in your laptop. |
+| Phone says "Nebula isn't reachable" | Check both are on the same Wi-Fi, the computer is awake, sharing is on, and Windows allowed Nude on private networks. |
+
+## Hosted models (optional)
 
 ## 1. Get an API key
 

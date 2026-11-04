@@ -1,6 +1,7 @@
 // Nebula gateway HTTP server. Clients never see provider keys.
 import { createServer, type IncomingMessage } from 'node:http';
 import { buildPrompt, pickSpeed, type ChatMessage, type Source } from './prompt';
+import { inlineImages } from './images';
 import { providerFromEnv, type Provider } from './providers';
 
 export interface GatewayOptions {
@@ -10,6 +11,10 @@ export interface GatewayOptions {
   maxTokens?: number;
   /** Requests per minute per client IP. */
   rateLimit?: number;
+  /** Most characters of page/tab text sent to the model. Lower it for small local models. */
+  maxSourceChars?: number;
+  /** Download shared images and send them as data URLs (needed for Ollama). */
+  inlineImages?: boolean;
 }
 
 async function readJson(req: IncomingMessage, limit = 2_000_000): Promise<unknown> {
@@ -51,7 +56,8 @@ export function createGateway(o: GatewayOptions) {
       const body = (await readJson(req)) as { messages?: ChatMessage[]; sources?: Source[]; mode?: string; speed?: string };
       if (!Array.isArray(body.messages) || !body.messages.length) return json(400, { error: 'messages is required' });
       const sources = Array.isArray(body.sources) ? body.sources : [];
-      const prompt = buildPrompt(body.messages, sources, 120_000, typeof body.mode === 'string' ? body.mode : undefined);
+      const prompt = buildPrompt(body.messages, sources, o.maxSourceChars ?? 120_000, typeof body.mode === 'string' ? body.mode : undefined);
+      if (o.inlineImages) prompt.messages = await inlineImages(prompt.messages);
       const speed = pickSpeed(body.speed, sources);
       if (!prompt.messages.length) return json(400, { error: 'No user message' });
 
@@ -75,9 +81,16 @@ export function createGateway(o: GatewayOptions) {
   });
 }
 
-if (require.main === module) {
+// Started directly (npm start), not when bundled into the desktop app, which runs its own local gateway.
+if (require.main === module && !process.versions.electron) {
   const provider = providerFromEnv();
-  const server = createGateway({ provider, token: process.env.NUDE_SERVICE_TOKEN, maxTokens: Number(process.env.NUDE_AI_MAX_TOKENS ?? 1500), rateLimit: Number(process.env.NUDE_AI_RATE_LIMIT ?? 30) });
+  // A local Ollama server: images must be inlined, and pages trimmed to fit a small model's memory.
+  const local = provider.name.startsWith('ollama:') || /(localhost|127\.0\.0\.1|:11434)/.test(process.env.OPENAI_BASE_URL ?? '');
+  const server = createGateway({
+    provider, token: process.env.NUDE_SERVICE_TOKEN, maxTokens: Number(process.env.NUDE_AI_MAX_TOKENS ?? 1500), rateLimit: Number(process.env.NUDE_AI_RATE_LIMIT ?? 30),
+    maxSourceChars: Number(process.env.NUDE_AI_MAX_SOURCE_CHARS ?? (local ? 24_000 : 120_000)),
+    inlineImages: process.env.NUDE_AI_INLINE_IMAGES ? process.env.NUDE_AI_INLINE_IMAGES === '1' : local,
+  });
   const port = Number(process.env.PORT ?? 8790);
   server.listen(port, process.env.HOST ?? '127.0.0.1', () => console.log(`Nebula gateway on http://${process.env.HOST ?? '127.0.0.1'}:${port} (provider: ${provider.name})`));
 }

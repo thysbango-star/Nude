@@ -77,8 +77,9 @@ async function render() {
         ${sw('aiEnabled', 'Show Nebula', 'The assistant only sees pages, selections, tabs or files you explicitly share with it.')}
         ${sw('voiceOutput', 'Read answers aloud automatically')}
         ${sel('nebulaSpeed', 'Answer speed', [['auto', 'Auto: fast for chat, deep when you share pages or images'], ['fast', 'Fast'], ['thorough', 'Deep: slower, more careful']])}
-        <p class="tiny">To turn Nebula on, run the Nebula gateway with an AI key and put its address under Nude services below. The setup guide is docs/NEBULA_SETUP.md in the Nude project.</p>
-        <p class="tiny">Nebula runs through the Nebula gateway. The gateway holds all AI provider keys — they're never stored in the browser.</p>
+        ${sel('nebulaEngine', 'Where Nebula runs', [['auto', 'Automatic: this computer if Ollama is running, otherwise the Nebula gateway'], ['ollama', 'This computer (Ollama, free and private)'], ['gateway', 'Nebula gateway (set under Nude services)']])}
+        <div id="ollama-box"></div>
+        <p class="tiny">With Ollama, the AI runs on this computer: it's free, needs no key, and nothing you share leaves your computer. The gateway option uses a hosted model; its keys stay on the server, never in the browser.</p>
       </section>
 
       <section class="card" id="services"><h2>Nude services</h2>
@@ -113,8 +114,44 @@ async function render() {
       <label class="check"><input type="checkbox" id="c-perms">Site permissions</label>
       <div class="btns"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="ok">Clear data</button></div></form></dialog>`;
   void renderPerms();
+  void renderOllama();
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
   if (location.hash === '#privacy') $<HTMLDialogElement>('#clear-dlg').showModal();
+}
+
+interface LocalStatus {
+  running: boolean; models: string[]; model: string | null; pulling: { model: string; percent: number; status: string } | null;
+  share: { url: string; localUrl: string; token: string } | null; recommended: { name: string; size: string; note: string }[];
+}
+
+/** Ollama: is it running, which model, download one, share with phones. */
+async function renderOllama() {
+  const box = document.getElementById('ollama-box');
+  if (!box) return;
+  if (info.settings.nebulaEngine === 'gateway') { box.innerHTML = ''; return; }
+  const st = await api.invoke<LocalStatus>('nebula.local');
+  if (!st.running) {
+    box.innerHTML = `<div class="setting"><div class="text"><b>Ollama isn't running</b><span>Install it free from ollama.com, open it, then come back here. Nebula will find it automatically.</span></div>
+      <button class="btn" data-ollama-refresh>Check again</button></div>`;
+    return;
+  }
+  const pull = st.pulling
+    ? `<div class="setting"><div class="text"><b>Downloading ${esc(st.pulling.model)} — ${st.pulling.percent}%</b><span>${esc(st.pulling.status)}</span>
+        <div class="progress"><i style="width:${st.pulling.percent}%"></i></div></div><button class="btn" data-ollama-cancel>Cancel</button></div>` : '';
+  const options = [...new Set([...st.models.filter((m) => !/embed/i.test(m))])];
+  const missing = st.recommended.filter((r) => !st.models.includes(r.name));
+  box.innerHTML = `
+    <div class="setting"><div class="text"><b>Ollama is running</b><span>${st.model ? `Nebula is using ${esc(st.model)} on this computer.` : 'Download a model below to start.'}</span></div>
+      <span class="pill ${st.model ? 'ok' : 'warn'}">${st.model ? 'Ready' : 'No model yet'}</span></div>
+    ${options.length ? `<div class="setting"><div class="text"><b>Model</b><span>Bigger models are smarter but slower.</span></div>
+      <select data-key="ollamaModel"><option value="">Best installed (${esc(st.model ?? '')})</option>${options.map((m) => `<option value="${esc(m)}" ${info.settings.ollamaModel === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div>` : ''}
+    ${pull}
+    ${!st.pulling ? missing.map((r) => `<div class="setting"><div class="text"><b>${esc(r.name)} <span class="tiny">${esc(r.size)}</span></b><span>${esc(r.note)}</span></div>
+      <button class="btn${!st.model && r === missing[0] ? ' primary' : ''}" data-ollama-pull="${esc(r.name)}">Download</button></div>`).join('') : ''}
+    ${sw('nebulaShareOnNetwork', 'Let my phone use this computer\'s Nebula', 'For Nude on Android or iPhone on the same Wi-Fi. Only devices with the access code below can use it.')}
+    ${st.share ? `<div class="setting"><div class="text"><b>On your phone</b><span>Settings → Nude services → <i>Nebula gateway</i>: <code class="sel">${esc(st.share.url)}</code> (Android) or <code class="sel">${esc(st.share.localUrl)}</code> (iPhone, iPad)<br>
+      <i>Access token</i>: <code class="sel">${esc(st.share.token)}</code></span></div>
+      <button class="btn" data-copy-share="${esc(st.share.url)}|${esc(st.share.token)}">Copy</button><button class="btn" data-reset-token title="Phones using the old code will need the new one">New code</button></div>` : ''}`;
 }
 
 async function renderPerms() {
@@ -153,6 +190,13 @@ document.addEventListener('click', async (e) => {
   if (level) { await set({ protectionLevel: level.dataset.level }); toast(`${info.levels[level.dataset.level!].name} on`); return; }
   const rv = t.closest<HTMLElement>('[data-revoke]')?.dataset.revoke;
   if (rv) { const [o, p] = rv.split('|'); await api.invoke('permissions.revoke', o, p); return; }
+  const pullModel = t.closest<HTMLElement>('[data-ollama-pull]')?.dataset.ollamaPull;
+  if (pullModel) { await api.invoke('nebula.pull', pullModel); void renderOllama(); return; }
+  if (t.closest('[data-ollama-cancel]')) { await api.invoke('nebula.cancelPull'); return; }
+  if (t.closest('[data-ollama-refresh]')) { void renderOllama(); return; }
+  if (t.closest('[data-reset-token]')) { await api.invoke('nebula.resetToken'); toast('New access code made'); return; }
+  const share = t.closest<HTMLElement>('[data-copy-share]')?.dataset.copyShare;
+  if (share) { const [u, k] = share.split('|'); await navigator.clipboard.writeText(`Nebula gateway: ${u}\nAccess token: ${k}`).catch(() => {}); toast('Copied'); return; }
   if (t.closest('#clear-btn')) $<HTMLDialogElement>('#clear-dlg').showModal();
   if (t.closest('#choose-dl')) { await api.invoke('settings.chooseDownloads'); }
   if (t.closest('#make-default')) { await api.invoke('settings.makeDefault'); void render(); }
@@ -173,4 +217,5 @@ document.addEventListener('submit', async (e) => {
 });
 on('settings', () => { const y = scrollY; void render().then(() => scrollTo(0, y)); });
 on('permissions', renderPerms);
+on('nebula', () => void renderOllama());
 void render();
