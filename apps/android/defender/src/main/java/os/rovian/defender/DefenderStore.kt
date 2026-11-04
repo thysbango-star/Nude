@@ -36,8 +36,8 @@ class DefenderStore(ctx: Context) {
         runCatching { loadLists(JSONObject(prefs.getString("lists", "{}")!!)) }
     }
 
-    fun setLevel(l: Security.Level) { level = l; prefs.edit().putString("level", l.name).apply() }
-    fun setListsUrl(u: String) { listsUrl = u.trim(); prefs.edit().putString("listsUrl", listsUrl).apply() }
+    fun chooseLevel(l: Security.Level) { level = l; prefs.edit().putString("level", l.name).apply() }
+    fun chooseListsUrl(u: String) { listsUrl = u.trim(); prefs.edit().putString("listsUrl", listsUrl).apply() }
 
     fun record(kind: String, subject: String, outcome: String, level: Int) {
         history.add(0, CheckRecord(System.currentTimeMillis(), kind, subject.take(160), outcome, level))

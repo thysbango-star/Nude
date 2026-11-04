@@ -386,9 +386,9 @@ private fun SettingsPage(store: DefenderStore, onBack: () -> Unit) {
             Triple(Security.Level.MAXIMUM, "Maximum", "Strictest: blocks anything suspicious."),
         ).forEach { (l, name, desc) ->
             val on = store.level == l
-            MatteCard(Modifier.fillMaxWidth().padding(bottom = 8.dp), onClick = { store.setLevel(l) }) {
+            MatteCard(Modifier.fillMaxWidth().padding(bottom = 8.dp), onClick = { store.chooseLevel(l) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(on, { store.setLevel(l) })
+                    RadioButton(on, { store.chooseLevel(l) })
                     Column { Text(name, fontWeight = FontWeight.SemiBold); Text(desc, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 }
             }
@@ -397,7 +397,7 @@ private fun SettingsPage(store: DefenderStore, onBack: () -> Unit) {
         Text("Download known phishing and malware sites from your Rovian threat-intel server, so checks work offline.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Server address") }, singleLine = true, shape = RoundedCornerShape(14.dp))
         Button({
-            store.setListsUrl(url); busy = true
+            store.chooseListsUrl(url); busy = true
             scope.launch { val e = withContext(Dispatchers.IO) { store.updateLists() }; status = e ?: "Updated: ${store.listCount} known threats."; busy = false }
         }, Modifier.padding(top = 8.dp), enabled = !busy, shape = RoundedCornerShape(14.dp)) { Text(if (busy) "Updating…" else "Update now") }
         status?.let { Text(it, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp)) }

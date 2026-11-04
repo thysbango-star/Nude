@@ -39,7 +39,7 @@ class RovianSignInTest {
         .put("email", "Simon@Example.com").put("email_verified", true).put("name", "Simon Adamson").put("username", "simon")
 
     /** A fake Rovian that checks PKCE and lets the test decide what the ID token looks like. */
-    private fun setup(token: (nonce: String) -> String, discovery: JSONObject = disco): Triple<RovianSignIn, PendingSignIn, MutableList<Map<String, String>>> {
+    private fun setup(discovery: JSONObject = disco, token: (nonce: String) -> String): Triple<RovianSignIn, PendingSignIn, MutableList<Map<String, String>>> {
         val forms = mutableListOf<Map<String, String>>()
         var challenge = ""
         var nonce = ""
@@ -116,12 +116,12 @@ class RovianSignInTest {
             "id_token_key" to { n -> jwt(good(n), kid = "unknown") },
         )
         for ((code, make) in cases) {
-            val (s, p, _) = setup(make)
+            val (s, p, _) = setup(token = make)
             expectError(code) { s.complete(mapOf("code" to "abc", "state" to p.state), p) }
         }
     }
 
     @Test fun refusesDiscoveryForAnotherIssuer() {
-        expectError("discovery_mismatch") { setup({ jwt(good(it)) }, JSONObject(disco.toString()).put("issuer", "https://evil.example")) }
+        expectError("discovery_mismatch") { setup(JSONObject(disco.toString()).put("issuer", "https://evil.example")) { jwt(good(it)) } }
     }
 }
