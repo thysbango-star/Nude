@@ -1,4 +1,5 @@
 import { api, $, esc } from './common';
+import { connectRovian } from './rovian-connect';
 
 interface Acc { id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string; provider: 'local' | 'rovian'; rovianId?: string | null }
 
@@ -87,8 +88,8 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
           <div id="rovian-msg" class="err" role="alert" hidden></div>
           <div id="rovian-wait" class="wait" role="status" hidden>
             <span class="wait-ring" aria-hidden="true"></span>
-            <div><b>Finish in your browser</b><span>Rovian Account opened in your usual web browser. Sign in and approve there, and Nude will continue on its own.</span>
-            <div class="wait-actions"><button type="button" class="link" id="rovian-tab">Sign in inside Nude instead</button><button type="button" class="link quiet" id="rovian-cancel">Cancel</button></div></div>
+            <div><b>Finish in the Rovian window</b><span>Sign in to Rovian Account and approve Nude Browser there. Nude continues on its own.</span>
+            <div class="wait-actions"><button type="button" class="link quiet" id="rovian-cancel">Cancel</button></div></div>
           </div>
           <p class="switch-line">${signin ? 'New to Nude? <button type="button" class="link" data-mode="signup">Create an account</button>' : 'Already have an account? <button type="button" class="link" data-mode="signin">Log in</button>'}</p>
           ${info.needsWelcome ? '<button type="button" class="link quiet guest" id="guest">Continue without an account</button>' : ''}
@@ -140,19 +141,27 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
   }));
 
   // Sign in with Rovian: opens Rovian Account's own sign-in and consent pages in this tab.
-  const startRovian = async (where: 'browser' | 'tab') => {
+  // Sign in with Rovian: Rovian Account's own popup. Nude gets your verified identity, never a password or token.
+  let connecting: ReturnType<typeof connectRovian> | null = null;
+  const stopWaiting = () => { $('#rovian').classList.remove('busy'); $('#rovian-wait').hidden = true; connecting = null; };
+  $('#rovian').addEventListener('click', async () => {
+    if (connecting) return;
     show('#rovian-msg', '');
     $('#rovian').classList.add('busy');
-    const r = await api.invoke<{ ok: boolean; error?: string; external?: boolean }>('account.rovian', 'signin', remember(), where);
-    if (!r.ok) { $('#rovian').classList.remove('busy'); $('#rovian-wait').hidden = true; show('#rovian-msg', r.error ?? 'Couldn\'t start signing in with Rovian.'); return; }
-    $('#rovian-wait').hidden = !r.external;
-  };
-  $('#rovian').addEventListener('click', () => void startRovian('browser'));
-  $('#rovian-tab').addEventListener('click', () => void startRovian('tab'));
-  $('#rovian-cancel').addEventListener('click', async () => {
-    await api.invoke('account.rovianCancel');
-    $('#rovian-wait').hidden = true; $('#rovian').classList.remove('busy');
+    $('#rovian-wait').hidden = false;
+    connecting = connectRovian();
+    const r = await connecting.done;
+    if (r.type === 'identity') {
+      const res = await api.invoke<{ ok: boolean; error?: string }>('account.rovianConnect', r.identity, remember(), 'signin');
+      stopWaiting();
+      if (res.ok) leave(); else show('#rovian-msg', res.error ?? 'Signing in with Rovian didn\'t work.');
+      return;
+    }
+    stopWaiting();
+    if (r.type === 'denied') show('#rovian-msg', 'You didn\'t allow Nude Browser on Rovian, so you\'re not signed in.');
+    else if (r.type === 'blocked') show('#rovian-msg', 'Nude couldn\'t open the Rovian window. Please try again.');
   });
+  $('#rovian-cancel').addEventListener('click', () => connecting?.cancel());
   if (first) void api.invoke<{ ok: boolean; message: string } | null>('account.rovianResult').then((r) => { if (r && !r.ok) show('#rovian-msg', r.message); });
   document.getElementById('guest')?.addEventListener('click', async () => { await api.invoke('account.guest'); void api.invoke('account.done'); });
   (document.getElementById(signin ? 'email' : 'name') as HTMLInputElement | null)?.focus({ preventScroll: true });

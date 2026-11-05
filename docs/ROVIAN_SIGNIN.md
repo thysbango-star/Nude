@@ -1,5 +1,16 @@
 # Sign in with Rovian
 
+## Rovian Connect (what the Continue with Rovian button uses)
+
+Nude's welcome and account pages open Rovian Account's popup, `https://rovianaccounts.lovable.app/connect`, exactly as Rovian's snippet does: Rovian says `rovian:connect-hello`, Nude answers `rovian:site-info` (`name: "Nude Browser"`), and after you approve Rovian posts `rovian:identity` (`rovianId`, `username`, `name`, `avatarUrl`) or `rovian:denied`. No tokens exist in this flow.
+
+- Messages are accepted only from that exact origin and only from the popup the page opened (`renderer/pages/rovian-connect.ts`).
+- Nude's own pages may open only that one popup, and the main process accepts an identity only from a page that opened it in the last 15 minutes (`main/rovian-connect.ts`, `main/window.ts`).
+- The identity is checked again in the main process: `rovianId` must be `name@rovian.cloud`, `username` must match it, the avatar must be HTTPS (it is downloaded once, small images only, and kept as the account picture).
+- Popups from websites (sign-in windows like this one) open as small windows with the site's address in the title, so `window.opener` works there too.
+
+The OAuth 2.1 + PKCE client below is still in the code (and tested) but no longer on the button.
+
 Nude Browser signs people in with their Rovian Account using OAuth 2.1 Authorization Code + PKCE (S256) and OpenID Connect. Nude is a **public client**: there is no client secret, by design.
 
 | Setting | Value |

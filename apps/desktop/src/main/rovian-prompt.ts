@@ -27,6 +27,10 @@ export const DETECT_SCRIPT = `(() => {
   if (link && link.href) out.push({ kind: 'link', url: link.href });
   for (const a of document.querySelectorAll('a[href]')) { if (a.href.startsWith(AUTH + '?')) { out.push({ kind: 'authorize', url: a.href }); break; } }
   if (!out.length) {
+    const tagged = document.getElementById('rovian-signin') || document.querySelector('[data-rovian-signin]');
+    if (tagged) { document.querySelectorAll('[data-nude-rovian]').forEach((x) => x.removeAttribute('data-nude-rovian')); tagged.setAttribute('data-nude-rovian', '1'); out.push({ kind: 'button' }); }
+  }
+  if (!out.length) {
     const re = /^(sign in|sign-in|log in|login|continue|sign up)( with)? rovian( account)?$/i;
     for (const el of document.querySelectorAll('button, a, [role="button"], input[type="submit"], input[type="button"]')) {
       const t = String(el.innerText || el.value || el.getAttribute('aria-label') || '').trim().replace(/\\s+/g, ' ');

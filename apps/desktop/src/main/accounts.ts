@@ -168,14 +168,16 @@ export class Accounts {
    * Signs in (or links) with a verified Rovian identity. The account is matched by Rovian's subject id. An existing
    * local account is only joined to it when Rovian has verified the same email address.
    */
-  withRovian(id: RovianIdentity, makeCurrent: boolean): PublicAccount {
+  withRovian(id: RovianIdentity, makeCurrent: boolean, photo?: string): PublicAccount {
     const d = this.store.get();
     const now = Date.now();
     let a = d.accounts.find((x) => x.rovian?.sub === id.sub)
+      ?? (id.rovianId ? d.accounts.find((x) => x.rovian?.rovianId === id.rovianId) : undefined)
       ?? (id.emailVerified && id.email ? d.accounts.find((x) => !x.rovian && x.email === id.email) : undefined);
     const rovian = { sub: id.sub, username: id.username, rovianId: id.rovianId, emailVerified: id.emailVerified, linkedAt: a?.rovian?.linkedAt ?? now, lastSignIn: now };
     if (a) a = { ...a, name: id.name || a.name, email: id.email || a.email, rovian };
     else a = { id: randomUUID(), name: id.name, email: id.email, color: COLORS[d.accounts.length % COLORS.length], created: now, rovian };
+    if (photo && /^data:image\/(png|jpeg|webp|gif);base64,/.test(photo) && photo.length < 300_000) a = { ...a, photo };
     const next = a;
     this.store.set((x) => ({
       ...x,

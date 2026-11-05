@@ -16,6 +16,7 @@ import { Accounts } from './accounts';
 import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { RovianAuth, RovianAuthError } from './rovian-auth';
 import { RovianLoopback } from './rovian-loopback';
+import { CONNECT_TTL, parseConnectIdentity } from './rovian-connect';
 import { JsonStore } from './store';
 import { PhoneLink, type LinkApp, type PublicDevice } from './phone-link';
 import { qrSvg } from '../shared/qr';
@@ -265,6 +266,25 @@ export class NudeApp {
 
   /** Step 4–7 of Sign in with Rovian, then back to Nude: the home page on sign-in, the account page when linking. */
   identityLog(kind: string, detail: string) { this.accounts.logEvent(kind, detail); }
+
+  /** Tabs that opened Rovian Account's Connect popup, and when. Only they may hand Nude an identity. */
+  private connectOpened = new Map<number, number>();
+  rovianConnectOpened(wcId: number) { this.connectOpened.set(wcId, Date.now()); }
+
+  /** Downloads a profile picture (HTTPS images only, small) and returns it as a data: URL. */
+  private async fetchAvatar(url: string): Promise<string | undefined> {
+    try {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8000);
+      const r = await net.fetch(url, { signal: ctl.signal, credentials: 'omit' } as RequestInit);
+      clearTimeout(timer);
+      const type = (r.headers.get('content-type') ?? '').split(';')[0].trim();
+      if (!r.ok || !/^image\/(png|jpeg|webp|gif)$/.test(type)) return undefined;
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 200_000) return undefined;
+      return `data:${type};base64,${buf.toString('base64')}`;
+    } catch { return undefined; }
+  }
 
   private promptStore!: JsonStore<{ never: string[] }>;
   phoneLink!: PhoneLink;
@@ -709,6 +729,25 @@ export class NudeApp {
             if (!this.rovian.waiting) this.rovianLoopback.stop();
             return { ok: false, error: err instanceof RovianAuthError ? err.withReference : 'Couldn\'t start signing in with Rovian.' };
           }
+        }
+        // Rovian Connect: the page got your identity from Rovian's popup (origin checked by the browser).
+        case 'account.rovianConnect': {
+          if (page !== 'welcome' && page !== 'account') throw new Error('Unauthorized');
+          const opened = this.connectOpened.get(e.sender.id);
+          if (!opened || Date.now() - opened > CONNECT_TTL) return { ok: false, error: 'Please start signing in with Rovian again.' };
+          this.connectOpened.delete(e.sender.id);
+          const id = parseConnectIdentity(a[0]);
+          if (!id) {
+            this.identityLog('rovian-failed', 'Rovian sent an identity Nude couldn\'t read');
+            return { ok: false, error: 'Rovian sent something Nude couldn\'t read. Please try again. (Reference: connect_identity)' };
+          }
+          const purpose = a[2] === 'link' ? 'link' : 'signin';
+          const photo = id.avatarUrl ? await this.fetchAvatar(id.avatarUrl) : undefined;
+          const acct = this.accounts.withRovian(id, purpose === 'signin', photo);
+          if (purpose === 'signin') this.accounts.setRemember(a[1] !== false);
+          this.identityLog('rovian-signin', `${purpose === 'signin' ? 'Signed in to Nude' : 'Added'} with Rovian (${acct.rovianId ?? acct.email})`);
+          this.security.log({ type: 'scan', detail: `Signed in with Rovian Account (${acct.rovianId ?? acct.email}).` });
+          return { ok: true, account: acct, message: purpose === 'signin' ? `Signed in as ${acct.rovianId}` : `Added ${acct.rovianId}` };
         }
         case 'account.rovianCancel': {
           this.rovian.cancelFor(e.sender.id);

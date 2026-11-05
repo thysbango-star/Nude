@@ -1,4 +1,5 @@
 import { api, $, esc, I, toast } from './common';
+import { connectRovian } from './rovian-connect';
 
 interface Acc { id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string; provider: 'local' | 'rovian'; rovianId?: string | null; username?: string | null; lastSignIn?: number }
 
@@ -18,7 +19,7 @@ async function render() {
     </div>
     <section class="card"><h2 class="rv-h"><img src="rovian-mark.svg" alt="">Rovian Account</h2>
       ${a.provider === 'rovian' ? `
-      <div class="setting"><div class="text"><b>${esc(a.rovianId ?? a.email)}</b><span>Signed in with Rovian${a.lastSignIn ? ` · last sign-in ${esc(new Date(a.lastSignIn).toLocaleString())}` : ''}. Nude keeps your verified name, email and Rovian ID — not your Rovian password or sign-in tokens.</span></div><span class="pill ok">Verified</span></div>
+      <div class="setting"><div class="text"><b>${esc(a.rovianId ?? a.email)}</b><span>Signed in with Rovian${a.lastSignIn ? ` · last sign-in ${esc(new Date(a.lastSignIn).toLocaleString())}` : ''}. Nude keeps your verified name and Rovian ID — never your Rovian password or a sign-in token.</span></div><span class="pill ok">Verified</span></div>
       ${a.email && a.rovianId ? `<div class="setting"><div class="text"><b>Email</b><span>${esc(a.email)}</span></div></div>` : ''}`
       : `<div class="setting"><div class="text"><b>Connect your Rovian Account</b><span>Use your Rovian ID (name@rovian.cloud) with Nude. You'll approve it on Rovian's own page.</span></div><button class="btn primary" id="link-rovian">Continue with Rovian</button></div>`}
       ${others(info.all, a)}
@@ -50,9 +51,13 @@ async function render() {
       <input class="input" id="del-pw" type="password" autocomplete="current-password" style="width:100%">
       <div class="btns"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn danger" value="ok">Delete account</button></div></form></dialog>`;
   const startRovian = async (purpose: 'signin' | 'link') => {
-    const r = await api.invoke<{ ok: boolean; error?: string; external?: boolean }>('account.rovian', purpose, true);
-    if (!r.ok) toast(r.error ?? 'Couldn\'t start signing in with Rovian.');
-    else if (r.external) toast('Rovian Account opened in your web browser. Approve there and Nude will continue.');
+    const r = await connectRovian().done;
+    if (r.type === 'denied') { toast('You didn\'t allow Nude Browser on Rovian.'); return; }
+    if (r.type === 'blocked') { toast('Nude couldn\'t open the Rovian window.'); return; }
+    if (r.type !== 'identity') return;
+    const res = await api.invoke<{ ok: boolean; error?: string; message?: string }>('account.rovianConnect', r.identity, true, purpose);
+    toast(res.ok ? res.message ?? 'Connected' : res.error ?? 'Signing in with Rovian didn\'t work.');
+    if (res.ok) void render();
   };
   document.getElementById('phone-pg')?.addEventListener('click', () => void api.invoke('open', 'nude://phone/#passgate'));
   document.getElementById('phone-rd')?.addEventListener('click', () => void api.invoke('open', 'nude://phone/#defender'));

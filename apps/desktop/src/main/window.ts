@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { Tab, type TabOptions } from './tab';
 import { CHROME_HTML, CHROME_PRELOAD, INTERNAL_PRELOAD } from './paths';
 import { CLICK_SCRIPT, DETECT_SCRIPT, chooseOffer, siteLabel } from './rovian-prompt';
+import { ROVIAN_CONNECT_ORIGIN } from './rovian-connect';
 import { registrableDomain } from '@nude/security-engine';
 import type { NudeApp } from './app';
 import type { ChromeCommand, ContentBounds, FindState, TabGroup, WindowState } from '../shared/types';
@@ -300,6 +301,40 @@ export class BrowserWindowController {
     this.updatePrompt();
   }
 
+  // ---------------------------------------------------------------- popups
+  /**
+   * A small popup window for sign-in flows. Same session and protections as tabs; its title always shows the site's
+   * address (a popup has no address bar), it can't open more windows (they become tabs) and can't reach nude:// pages.
+   */
+  private openPopup(options: Electron.BrowserWindowConstructorOptions, url: string, features: string): WebContents {
+    const f = Object.fromEntries(features.split(',').map((x) => x.trim().split('=')).filter((x) => x.length === 2).map(([k, v]) => [k.toLowerCase(), Number(v)]));
+    const clamp = (n: number | undefined, d: number) => Math.round(Math.min(1000, Math.max(320, Number.isFinite(n) ? n! : d)));
+    const w = clamp(f.width, 500), h = clamp(f.height, 680);
+    const [px, py] = this.win.getPosition();
+    const [pw, ph] = this.win.getSize();
+    const popup = new BrowserWindow({
+      ...options,
+      width: w, height: h, x: Math.round(px + (pw - w) / 2), y: Math.round(py + Math.max(30, (ph - h) / 3)),
+      parent: this.win, modal: false, show: true, autoHideMenuBar: true, fullscreenable: false, minimizable: false,
+      backgroundColor: '#ffffff',
+    });
+    popup.setMenu(null);
+    const pwc = popup.webContents;
+    const host = (u: string) => { try { return new URL(u).host; } catch { return ''; } };
+    const label = () => `${host(pwc.getURL() || url)}${pwc.getTitle() ? ` — ${pwc.getTitle()}` : ''}`;
+    popup.setTitle(host(url));
+    popup.on('page-title-updated', (e) => { e.preventDefault(); popup.setTitle(label()); });
+    pwc.on('did-navigate', () => popup.setTitle(label()));
+    pwc.setWindowOpenHandler(({ url: u }) => {
+      if (/^https?:/i.test(u)) this.addTab({ url: u });
+      return { action: 'deny' };
+    });
+    pwc.on('will-navigate', (e, u) => { if (!/^(https?|about):/i.test(u)) e.preventDefault(); });
+    pwc.on('will-redirect', (e, u) => { if (u.startsWith('nude:')) e.preventDefault(); });
+    pwc.on('will-frame-navigate', (e) => { if (e.url.startsWith('nude:')) e.preventDefault(); });
+    return pwc;
+  }
+
   // ---------------------------------------------------------------- Sign in with Rovian prompt
   ownsPrompt(wc: WebContents) { return this.prompt?.webContents === wc; }
 
@@ -567,10 +602,22 @@ export class BrowserWindowController {
     const changed = () => this.pushState();
     wc.setZoomLevel(this.app.profile.settings.get().defaultZoom);
 
-    wc.setWindowOpenHandler(({ url, disposition }) => {
+    wc.setWindowOpenHandler(({ url, disposition, features }) => {
+      // Nude's own pages may open exactly one popup: Rovian Account's sign-in.
+      if (wc.getURL().startsWith('nude:')) {
+        let ok = false;
+        try { ok = new URL(url).origin === ROVIAN_CONNECT_ORIGIN && /^nude:\/\/(welcome|account)\//.test(wc.getURL()) && !this.isPrivate; } catch { ok = false; }
+        if (!ok) return { action: 'deny' };
+        this.app.rovianConnectOpened(wc.id);
+        return { action: 'allow', createWindow: (options) => this.openPopup(options, url, features) };
+      }
       if (!/^(https?|about|data):/i.test(url) && url !== 'about:blank') {
         if (/^(mailto|tel|sms|zoommtg|msteams|spotify|steam|magnet):/i.test(url)) void shell.openExternal(url);
         return { action: 'deny' };
+      }
+      // A sized popup (sign-in windows and the like) opens as a small window, so window.opener keeps working.
+      if (disposition === 'new-window' && /^https?:/i.test(url)) {
+        return { action: 'allow', createWindow: (options) => this.openPopup(options, url, features) };
       }
       const background = disposition === 'background-tab';
       return {
