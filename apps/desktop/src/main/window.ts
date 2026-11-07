@@ -153,7 +153,10 @@ export class BrowserWindowController {
     const i = this.tabs.findIndex((t) => t.id === id);
     if (i < 0) return;
     const tab = this.tabs[i];
-    if (!this.isPrivate && tab.url && tab.url !== NEW_TAB_URL) this.app.rememberClosed(tab.url, tab.title, i);
+    tab.closing = true;
+    let url = '';
+    try { url = tab.url; } catch { url = ''; }
+    if (!this.isPrivate && url && url !== NEW_TAB_URL) this.app.rememberClosed(url, tab.title, i);
     this.tabs.splice(i, 1);
     this.app.permissions.cancelForTab(id);
     this.app.security.forgetTab(id);
@@ -726,7 +729,7 @@ export class BrowserWindowController {
       if (!tab.closing && this.tabs.includes(tab)) this.closeTab(tab.id);
     });
     // window.close() from a page script (allowed for tabs the page opened).
-    wc.on('close' as never, () => this.closeTab(tab.id));
+    wc.on('close' as never, () => { if (!tab.closing) this.closeTab(tab.id); });
   }
 
   private handleInput(e: Electron.Event, input: Electron.Input, fromPage: boolean) {

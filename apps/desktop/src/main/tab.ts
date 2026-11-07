@@ -69,6 +69,7 @@ export class Tab {
     // sandboxed preferences) and passes it in the options; adopting it keeps window.opener working.
     const guest = (opts.openerOptions as { webContents?: WebContents } | undefined)?.webContents;
     this.view = guest ? new WebContentsView({ webContents: guest }) : new WebContentsView({ webPreferences: opts.openerOptions?.webPreferences ? { ...opts.openerOptions.webPreferences, ...secure } : secure });
+    this._wc = this.view.webContents;
     this.view.setBorderRadius(0);
     this.view.setBackgroundColor('#00000000');
     this.title = opts.title ?? 'New Tab';
@@ -82,13 +83,18 @@ export class Tab {
     }
   }
 
+  /**
+   * Kept from the start: once a page's webContents is destroyed (window.close(), a crash, a sign-in popup finishing),
+   * WebContentsView.webContents can read as undefined, but this object still answers isDestroyed().
+   */
+  private _wc: WebContents | undefined;
   get wc(): WebContents {
-    return this.view.webContents;
+    return (this._wc ??= this.view.webContents);
   }
 
   get url(): string {
     if (this.pendingUrl) return this.pendingUrl;
-    if (this.wc.isDestroyed()) return '';
+    if (!this.wc || this.wc.isDestroyed()) return '';
     return this.wc.getURL();
   }
 
@@ -161,6 +167,6 @@ export class Tab {
 
   destroy() {
     this.closing = true;
-    if (!this.wc.isDestroyed()) this.wc.close();
+    if (this.wc && !this.wc.isDestroyed()) this.wc.close();
   }
 }

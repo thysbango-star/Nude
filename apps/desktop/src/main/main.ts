@@ -1,6 +1,22 @@
 // Nude Web Browser — main process entry point.
 import { app, protocol, Menu } from 'electron';
 import { NudeApp } from './app';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+// A stray error in one tab's event handler must not throw an error box at you or take the browser down.
+// It goes to a log file (no page content or secrets) so it can be fixed.
+function logMainError(kind: string, err: unknown) {
+  const text = err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ''}` : String(err);
+  console.error(`[nude] ${kind}:`, text);
+  try {
+    const dir = join(app.getPath('userData'), 'logs');
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(join(dir, 'main-errors.log'), `${new Date().toISOString()} ${kind} ${text}\n\n`);
+  } catch { /* nowhere to log */ }
+}
+process.on('uncaughtException', (e) => logMainError('uncaughtException', e));
+process.on('unhandledRejection', (e) => logMainError('unhandledRejection', e));
 
 app.setName('Nude');
 if (process.env.NUDE_USER_DATA) app.setPath('userData', process.env.NUDE_USER_DATA);
