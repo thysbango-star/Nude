@@ -53,6 +53,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
+    testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
@@ -60,5 +61,8 @@ dependencies {
     // QR scanning for the code Nude shows on your PC (works without Google Play services).
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     implementation(project(":core"))
+    // The daily check runs on Android's own scheduler.
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

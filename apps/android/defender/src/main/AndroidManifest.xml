@@ -2,8 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- To read the encrypted protection report from Nude on your PC, over your own Wi-Fi. -->
+    <!-- Threat-list updates, link redirect checks (only when you ask) and the encrypted report from Nude on your PC. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- To see every installed app and what it's allowed to do: the core of the app check. Nothing is uploaded. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <!-- So "Uninstall" can open Android's own uninstall prompt. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Alerts for dangerous apps, files and critical settings (asked for, never assumed). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- To scan the code Nude shows on your PC (asked only when you tap Scan). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -27,8 +33,22 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Share a link or a message to Rovian Defender to check it. -->
+            <intent-filter android:label="Check with Rovian Defender">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- Share a file to Rovian Defender to scan it. -->
+            <intent-filter android:label="Scan with Rovian Defender">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
         </activity>
-        <!-- The QR scanner: follow the phone's orientation instead of forcing landscape. -->
         <activity
             android:name="com.journeyapps.barcodescanner.CaptureActivity"
             android:screenOrientation="fullSensor"

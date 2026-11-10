@@ -1,4 +1,4 @@
-package os.rovian.defender
+package os.rovian.defender.pc
 
 import android.content.Context
 import androidx.compose.runtime.getValue
@@ -52,7 +52,7 @@ fun parseReport(j: JSONObject): Report {
 }
 
 /** The link to the PC and its latest report, kept encrypted on the phone. */
-class DefenderModel(ctx: Context) {
+class PcLink(ctx: Context) {
     private val file = SecureFile(ctx, "rovian-defender-link", "defender.link")
     private val client = PhoneLinkClient()
     private var raw: JSONObject? = null
