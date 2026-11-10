@@ -93,6 +93,10 @@ function copyStatic() {
   for (const f of readdirSync(join(src, 'renderer/design/fonts'))) {
     if (f.endsWith('.woff')) cpSync(join(src, 'renderer/design/fonts', f), join(out, 'renderer/pages', f));
   }
+  // Homepage wallpapers (and their picker thumbnails).
+  for (const f of readdirSync(join(src, 'renderer/design/wallpapers'))) {
+    if (f.endsWith('.jpg')) cpSync(join(src, 'renderer/design/wallpapers', f), join(out, 'renderer/pages', f));
+  }
   // Brand artwork (Nude logo, Rovian Defender marks) for the UI and nude:// pages.
   for (const f of readdirSync(join(src, 'renderer/design/brand'))) {
     cpSync(join(src, 'renderer/design/brand', f), join(out, 'renderer/chrome', f));

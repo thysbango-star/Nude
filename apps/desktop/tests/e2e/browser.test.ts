@@ -115,10 +115,24 @@ test('first run shows the welcome page, and signing up greets you by name', asyn
     document.getElementById('go').click();
   })()`);
   await waitFor(activeTab, (t) => t.url.startsWith('nude://newtab'));
-  const hello = await waitFor(() => inPage<string>('nude://newtab', 'document.body.innerText'), (x) => /Hello, Simon/.test(x));
-  assert.match(hello, /Hello, Simon/);
+  const hello = await waitFor(() => inPage<string>('nude://newtab', 'document.body.innerText'), (x) => /Good (morning|afternoon|evening|night), Simon/.test(x));
+  assert.match(hello, /Good (morning|afternoon|evening|night), Simon/);
   const acct = await ui.evaluate(() => (window as unknown as { __lastState: { account: { name: string } | null } }).__lastState.account);
   assert.equal(acct?.name, 'Simon Tester');
+});
+
+test('homepage: the wallpaper loads, a new choice is kept, and the search bar opens addresses', async () => {
+  // The wallpaper layer shows a real photo (the crossfade only starts once it has decoded).
+  const bg = await waitFor(() => inPage<string>('nude://newtab', "document.querySelector('.wall .layer.on')?.style.backgroundImage || ''"), (x) => /\.jpg/.test(x));
+  assert.match(bg, /golden-path\.jpg/);
+  await inPage('nude://newtab', "nudeInternal.invoke('wallpaper.set', 'fern-lake', false)");
+  const saved = await inPage<string>('nude://newtab', "nudeInternal.invoke('settings.get').then((r) => r.settings.wallpaper)");
+  assert.equal(saved, 'fern-lake');
+  await waitFor(() => inPage<string>('nude://newtab', "document.querySelector('.wall .layer.on')?.style.backgroundImage || ''"), (x) => /fern-lake\.jpg/.test(x));
+  // Typing an address in the homepage's own search bar opens it.
+  await inPage('nude://newtab', `nudeInternal.invoke('newtab.go', ${JSON.stringify(`${base}/second`)})`);
+  const t = await waitFor(activeTab, (x) => x.title === 'Second Page' && !x.loading);
+  assert.equal(t.url, `${base}/second`);
 });
 
 test('navigates to a real web page from the address bar', async () => {

@@ -1,5 +1,6 @@
 // The user's profile: settings, bookmarks, history, shortcuts, site permissions,
 // download records and the last session. All persisted as JSON in the user-data folder.
+import { WALLPAPER_IDS } from '../shared/wallpapers';
 import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -51,6 +52,7 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   oneOf('mode', ['everyday', 'shopping', 'research', 'study', 'focus']);
   oneOf('nebulaSpeed', ['auto', 'fast', 'thorough']);
   oneOf('nebulaEngine', ['auto', 'ollama', 'gateway']);
+  oneOf('wallpaper', WALLPAPER_IDS);
   if (out.ollamaModel !== undefined) out.ollamaModel = String(out.ollamaModel).replace(/[^\w.:/-]/g, '').slice(0, 100);
   if (out.ollamaUrl !== undefined && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(String(out.ollamaUrl))) out.ollamaUrl = 'http://127.0.0.1:11434';
   if (out.toolbar !== undefined) {

@@ -45,6 +45,10 @@ export interface Settings {
   ollamaUrl: string;
   /** Let phones on the same Wi-Fi use this computer's Nebula. */
   nebulaShareOnNetwork: boolean;
+  /** Homepage wallpaper: one of WALLPAPERS, or 'custom' (your own image). */
+  wallpaper: string;
+  /** Change the homepage wallpaper on its own every so often. */
+  wallpaperRotate: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -79,6 +83,8 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaModel: '',
   ollamaUrl: 'http://127.0.0.1:11434',
   nebulaShareOnNetwork: false,
+  wallpaper: 'golden-path',
+  wallpaperRotate: false,
 };
 
 export interface Bookmark {

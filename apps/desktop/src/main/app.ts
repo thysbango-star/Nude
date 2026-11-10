@@ -1,9 +1,11 @@
 // Application controller: windows, sessions, the nude:// protocol, IPC and session restore.
 import {
-  app, ipcMain, nativeTheme, session, shell, systemPreferences, dialog, net, webContents, safeStorage,
+  app, ipcMain, nativeTheme, session, shell, systemPreferences, dialog, net, webContents, safeStorage, nativeImage,
   type IpcMainInvokeEvent, type Session, type WebContents,
 } from 'electron';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, stat } from 'node:fs/promises';
+import { WALLPAPERS, DEFAULT_WALLPAPER } from '../shared/wallpapers';
+import { resolveInput } from '../shared/omnibox';
 import { join, normalize } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Profile } from './profile';
@@ -267,6 +269,41 @@ export class NudeApp {
   /** Step 4–7 of Sign in with Rovian, then back to Nude: the home page on sign-in, the account page when linking. */
   identityLog(kind: string, detail: string) { this.accounts.logEvent(kind, detail); }
 
+  // ------------------------------------------------------------------ homepage wallpaper
+  private get customWallpaperPath() { return join(app.getPath('userData'), 'wallpaper', 'custom.jpg'); }
+
+  /** Your own wallpaper: checked to be a real image, scaled to at most 3840 px wide, saved as JPEG in your profile. */
+  private async setCustomWallpaper(bytes: unknown): Promise<{ ok: boolean; error?: string }> {
+    if (!(bytes instanceof Uint8Array) || bytes.length === 0) return { ok: false, error: 'Nude couldn\'t read that file.' };
+    if (bytes.length > 25 * 1024 * 1024) return { ok: false, error: 'That image is larger than 25 MB.' };
+    let img = nativeImage.createFromBuffer(Buffer.from(bytes));
+    if (img.isEmpty()) return { ok: false, error: 'That file isn\'t a picture Nude can use (try a JPEG or PNG).' };
+    const { width, height } = img.getSize();
+    if (width < 640 || height < 360) return { ok: false, error: 'That picture is too small for a wallpaper (it needs at least 640 × 360).' };
+    if (width > 3840) img = img.resize({ width: 3840, quality: 'best' });
+    await mkdir(join(app.getPath('userData'), 'wallpaper'), { recursive: true });
+    await writeFile(this.customWallpaperPath, img.toJPEG(90));
+    this.profile.updateSettings({ wallpaper: 'custom' });
+    return { ok: true };
+  }
+
+  private async hasCustomWallpaper() { try { return (await stat(this.customWallpaperPath)).size > 0; } catch { return false; } }
+
+  /** Is the chosen search engine reachable? Only checked for Nude Search, which may run on your own computer. */
+  private async searchStatus(): Promise<{ engine: string; id: string; ok: boolean; detail?: string }> {
+    const s = this.profile.settings.get();
+    const engine = SEARCH_ENGINES[s.searchEngine];
+    if (s.searchEngine !== 'nude') return { engine: engine.name, id: s.searchEngine, ok: true };
+    const base = (s.searchServerUrl || 'http://127.0.0.1:8787').replace(/\/+$/, '');
+    try {
+      const r = await net.fetch(`${base}/api/stats`, { signal: AbortSignal.timeout(1500) });
+      if (r.ok) return { engine: engine.name, id: 'nude', ok: true };
+      return { engine: engine.name, id: 'nude', ok: false, detail: `Nude Search answered with an error (${r.status}).` };
+    } catch {
+      return { engine: engine.name, id: 'nude', ok: false, detail: `Nude Search isn't reachable at ${base}. It needs its server running (see docs/SETUP.md).` };
+    }
+  }
+
   /** Tabs that opened Rovian Account's Connect popup, and when. Only they may hand Nude an identity. */
   private connectOpened = new Map<number, number>();
   rovianConnectOpened(wcId: number) { this.connectOpened.set(wcId, Date.now()); }
@@ -486,14 +523,21 @@ export class NudeApp {
     }
     const page = u.hostname;
     let file = u.pathname === '/' || u.pathname === '' ? `${page}.html` : u.pathname.replace(/^\/+/, '');
-    if (!/^[a-z0-9_-]+\.(html|js|css|svg|png|map|woff)$/i.test(file)) return new Response('Not found', { status: 404 });
+    // Your own homepage wallpaper lives in your profile folder, not with the app.
+    if (page === 'newtab' && file === 'custom-wallpaper.jpg') {
+      try {
+        const body = await readFile(this.customWallpaperPath);
+        return new Response(body, { headers: { 'content-type': 'image/jpeg', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' } });
+      } catch { return new Response('Not found', { status: 404 }); }
+    }
+    if (!/^[a-z0-9_-]+\.(html|js|css|svg|png|jpg|map|woff)$/i.test(file)) return new Response('Not found', { status: 404 });
     if (file.endsWith('.html') && file !== `${page}.html`) file = `${page}.html`;
     const full = normalize(join(PAGES_DIR, file));
     if (!full.startsWith(normalize(PAGES_DIR))) return new Response('Not found', { status: 404 });
     try {
       const body = await readFile(full);
       const type = file.endsWith('.html') ? 'text/html; charset=utf-8' : file.endsWith('.js') ? 'text/javascript; charset=utf-8'
-        : file.endsWith('.css') ? 'text/css; charset=utf-8' : file.endsWith('.svg') ? 'image/svg+xml' : file.endsWith('.png') ? 'image/png' : file.endsWith('.woff') ? 'font/woff' : 'application/json';
+        : file.endsWith('.css') ? 'text/css; charset=utf-8' : file.endsWith('.svg') ? 'image/svg+xml' : file.endsWith('.png') ? 'image/png' : file.endsWith('.jpg') ? 'image/jpeg' : file.endsWith('.woff') ? 'font/woff' : 'application/json';
       return new Response(body, { headers: { 'content-type': type, 'content-security-policy': CSP, 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' } });
     } catch {
       return new Response('Not found', { status: 404 });
@@ -798,11 +842,44 @@ export class NudeApp {
           topSites: isPrivate ? [] : p.topSites(8).map((h) => ({ url: h.url, title: h.title, favicon: h.favicon })),
           recent: isPrivate ? [] : p.queryHistory({ limit: 6 }).map((h) => ({ url: h.url, title: h.title, favicon: h.favicon, lastVisit: h.lastVisit })),
           engine: SEARCH_ENGINES[p.settings.get().searchEngine].name,
+          engineId: p.settings.get().searchEngine,
+          wallpapers: WALLPAPERS,
+          wallpaper: p.settings.get().wallpaper || DEFAULT_WALLPAPER,
+          wallpaperRotate: p.settings.get().wallpaperRotate,
+          hasCustomWallpaper: await this.hasCustomWallpaper(),
+          reduceMotion: p.settings.get().reduceMotion,
           private: isPrivate,
           security: this.security.summary().stats,
           account: this.accounts.current(),
           mode: p.settings.get().mode,
         };
+        // The homepage: suggestions as you type, search or go, the wallpaper.
+        case 'newtab.suggest': if (page !== 'newtab' || !found) throw new Error('Unauthorized'); return this.suggest(found.win, str(a[0], 500));
+        case 'newtab.suggestRemote': if (page !== 'newtab' || !found) throw new Error('Unauthorized'); return this.suggestRemote(found.win, str(a[0], 500));
+        case 'newtab.searchStatus': if (page !== 'newtab') throw new Error('Unauthorized'); return this.searchStatus();
+        case 'newtab.go': {
+          if (page !== 'newtab' || !found) throw new Error('Unauthorized');
+          const r = resolveInput(str(a[0], 2000), p.settings.get().searchEngine);
+          if (!r) return { ok: false };
+          if (r.type === 'blocked') return { ok: false, error: r.reason };
+          void found.tab.load(r.url, true);
+          return { ok: true };
+        }
+        case 'wallpaper.set': {
+          if (page !== 'newtab' && page !== 'settings') throw new Error('Unauthorized');
+          const patch: Record<string, unknown> = {};
+          if (typeof a[0] === 'string') patch.wallpaper = a[0];
+          if (typeof a[1] === 'boolean') patch.wallpaperRotate = a[1];
+          p.updateSettings(patch);
+          return { ok: true };
+        }
+        case 'wallpaper.upload': if (page !== 'newtab' && page !== 'settings') throw new Error('Unauthorized'); return this.setCustomWallpaper(a[0]);
+        case 'wallpaper.removeCustom': {
+          if (page !== 'newtab' && page !== 'settings') throw new Error('Unauthorized');
+          await rm(this.customWallpaperPath, { force: true });
+          if (p.settings.get().wallpaper === 'custom') p.updateSettings({ wallpaper: DEFAULT_WALLPAPER });
+          return { ok: true };
+        }
         case 'search': {
           const q = str(a[0], 500).trim();
           if (q && found) void found.tab.load(searchUrl(p.settings.get().searchEngine, q), true);
