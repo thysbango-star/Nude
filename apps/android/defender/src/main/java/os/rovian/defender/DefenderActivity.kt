@@ -143,7 +143,7 @@ class DefenderActivity : ComponentActivity() {
                 Spacer(Modifier.height(14.dp))
                 Text("Appearance", color = c.faint, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                    listOf("system" to "System", "dark" to "Dark", "light" to "Light").forEach { (k, v) -> Chip(v, state.theme == k) { state.setTheme(k) } }
+                    listOf("system" to "System", "dark" to "Dark", "light" to "Light").forEach { (k, v) -> Chip(v, state.theme == k) { state.chooseTheme(k) } }
                 }
                 Spacer(Modifier.height(16.dp))
                 Text("Alerts", color = c.faint, fontSize = 12.sp)

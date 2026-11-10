@@ -46,7 +46,7 @@ class DefenderState(private val ctx: Context) {
     var listsBusy by mutableStateOf(false); private set
     var listsMessage by mutableStateOf<String?>(null)
 
-    fun setTheme(t: String) { theme = t; prefs.edit().putString("theme", t).apply() }
+    fun chooseTheme(t: String) { theme = t; prefs.edit().putString("theme", t).apply() }
 
     /** A full scan of settings and apps. `quiet` = on open, without the scanning animation. */
     suspend fun scan(quiet: Boolean = false) {
