@@ -21,7 +21,7 @@ class ThreatLists(ctx: Context) {
 
     init { runCatching { apply(JSONObject(prefs.getString("lists", "{}")!!)) } }
 
-    fun setUrl(u: String) { url = u.trim(); prefs.edit().putString("url", url).apply() }
+    fun chooseUrl(u: String) { url = u.trim(); prefs.edit().putString("url", url).apply() }
 
     private fun apply(j: JSONObject) {
         j.optJSONObject("domains")?.let { d ->

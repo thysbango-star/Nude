@@ -430,7 +430,7 @@ fun ListsCard(s: DefenderState) {
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.glass).padding(12.dp),
             decorationBox = { inner -> if (url.isEmpty()) Text("https://threats.example.com", color = c.faint, fontSize = 14.sp); inner() })
         Spacer(Modifier.height(10.dp))
-        GlassButton(if (s.listsBusy) "Updating…" else "Update lists", { s.lists.setUrl(url); scope.launch { s.updateLists() } }, quiet = true, enabled = !s.listsBusy)
+        GlassButton(if (s.listsBusy) "Updating…" else "Update lists", { s.lists.chooseUrl(url); scope.launch { s.updateLists() } }, quiet = true, enabled = !s.listsBusy)
         s.listsMessage?.let { Text(it, color = c.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp)) }
     }
 }
