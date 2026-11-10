@@ -248,14 +248,17 @@ export class SecurityService {
     this.flushTrackerTally();
     const d = this.store.get();
     const s = this.profile.settings.get();
-    let score = 50;
-    score += { standard: 10, enhanced: 25, maximum: 35 }[s.protectionLevel];
-    if (s.clearHistoryOnExit) score += 5;
-    if (s.searchEngine === 'duckduckgo' || s.searchEngine === 'brave' || s.searchEngine === 'startpage' || s.searchEngine === 'nude') score += 5;
-    if (d.listsUpdated && Date.now() - d.listsUpdated < 7 * 86_400_000) score += 5;
+    // The settings that decide how private browsing is. Shown as they are, not turned into a score.
+    const privateEngines = ['duckduckgo', 'brave', 'startpage', 'nude'];
+    const checks = [
+      { id: 'level', label: 'Enhanced or Maximum Protection', on: s.protectionLevel !== 'standard', hint: 'Settings → Privacy → Protection level' },
+      { id: 'lists', label: 'Threat lists updated this week', on: !!d.listsUpdated && Date.now() - d.listsUpdated < 7 * 86_400_000, hint: 'Check for updates above' },
+      { id: 'search', label: 'A search engine that doesn\'t profile you', on: privateEngines.includes(s.searchEngine), hint: 'Settings → Search' },
+      { id: 'history', label: 'History cleared when Nude closes', on: !!s.clearHistoryOnExit, hint: 'Settings → Privacy' },
+    ];
     return {
       level: s.protectionLevel,
-      privacyScore: Math.min(100, score),
+      checks,
       stats: d.stats,
       events: d.events.slice(0, 100),
       lastScan: d.lastScan,

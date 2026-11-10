@@ -1,13 +1,10 @@
 .hero { display: flex; align-items: center; gap: 28px; padding: 26px; flex-wrap: wrap; }
-.score { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
-.score svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.score circle { fill: none; stroke-width: 10; stroke-linecap: round; }
-.score .track { stroke: var(--hover); }
-.score .val { stroke: var(--ok); transition: stroke-dashoffset 1s var(--ease); }
-.score.warn .val { stroke: var(--warn); } .score.danger .val { stroke: var(--danger); }
-.score > div { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.score b { font: 700 34px var(--font-display); }
-.score span { font-size: 11px; color: var(--text-3); }
+.checks { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.checks-head b { font: 700 26px var(--font-display); display: block; }
+.checks-head span { font-size: 12px; color: var(--text-3); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.check .tick { width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; display: grid; place-items: center; border: 1.5px solid var(--warn); }
+.check.on .tick { border-color: transparent; background: linear-gradient(135deg, #1450f0, #1aa3dc); color: #fff; }
 .hero-text { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .hero-text h2 { margin: 0; font-size: 22px; }
 .hero-text p { margin: 0; }
@@ -32,7 +29,6 @@
 /* Rovian Defender brand */
 .rv-logo { width: 40px; height: 46px; }
 .rv-word { font-weight: 800; } .rv-word i { font-style: normal; color: var(--text-3); font-weight: 650; }
-.score .val { stroke: url(#rvgrad); }
 .hero { background: linear-gradient(135deg, rgba(20, 80, 240, 0.06), rgba(111, 240, 198, 0.08)), var(--surface); }
 .status-line { color: #1a8fd6; } .dot-live { background: #1aa3dc; box-shadow: 0 0 0 0 #1aa3dc; }
 .btn.primary { background: linear-gradient(135deg, #1450f0, #1aa3dc); color: #fff; }

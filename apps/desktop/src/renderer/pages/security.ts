@@ -1,7 +1,7 @@
 import { api, $, esc, host, I, on, timeAgo, toast } from './common';
 
 interface Summary {
-  level: string; privacyScore: number; lastScan: number; listsUpdated: number; knownThreats: number; trusted: string[];
+  level: string; checks: { id: string; label: string; on: boolean; hint: string }[]; lastScan: number; listsUpdated: number; knownThreats: number; trusted: string[];
   stats: { blockedSites: number; warnedSites: number; blockedTrackers: number; blockedDownloads: number; flaggedDownloads: number };
   events: { time: number; type: string; url?: string; category?: string; detail: string }[];
 }
@@ -15,15 +15,14 @@ const EVENT_LABEL: Record<string, [string, string]> = {
 
 async function render() {
   const s = await api.invoke<Summary>('security.summary');
-  const ring = 2 * Math.PI * 52;
-  const scoreClass = s.privacyScore >= 80 ? 'ok' : s.privacyScore >= 60 ? 'warn' : 'danger';
+  const on = s.checks.filter((c) => c.on).length;
   $('#root').innerHTML = `<div class="page">
     <div class="page-head"><h1><img class="rv-logo" src="rovian-mark.svg" alt=""><span class="rv-word">Rovian<i>Defender</i></span></h1>
       <button class="btn" id="check">${I.reload}Check for updates</button><a class="btn" href="nude://settings#privacy" data-open="nude://settings">${I.settings}Settings</a></div>
 
     <div class="hero card">
-      <div class="score ${scoreClass}"><svg viewBox="0 0 120 120"><defs><linearGradient id="rvgrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1450f0"/><stop offset=".6" stop-color="#1aa3dc"/><stop offset="1" stop-color="#6ff0c6"/></linearGradient></defs><circle cx="60" cy="60" r="52" class="track"/><circle cx="60" cy="60" r="52" class="val" style="stroke-dasharray:${ring};stroke-dashoffset:${ring * (1 - s.privacyScore / 100)}"/></svg>
-        <div><b>${s.privacyScore}</b><span>Privacy score</span></div></div>
+      <div class="checks"><div class="checks-head"><b>${on} of ${s.checks.length}</b><span>privacy settings on</span></div>
+        ${s.checks.map((c) => `<div class="check ${c.on ? 'on' : ''}"><span class="tick">${c.on ? '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}</span><div><div>${esc(c.label)}</div>${c.on ? '' : `<div class="tiny">${esc(c.hint)}</div>`}</div></div>`).join('')}</div>
       <div class="hero-text"><div class="status-line"><span class="dot-live"></span>Protection is on</div>
         <h2>${LEVEL_NAMES[s.level]}</h2>
         <p class="muted">Rovian Defender — Nude's built-in security — checks every site before it opens and every file before it's saved, and blocks trackers that follow you across the web.</p>
