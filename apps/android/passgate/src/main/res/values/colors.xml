@@ -1,1 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><resources><color name="rovian_bg">#FF9C6E78</color></resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="rovian_bg">#FFF6FAFF</color>
+</resources>

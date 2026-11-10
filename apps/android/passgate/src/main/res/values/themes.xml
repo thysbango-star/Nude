@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- PassGate: soft rose glass over a dusky gradient (light status bar icons on the rose top). -->
+    <!-- Blue Liquid Glass: ice in light mode, deep navy in dark mode (values-night). -->
     <style name="Theme.Rovian" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/rovian_bg</item>
         <item name="android:statusBarColor">@android:color/transparent</item>

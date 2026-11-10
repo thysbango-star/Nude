@@ -57,6 +57,8 @@ class Vault(ctx: Context) {
     var identityAt by mutableLongStateOf(0L); private set
     var lockEnabled by mutableStateOf(true); private set
     var loadError by mutableStateOf<String?>(null)
+    /** What happened in PassGate on this phone: unlocks, codes scanned, links made or removed. No secrets. */
+    var local by mutableStateOf<List<IEvent>>(emptyList()); private set
 
     init {
         try {
@@ -67,6 +69,7 @@ class Vault(ctx: Context) {
                 raw = j.optJSONObject("identity")
                 identity = raw?.let(::parseIdentity)
                 identityAt = j.optLong("identityAt")
+                local = j.optJSONArray("local")?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { IEvent(it.optLong("t"), it.optString("kind"), it.optString("detail")) } } } ?: emptyList()
             }
         } catch (e: Exception) {
             // The Keystore key was removed (e.g. the screen lock was reset) or the file is damaged: start fresh.
@@ -78,12 +81,16 @@ class Vault(ctx: Context) {
     fun hardwareBacked() = file.hardwareBacked()
 
     private fun save() {
-        file.write(JSONObject().put("lock", lockEnabled).put("pc", pc?.toJson()).put("identity", raw).put("identityAt", identityAt).toString())
+        file.write(JSONObject().put("lock", lockEnabled).put("pc", pc?.toJson()).put("identity", raw).put("identityAt", identityAt)
+            .put("local", org.json.JSONArray(local.map { JSONObject().put("t", it.t).put("kind", it.kind).put("detail", it.detail) })).toString())
     }
 
-    fun link(p: LinkedPc) { pc = p; raw = null; identity = null; identityAt = 0; save() }
+    fun link(p: LinkedPc) { pc = p; raw = null; identity = null; identityAt = 0; log("linked", "Linked to ${p.pcName} with the code from Nude") }
     fun updatePc(p: LinkedPc) { pc = p; save() }
     fun setIdentity(j: JSONObject) { raw = j; identity = parseIdentity(j); identityAt = System.currentTimeMillis(); save() }
-    fun signOut() { pc = null; raw = null; identity = null; identityAt = 0; save() }
-    fun setLock(on: Boolean) { lockEnabled = on; save() }
+    fun signOut() { pc = null; raw = null; identity = null; identityAt = 0; log("unlinked", "This phone was unlinked from your PC") }
+    fun setLock(on: Boolean) { lockEnabled = on; log("lock-${if (on) "on" else "off"}", if (on) "PassGate lock turned on" else "PassGate lock turned off") }
+
+    /** Adds to this phone's activity (newest first, last 100 kept). */
+    fun log(kind: String, detail: String) { local = (listOf(IEvent(System.currentTimeMillis(), kind, detail.take(200))) + local).take(100); save() }
 }
