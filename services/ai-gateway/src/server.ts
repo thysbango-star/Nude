@@ -92,5 +92,10 @@ if (require.main === module && !process.versions.electron) {
     inlineImages: process.env.NUDE_AI_INLINE_IMAGES ? process.env.NUDE_AI_INLINE_IMAGES === '1' : local,
   });
   const port = Number(process.env.PORT ?? 8790);
-  server.listen(port, process.env.HOST ?? '127.0.0.1', () => console.log(`Nebula gateway on http://${process.env.HOST ?? '127.0.0.1'}:${port} (provider: ${provider.name})`));
+  server.listen(port, listenHost(), () => console.log(`Nebula gateway on http://${listenHost()}:${port} (provider: ${provider.name})`));
+}
+
+/** Local runs stay on this computer; on a host such as Render (which sets RENDER) the service must listen on all interfaces. */
+function listenHost(): string {
+  return process.env.HOST ?? (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
 }

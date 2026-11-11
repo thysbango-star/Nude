@@ -12,7 +12,8 @@
     "start": "npm run start -w apps/desktop",
     "test": "npm run test -w packages/security-engine && npm run test -w apps/desktop",
     "test:e2e": "npm run test:e2e -w apps/desktop",
-    "typecheck": "npm run typecheck -w apps/desktop"
+    "typecheck": "npm run typecheck -w apps/desktop",
+    "start:search": "npm run start -w services/search"
   },
   "engines": {
     "node": ">=22"

@@ -174,10 +174,15 @@ if (require.main === module) {
   const server = createSearchServer({ db, provider, fallbackMin: Number(process.env.NUDE_FALLBACK_MIN ?? 5), adminToken: process.env.NUDE_ADMIN_TOKEN, ads,
     aiGatewayUrl: process.env.NUDE_AI_GATEWAY_URL, aiToken: process.env.NUDE_SERVICE_TOKEN });
   const port = Number(process.env.PORT ?? 8787);
-  server.listen(port, process.env.HOST ?? '127.0.0.1', () => {
-    console.log(`Nude Search on http://${process.env.HOST ?? '127.0.0.1'}:${port}  (index: ${dbFile}, fallback: ${provider?.name ?? 'none'})`);
+  server.listen(port, listenHost(), () => {
+    console.log(`Nude Search on http://${listenHost()}:${port}  (index: ${dbFile}, fallback: ${provider?.name ?? 'none'})`);
   });
   // Scheduled incremental re-crawl of due pages.
   const every = Number(process.env.NUDE_RECRAWL_MINUTES ?? 0);
   if (every > 0) setInterval(() => void new Crawler(db, { maxPages: 200, budgetMs: every * 50_000 }).run(), every * 60_000);
+}
+
+/** Local runs stay on this computer; on a host such as Render (which sets RENDER) the service must listen on all interfaces. */
+function listenHost(): string {
+  return process.env.HOST ?? (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
 }

@@ -139,5 +139,10 @@ if (require.main === module) {
   void refresh();
   setInterval(() => void refresh(), Number(process.env.NUDE_FEED_REFRESH_MINUTES ?? 60) * 60_000);
   const port = Number(process.env.PORT ?? 8791);
-  server.listen(port, process.env.HOST ?? '127.0.0.1', () => console.log(`Nude threat intelligence on http://${process.env.HOST ?? '127.0.0.1'}:${port}`));
+  server.listen(port, listenHost(), () => console.log(`Nude threat intelligence on http://${listenHost()}:${port}`));
+}
+
+/** Local runs stay on this computer; on a host such as Render (which sets RENDER) the service must listen on all interfaces. */
+function listenHost(): string {
+  return process.env.HOST ?? (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
 }

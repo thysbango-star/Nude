@@ -1,0 +1,24 @@
+# Render blueprint for Nude Search. In Render: New → Blueprint → pick this repository.
+# It builds services/Dockerfile (SERVICE=search) and serves the search page and API on Render's port.
+services:
+  - type: web
+    name: nude-search
+    runtime: docker
+    dockerfilePath: ./services/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/stats
+    autoDeploy: true
+    envVars:
+      - key: SERVICE
+        value: search
+      - key: NUDE_SEARCH_DB
+        # The free plan has no persistent disk, so the index starts empty after each deploy.
+        # On a paid plan, add a disk mounted at /data to keep it.
+        value: /data/nude-search.db
+      - key: NUDE_ADMIN_TOKEN
+        generateValue: true
+      - key: NUDE_RECRAWL_MINUTES
+        value: "0"
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
