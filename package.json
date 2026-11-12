@@ -8,8 +8,8 @@
     "services/*"
   ],
   "scripts": {
-    "build": "npm run build -w apps/desktop",
-    "start": "npm run start -w apps/desktop",
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/start.mjs",
     "test": "npm run test -w packages/security-engine && npm run test -w apps/desktop",
     "test:e2e": "npm run test:e2e -w apps/desktop",
     "typecheck": "npm run typecheck -w apps/desktop",
