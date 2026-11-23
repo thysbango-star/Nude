@@ -62,7 +62,12 @@ class Vault(ctx: Context) {
     /** What happened in PassGate on this phone: unlocks, codes scanned, links made or removed. No secrets. */
     var local by mutableStateOf<List<IEvent>>(emptyList()); private set
 
-    init {
+    init { load(fresh = true) }
+
+    /** Reads the vault again (the autofill service may have saved a login while PassGate was in the background). */
+    fun reload() = load(fresh = false)
+
+    private fun load(fresh: Boolean) {
         try {
             file.read()?.let { text ->
                 val j = JSONObject(text)
@@ -75,6 +80,7 @@ class Vault(ctx: Context) {
                 local = j.optJSONArray("local")?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { IEvent(it.optLong("t"), it.optString("kind"), it.optString("detail")) } } } ?: emptyList()
             }
         } catch (e: Exception) {
+            if (!fresh) return
             // The Keystore key was removed (e.g. the screen lock was reset) or the file is damaged: start fresh.
             file.delete()
             loadError = "PassGate couldn't open its saved data on this phone, so it started fresh. Scan the code on your PC again."

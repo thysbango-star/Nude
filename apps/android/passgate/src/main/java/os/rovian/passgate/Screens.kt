@@ -360,6 +360,12 @@ fun SettingsSheet(vault: Vault, phone: PhoneFacts, theme: String, onTheme: (Stri
             Switch(vault.lockEnabled && phone.screenLock, { vault.setLock(it) }, enabled = phone.screenLock)
         }
         HorizontalDivider(Modifier.padding(vertical = 14.dp), color = c.ink.copy(alpha = 0.08f))
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        val autofill = remember { ctx.getSystemService(android.view.autofill.AutofillManager::class.java) }
+        val filling = autofill?.hasEnabledAutofillServices() == true
+        SheetRow(Icons.Default.Edit, if (filling) "Fills logins in Nude on this phone" else "Fill logins in Nude on this phone", if (filling) c.good else c.ink) {
+            if (!filling) runCatching { ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, android.net.Uri.parse("package:${ctx.packageName}"))) }
+        }
         if (vault.lockEnabled && phone.screenLock) SheetRow(Icons.Default.Lock, "Lock now", c.ink, onLockNow)
         if (vault.pc != null) SheetRow(Icons.Default.ExitToApp, if (confirm) "Tap again to sign out" else "Sign out and unlink", c.danger) { if (confirm) onSignOut() else confirm = true }
         Spacer(Modifier.height(10.dp))

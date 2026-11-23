@@ -112,6 +112,7 @@ class PassGateActivity : FragmentActivity() {
 
     override fun onRestart() {
         super.onRestart()
+        vault.reload()
         readPhone()
         if (vault.lockEnabled && phone.value.screenLock && !unlocked.value) unlock()
     }
