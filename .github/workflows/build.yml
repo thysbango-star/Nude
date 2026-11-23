@@ -83,6 +83,7 @@ jobs:
           cp apps/android/app/build/outputs/apk/release/*.apk out/Nude-Android.apk
           cp apps/android/defender/build/outputs/apk/release/*.apk out/RovianDefender.apk
           cp apps/android/passgate/build/outputs/apk/release/*.apk out/PassGate.apk
+          cp apps/android/companion/build/outputs/apk/release/*.apk out/NudeCompanion.apk
       - uses: actions/upload-artifact@v4
         with: { name: nude-android, path: out/*.apk, if-no-files-found: error }
 
@@ -198,7 +199,8 @@ jobs:
             **Android 10+**
             - `Nude-Android.apk` — open it on your phone and allow installing from your browser or Files app when asked.
             - `RovianDefender.apk` — Rovian Defender: check links, messages, files and the apps on your phone.
-            - `PassGate.apk` — PassGate: your Rovian identity, locked with your fingerprint, face or PIN.
+            - `NudeCompanion.apk` — Nude Companion: your Nude ID, devices and security. Sign in by scanning the code in Nude → Account.
+            - `PassGate.apk` — PassGate, locked with your fingerprint, face or PIN.
 
             **iPhone & iPad (iOS/iPadOS 16+)**
             - `Nude-iOS-unsigned.ipa` — Apple doesn't allow installing apps directly. Sideload it with [Sideloadly](https://sideloadly.io) or [AltStore](https://altstore.io) using your Apple ID (free Apple IDs must re-sign every 7 days), or distribute through TestFlight with an Apple Developer account.

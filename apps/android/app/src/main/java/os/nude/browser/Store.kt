@@ -23,6 +23,17 @@ class Store(context: Context) {
     var theme: String
         get() = prefs.getString("theme", "system")!!
         set(v) = prefs.edit().putString("theme", v).apply()
+    /** Colour theme: nude, glass, lavender, sunset, forest or mono (the same six as on Windows). */
+    var palette: String
+        get() = prefs.getString("palette", "nude")!!
+        set(v) = prefs.edit().putString("palette", v).apply()
+    /** Tabs in a strip above the page ("horizontal") or in a side panel ("vertical"). */
+    var tabLayout: String
+        get() = prefs.getString("tabLayout", "horizontal")!!
+        set(v) = prefs.edit().putString("tabLayout", v).apply()
+    var launchIntro: Boolean
+        get() = prefs.getBoolean("launchIntro", true)
+        set(v) = prefs.edit().putBoolean("launchIntro", v).apply()
     var aiGateway: String
         get() = prefs.getString("aiGateway", "")!!
         set(v) = prefs.edit().putString("aiGateway", v.trim()).apply()

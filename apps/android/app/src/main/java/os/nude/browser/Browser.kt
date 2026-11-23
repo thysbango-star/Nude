@@ -49,6 +49,8 @@ class Tab(val id: Int, val isPrivate: Boolean) {
     var blocked by mutableStateOf<Security.Verdict?>(null)
     var error by mutableStateOf<String?>(null)
     var isHome by mutableStateOf(true)
+    /** A small picture of the page, taken when you leave the tab (for the tab cards). */
+    var preview by mutableStateOf<Bitmap?>(null)
     @Volatile var pageHost: String? = null
     val bypass = mutableSetOf<String>()
 }

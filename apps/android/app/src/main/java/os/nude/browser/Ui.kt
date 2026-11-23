@@ -50,6 +50,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,12 +93,13 @@ fun NudeTheme(store: Store, content: @Composable () -> Unit) {
     val dark = when (store.theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
     // The Nude design palette: lavender chrome, Nude orange, Nebula purple.
     // Matte palette: graphite and soft grey, Nude orange as the one accent.
-    val scheme = if (dark) darkColorScheme(primary = Color(0xFFF08A4B), onPrimary = Color(0xFF1B0F07), secondary = Clay, background = Color(0xFF0C0C0E), surface = Color(0xFF1C1C20), surfaceVariant = Color(0xFF222227), onSurfaceVariant = Color(0xFFA4A4AE), outlineVariant = Color(0x14FFFFFF), error = Color(0xFFFF6B5E))
-        else lightColorScheme(primary = Color(0xFFE8742F), onPrimary = Color.White, secondary = Clay, background = Color(0xFFF3F3F5), surface = Color.White, surfaceVariant = Color(0xFFEDEDF0), onSurfaceVariant = Color(0xFF5C5C66), outlineVariant = Color(0x17141420), error = RovianRed)
+    // The colour theme (same six as on Windows), in its light or dark version.
+    val p = palette(store.palette)
+    val scheme = if (dark) p.dark else p.light
     MaterialTheme(colorScheme = scheme, content = content)
 }
 
-enum class Screen { NONE, TABS, MENU, BOOKMARKS, HISTORY, SETTINGS, SECURITY, AI }
+enum class Screen { NONE, TABS, MENU, BOOKMARKS, HISTORY, SETTINGS, SECURITY, AI, ACCOUNT }
 
 // ------------------------------------------------------------------ main screen
 @Composable
@@ -109,6 +111,13 @@ fun BrowserScreen(browser: Browser) {
     var editing by remember { mutableStateOf(false) }
     var findOpen by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
+    val store = browser.store
+    val vertical = store.tabLayout == "vertical"
+    val wide = isWide()
+    // The launch animation: once per app start (not on rotation), unless turned off.
+    var intro by rememberSaveable { mutableStateOf(store.launchIntro) }
+    // A picture of the page you're leaving, for the tab cards.
+    DisposableEffect(browser.activeId) { val leaving = browser.active; onDispose { leaving?.let { capturePreview(it) } } }
 
     browser.toast?.let { msg ->
         LaunchedEffect(msg) { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show(); browser.toast = null }
@@ -134,12 +143,16 @@ fun BrowserScreen(browser: Browser) {
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.weight(1f).fillMaxWidth().statusBarsPadding()) {
+        Row(Modifier.fillMaxSize()) {
+        if (vertical && wide) TabSidePanel(browser, docked = true) {}
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            if (!vertical) Box(Modifier.statusBarsPadding()) { TabStrip(browser) }
+            Box(Modifier.weight(1f).fillMaxWidth().then(if (vertical) Modifier.statusBarsPadding() else Modifier)) {
                 if (tab != null) TabContent(browser, tab, onSearch = { editing = true })
                 if (findOpen && tab?.webView != null) FindBar(tab) { findOpen = false }
             }
             BottomBar(browser, editing, onEditing = { editing = it }, onScreen = { screen = it }, onAsk = { q -> NebulaMemory.pending = q; screen = Screen.AI })
+        }
         }
 
         browser.customView?.let { view ->
@@ -150,10 +163,12 @@ fun BrowserScreen(browser: Browser) {
         NebulaOverlay(browser, visible = screen == Screen.AI, onDismiss = { screen = Screen.NONE })
 
         val accounts = (ctx.applicationContext as NudeApplication).accounts
-        if (accounts.needsWelcome) WelcomeScreen(accounts)
+        if (accounts.needsWelcome) NudeIdWelcome(accounts)
+        LaunchedEffect(Unit) { accounts.refresh() }
 
         when (screen) {
-            Screen.TABS -> TabsSheet(browser) { screen = Screen.NONE }
+            Screen.TABS -> if (vertical && !wide) SideDrawer(browser, true) { screen = Screen.NONE } else TabsSheet(browser) { screen = Screen.NONE }
+            Screen.ACCOUNT -> FullPage("Your Nude ID", { screen = Screen.NONE }) { AccountPage(accounts) { screen = Screen.NONE } }
             Screen.MENU -> MenuSheet(browser, onDismiss = { screen = Screen.NONE }, onScreen = { screen = it }, onFind = { screen = Screen.NONE; findOpen = true })
             Screen.BOOKMARKS -> FullPage("Bookmarks", { screen = Screen.NONE }) { BookmarksPage(browser) { screen = Screen.NONE } }
             Screen.HISTORY -> FullPage("History", { screen = Screen.NONE }) { HistoryPage(browser) { screen = Screen.NONE } }
@@ -181,6 +196,7 @@ fun BrowserScreen(browser: Browser) {
                 dismissButton = { TextButton({ p.onResult(false); browser.pendingPermission = null }) { Text("Block") } },
             )
         }
+        if (intro) NudeIntro { intro = false }
     }
 }
 
@@ -468,67 +484,6 @@ private fun HomePage(browser: Browser, tab: Tab, onSearch: () -> Unit) {
 
 // ------------------------------------------------------------------ welcome / sign in (local account)
 @Composable
-private fun WelcomeScreen(accounts: Accounts) {
-    var signIn by remember { mutableStateOf(accounts.known().isNotEmpty()) }
-    var name by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf(accounts.known().firstOrNull()?.email ?: "") }
-    var password by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    val t = rememberInfiniteTransition(label = "kinetic")
-    val shift by t.animateFloat(0f, 1f, infiniteRepeatable(tween(22000, easing = LinearEasing)), label = "s")
-    val words = listOf("A NEW GENERATION", "PRIVATE BY DESIGN", "MEET NEBULA", "ROVIAN DEFENDER", "MADE FOR YOU")
-    val clear = { error = null }
-    BackHandler(true) {}
-    Box(Modifier.fillMaxSize().background(Color(0xFF0D0B10)).clickable(remember { MutableInteractionSource() }, indication = null) {}) {
-        // Huge outlined words sliding across (the kinetic type from the Nude motion design).
-        Column(Modifier.fillMaxSize().padding(top = 24.dp), verticalArrangement = Arrangement.SpaceEvenly) {
-            words.forEachIndexed { i, w ->
-                val dir = if (i % 2 == 0) -1f else 1f
-                Text("$w · $w · $w", maxLines = 1, softWrap = false, fontSize = 64.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.05f),
-                    modifier = Modifier.wrapContentWidth(Alignment.Start, unbounded = true).graphicsLayer { translationX = dir * shift * 1400f - (if (dir > 0) 1400f else 0f) })
-            }
-        }
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(Brush.radialGradient(listOf(Violet.copy(alpha = 0.45f), Color.Transparent), center = Offset(size.width * 0.3f, size.height * 0.75f), radius = size.width), size.width, Offset(size.width * 0.3f, size.height * 0.75f))
-            drawCircle(Brush.radialGradient(listOf(Clay.copy(alpha = 0.35f), Color.Transparent), center = Offset(size.width * 0.8f, size.height * 0.2f), radius = size.width * 0.8f), size.width * 0.8f, Offset(size.width * 0.8f, size.height * 0.2f))
-        }
-        Column(
-            Modifier.fillMaxSize().statusBarsPadding().imePadding().verticalScroll(rememberScrollState()).padding(22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-        ) {
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Color(0xFF1B1720).copy(alpha = 0.86f)).border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(28.dp)).padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                NudeMark(64.dp)
-                Spacer(Modifier.height(10.dp))
-                Text(if (signIn) "Welcome back" else "Welcome to Nude", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                Text(if (signIn) "Sign in to pick up where you left off." else "Create your Nude account so your browser knows you.", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
-                if (!signIn) WelcomeField(name, { name = it; clear() }, "Your name", false, KeyboardType.Text)
-                WelcomeField(email, { email = it; clear() }, "Email", false, KeyboardType.Email)
-                WelcomeField(password, { password = it; clear() }, if (signIn) "Password" else "Password (at least 8 characters)", true, KeyboardType.Password)
-                error?.let { Text(it, color = Color(0xFFFF8A80), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
-                Spacer(Modifier.height(16.dp))
-                Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp)).background(Brush.horizontalGradient(listOf(Clay, Color(0xFFE5533D))))
-                    .clickable { error = if (signIn) accounts.signIn(email, password) else accounts.signUp(name, email, password) }, contentAlignment = Alignment.Center) {
-                    Text(if (signIn) "Sign in" else "Create account", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-                TextButton({ signIn = !signIn; error = null }) { Text(if (signIn) "New here? Create an account" else "Already have an account? Sign in", color = Color.White.copy(alpha = 0.85f)) }
-                TextButton({ accounts.continueAsGuest() }) { Text("Continue without an account", color = Color.White.copy(alpha = 0.6f)) }
-                Text("Your account is stored securely on this device — your password is never saved in plain text.", color = Color.White.copy(alpha = 0.45f), fontSize = 11.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun WelcomeField(value: String, onChange: (String) -> Unit, label: String, secret: Boolean, kind: KeyboardType) {
-    OutlinedTextField(value, onChange, Modifier.fillMaxWidth().padding(top = 10.dp), label = { Text(label) }, singleLine = true,
-        visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = kind),
-        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, focusedBorderColor = Clay, unfocusedBorderColor = Color.White.copy(alpha = 0.18f),
-            focusedLabelColor = Clay, unfocusedLabelColor = Color.White.copy(alpha = 0.6f), cursorColor = Clay))
-}
-
-@Composable
 internal fun accountsHello(): String {
     val a = (LocalContext.current.applicationContext as NudeApplication).accounts.current
     return if (a != null) "Hi ${a.firstName}, I'm Nebula" else "Hi, I'm Nebula"
@@ -629,7 +584,7 @@ private fun TabsSheet(browser: Browser, onDismiss: () -> Unit) {
                     val p by animateFloatAsState(if (shown) 1f else 0f, tween(280), label = "card")
                     Card(
                         Modifier.animateItem().graphicsLayer { alpha = p; translationY = (1 - p) * 28f; scaleX = 0.96f + 0.04f * p; scaleY = 0.96f + 0.04f * p }
-                            .fillMaxWidth().height(140.dp).clickable { browser.activeId = t.id; onDismiss() }
+                            .fillMaxWidth().height(if (t.preview != null) 190.dp else 140.dp).clickable { browser.activeId = t.id; onDismiss() }
                             .then(if (active) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
                         colors = CardDefaults.cardColors(containerColor = if (t.isPrivate) Violet.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant),
                     ) {
@@ -639,8 +594,9 @@ private fun TabsSheet(browser: Browser, onDismiss: () -> Unit) {
                                 Spacer(Modifier.weight(1f))
                                 IconButton({ browser.closeTab(t) }, Modifier.size(24.dp)) { Icon(Icons.Default.Close, "Close tab", Modifier.size(16.dp)) }
                             }
-                            Spacer(Modifier.height(10.dp))
-                            Text(if (t.isHome) "New Tab" else t.title, maxLines = 3, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                            Spacer(Modifier.height(8.dp))
+                            t.preview?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(8.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop, alignment = Alignment.TopCenter); Spacer(Modifier.height(6.dp)) }
+                            Text(if (t.isHome) "New Tab" else t.title, maxLines = if (t.preview != null) 1 else 3, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                             Spacer(Modifier.weight(1f))
                             Text(if (t.isPrivate) "Private" else Omnibox.host(t.url), fontSize = 11.sp, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -683,7 +639,7 @@ private fun MenuSheet(browser: Browser, onDismiss: () -> Unit, onScreen: (Screen
             MenuItem(Icons.Default.Warning, "Rovian Defender") { onScreen(Screen.SECURITY) }
             val accounts = (LocalContext.current.applicationContext as NudeApplication).accounts
             accounts.current?.let { a ->
-                MenuItem(Icons.Default.AccountCircle, "Sign out ${a.firstName}") { accounts.signOut(); onDismiss() }
+                MenuItem(Icons.Default.AccountCircle, "${a.name} · ${a.nudeId}") { onScreen(Screen.ACCOUNT) }
             } ?: MenuItem(Icons.Default.AccountCircle, "Sign in to Nude") { accounts.showWelcome(); onDismiss() }
             MenuItem(Icons.Default.Settings, "Settings") { onScreen(Screen.SETTINGS) }
         }
@@ -806,6 +762,7 @@ private fun SettingsPage(browser: Browser) {
         Row { listOf("system" to "System", "light" to "Light", "dark" to "Dark").forEach { (k, l) ->
             FilterChip(theme == k, { theme = k; store.theme = k; activity.recreate() }, { Text(l) }, Modifier.padding(end = 8.dp))
         } }
+        AppearanceSettings(store) { activity.recreate() }
         SectionTitle("Nude services")
         Text("Nebula and Nude Search run on Nude servers. Enter their addresses here (API keys stay on the server).", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(gateway, { gateway = it; store.aiGateway = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nebula gateway") }, placeholder = { Text("https://ai.example.com") }, singleLine = true)

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Nude Companion: the Nude mark in white on midnight blue with a warm Nude-orange glow. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="10" android:startY="100" android:endX="98" android:endY="8">
+                <item android:offset="0" android:color="#FF0B0C14"/><item android:offset="0.6" android:color="#FF1A1D2E"/><item android:offset="1" android:color="#FF2A2140"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="54" android:centerY="58" android:gradientRadius="46">
+                <item android:offset="0" android:color="#66ED7D3A"/><item android:offset="1" android:color="#00ED7D3A"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
