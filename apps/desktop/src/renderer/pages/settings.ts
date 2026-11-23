@@ -17,6 +17,11 @@ const txt = (key: string, label: string, desc = '', placeholder = '', type = 'te
   <input class="input" type="${type}" data-key="${key}" value="${esc(String(info.settings[key] ?? ''))}" placeholder="${esc(placeholder)}" style="min-width:260px"></div>`;
 
 const TOOLBAR: [string, string][] = [['home', 'Home button'], ['reader', 'Reader view'], ['split', 'Split view'], ['overview', 'Tab overview'], ['security', 'Rovian Defender shield'], ['downloads', 'Downloads'], ['ai', 'Nebula']];
+const PALETTE_CARDS: [string, string, string, string][] = [
+  ['nude', 'Nude', 'linear-gradient(#e7e7ea,#e7e7ea)', '#e8742f'], ['glass', 'Liquid Glass', 'linear-gradient(160deg,#d7e3ff,#dff4ff)', '#2457ff'],
+  ['lavender', 'Lavender', 'linear-gradient(120deg,#e3d6fb,#f8e6f3)', '#8f4fe8'], ['sunset', 'Sunset', 'linear-gradient(150deg,#fbd8bf,#fdf0e3)', '#e8742f'],
+  ['forest', 'Forest', 'linear-gradient(160deg,#d6e8dc,#eef4ea)', '#2f8a57'], ['mono', 'Mono', 'linear-gradient(#f4f4f5,#f4f4f5)', '#18181b'],
+];
 const ACCENTS = ['', '#b5674d', '#d4766a', '#c9963b', '#4f9a6d', '#3f8fb0', '#5b6fd8', '#8f6bd6', '#c45b9a', '#5f6368'];
 
 async function render() {
@@ -36,6 +41,13 @@ async function render() {
       <section class="card" id="appearance"><h2>Appearance</h2>
         <div class="setting"><div class="text"><b>Theme</b><span>Follows Nude OS / your system by default.</span></div>
           <div class="seg" data-seg="theme">${['system', 'light', 'dark'].map((t) => `<button data-v="${t}" class="${s.theme === t ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div></div>
+        <div class="setting col"><div class="text"><b>Colour theme</b><span>Each one has a light and a dark version.</span></div>
+          <div class="theme-cards" data-seg="palette">${PALETTE_CARDS.map(([id, name, frame, accent]) => `<button data-v="${id}" class="theme-card${s.palette === id ? ' on' : ''}" style="--f:${frame};--a:${accent}"><span class="tc-win"><i></i><i></i><b></b></span><span>${name}</span></button>`).join('')}</div></div>
+        <div class="setting col"><div class="text"><b>Tabs</b><span>Across the top, or down the side with your pinned sites as tiles.</span></div>
+          <div class="layout-cards" data-seg="tabLayout">
+            <button data-v="horizontal" class="layout-card${s.tabLayout !== 'vertical' ? ' on' : ''}"><span class="lc lc-top"><i></i><i></i><i></i></span><span>Top</span></button>
+            <button data-v="vertical" class="layout-card${s.tabLayout === 'vertical' ? ' on' : ''}"><span class="lc lc-side"><i></i><i></i><i></i></span><span>Side</span></button></div></div>
+        ${sw('launchIntro', 'Opening animation', 'Plays the Nude logo animation when Nude starts. Skipped when Reduce motion is on.')}
         <div class="setting"><div class="text"><b>Accent colour</b><span>The first option uses your system accent colour.</span></div>
           <div class="swatches">${ACCENTS.map((c) => `<button class="swatch${s.accentColor === c ? ' on' : ''}" data-accent="${c}" title="${c || 'System'}" style="${c ? `background:${c}` : ''}">${c ? '' : 'A'}</button>`).join('')}</div></div>
         ${sw('showBookmarksBar', 'Show bookmarks bar')}${sw('showHomeButton', 'Show home button')}

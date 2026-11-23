@@ -15,12 +15,13 @@ export function on(topic: string, cb: () => void) {
 }
 
 /** Follows Nude's own light/dark setting (the OS media query alone isn't reliable everywhere). */
-export function applyTheme(theme: string) {
+export function applyTheme(theme: string, palette = 'nude') {
+  document.documentElement.dataset.palette = palette;
   const dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('theme-dark', dark);
   document.documentElement.classList.toggle('theme-light', !dark);
 }
-const syncTheme = () => api.invoke<{ settings: { theme: string } }>('settings.get').then((r) => applyTheme(r.settings.theme)).catch(() => {});
+const syncTheme = () => api.invoke<{ settings: { theme: string; palette: string } }>('settings.get').then((r) => applyTheme(r.settings.theme, r.settings.palette)).catch(() => {});
 syncTheme();
 on('settings', syncTheme);
 

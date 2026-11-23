@@ -47,6 +47,7 @@ export class NudeApp {
   nudeId!: NudeId;
   /** Phone sign-ins waiting for this computer's approval, by Nude ID. */
   private pendingLinks = new Map<string, string>();
+  private introPlayed = false;
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
   private closed: ClosedTab[] = [];
@@ -178,7 +179,11 @@ export class NudeApp {
       ses = session.fromPartition(key); // no "persist:" prefix → in memory only
       this.setupSession(ses, true, key);
     }
-    const w = new BrowserWindowController(this, ses, isPrivate, saved, key ?? undefined);
+    // The launch animation: once per launch, in the first window, unless turned off or motion is reduced.
+    const st = this.profile.settings.get();
+    const intro = !this.introPlayed && !isPrivate && st.launchIntro && !st.reduceMotion;
+    this.introPlayed = true;
+    const w = new BrowserWindowController(this, ses, isPrivate, saved, key ?? undefined, intro);
     this.windows.push(w);
     this.lastFocused = w;
     if (url) w.addTab({ url });
@@ -737,6 +742,8 @@ export class NudeApp {
         case 'aiCancel': this.ai.cancel(str(a[0], 80)); return;
         case 'setMode': this.profile.updateSettings({ mode: str(a[0], 20) }); return;
         case 'setTheme': this.profile.updateSettings({ theme: str(a[0], 10) }); return;
+        case 'setPalette': this.profile.updateSettings({ palette: str(a[0], 20) as never }); return;
+        case 'setLayout': this.profile.updateSettings({ tabLayout: str(a[0], 20) as never, ...(typeof a[1] === 'boolean' ? { sidebarCollapsed: a[1] } : {}) }); return;
         case 'signOut': { const c = this.accounts.currentRaw(); if (c) await this.nudeId.signOut(c.id); this.accounts.signOut(); w.openInternal('welcome'); return; }
         case 'accounts': return { current: this.accounts.current(), all: this.accounts.list() };
         case 'pageContext': {

@@ -3,6 +3,7 @@ import type { ChromeCommand, ClosedTabInfo, Suggestion, TabState, WindowState } 
 import { displayUrl, extractSearchQuery, NEW_TAB_URL } from '../../shared/omnibox';
 import { I, esc, faviconImg, installFaviconFallback } from './icons';
 import { Nebula, MODES } from './nebula';
+import { playIntro } from './intro';
 
 interface NudeBridge {
   invoke<T = unknown>(cmd: string, ...args: unknown[]): Promise<T>;
@@ -122,6 +123,10 @@ function render(s: WindowState) {
   const dark = s.theme === 'dark' || (s.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   root.classList.toggle('theme-dark', dark);
   root.classList.toggle('theme-light', !dark);
+  root.dataset.palette = isPrivate ? 'nude' : s.settings.palette;
+  const vertical = s.settings.tabLayout === 'vertical';
+  root.classList.toggle('vertical', vertical);
+  root.classList.toggle('collapsed', vertical && s.settings.sidebarCollapsed);
   renderTabs(s);
   renderToolbar(s);
   renderBookmarks(s);
@@ -153,11 +158,18 @@ function tabTitle(t: TabState) {
 }
 
 let lastTabsKey = '';
+let seenTabs: Set<number> | null = null;
 function renderTabs(s: WindowState) {
-  const key = JSON.stringify([s.tabs.map((t) => [t.id, t.title, t.favicon, t.loading, t.audible, t.muted, t.pinned, t.crashed, t.security, t.url, t.groupId]), s.activeTabId, s.groups]);
+  const vertical = s.settings.tabLayout === 'vertical';
+  const key = JSON.stringify([s.tabs.map((t) => [t.id, t.title, t.favicon, t.loading, t.audible, t.muted, t.pinned, t.crashed, t.security, t.url, t.groupId]), s.activeTabId, s.groups, vertical, s.settings.sidebarCollapsed]);
   if (key === lastTabsKey) return;
   lastTabsKey = key;
-  els.tabstrip.innerHTML = s.tabs.map((t) => tabHtml(t, s)).join('');
+  const pinned = s.tabs.filter((t) => t.pinned), rest = s.tabs.filter((t) => !t.pinned);
+  els.tabstrip.innerHTML = `<div class="pinned-grid">${pinned.map((t) => tabHtml(t, s)).join('')}</div>${rest.map((t) => tabHtml(t, s)).join('')}`;
+  // Tabs that weren't here last time grow out of the + button.
+  if (seenTabs) for (const el of els.tabstrip.querySelectorAll<HTMLElement>('.tab')) if (!seenTabs.has(Number(el.dataset.id))) el.classList.add('born');
+  seenTabs = new Set(s.tabs.map((t) => t.id));
+  if (vertical) return;
   const width = els.tabstrip.parentElement!.clientWidth - 260;
   const per = Math.max(40, Math.min(190, (width - 6 * s.tabs.length) / Math.max(1, s.tabs.length)));
   for (const el of els.tabstrip.querySelectorAll<HTMLElement>('.tab:not(.pinned)')) el.style.flexBasis = `${per}px`;
@@ -205,7 +217,8 @@ els.tabstrip.addEventListener('drop', (e) => {
   let index = tabs.length;
   for (let i = 0; i < tabs.length; i++) {
     const r = tabs[i].getBoundingClientRect();
-    if (e.clientX < r.left + r.width / 2) { index = i; break; }
+    const vertical = state.settings.tabLayout === 'vertical';
+    if (vertical ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2) { index = i; break; }
   }
   const from = state.tabs.findIndex((t) => t.id === dragId);
   if (from >= 0 && from < index) index--;
@@ -600,6 +613,12 @@ function paintSuggestions() {
 }
 
 // ------------------------------------------------------------------ menus & panels
+/** The colour themes, as swatches: id, name, and the two colours each one is made of. */
+const PALETTE_SWATCHES: [string, string, string, string][] = [
+  ['nude', 'Nude', '#e7e7ea', '#e8742f'], ['glass', 'Liquid Glass', '#cfe0ff', '#2457ff'], ['lavender', 'Lavender', '#e6d8fb', '#8f4fe8'],
+  ['sunset', 'Sunset', '#fbd8bf', '#e8742f'], ['forest', 'Forest', '#d6e8dc', '#2f8a57'], ['mono', 'Mono', '#f4f4f5', '#18181b'],
+];
+
 async function showMenu() {
   await openOverlay((layer) => {
     const t = active();
@@ -622,6 +641,9 @@ async function showMenu() {
       <div class="menu-row"><span class="label">Zoom</span><button class="icon-btn small" data-a="zoomOut" aria-label="Zoom out">${I.minus}</button><span class="zoom-val">${zoom}%</span><button class="icon-btn small" data-a="zoomIn" aria-label="Zoom in">${I.plus}</button><button class="icon-btn small" data-a="fullscreen" title="Full screen (F11)" aria-label="Full screen">${I.fullscreen}</button></div>
       <div class="menu-row"><span class="label">Theme</span><div class="seg">
         <button data-theme="light" class="${theme === 'light' ? 'on' : ''}">${I.sun}Light</button><button data-theme="dark" class="${theme === 'dark' ? 'on' : ''}">${I.moon}Dark</button><button data-theme="system" class="${theme === 'system' ? 'on' : ''}">Auto</button></div></div>
+      ${isPrivate ? '' : `<div class="menu-row"><span class="label">Tabs</span><div class="seg">
+        <button data-layout="horizontal" class="${state?.settings.tabLayout !== 'vertical' ? 'on' : ''}">${I.tabsTop}Top</button><button data-layout="vertical" class="${state?.settings.tabLayout === 'vertical' ? 'on' : ''}">${I.tabsSide}Side</button></div></div>
+      <div class="menu-row"><span class="label">Colours</span><div class="swatches">${PALETTE_SWATCHES.map(([id, name, c1, c2]) => `<button data-palette="${id}" class="sw${state?.settings.palette === id ? ' on' : ''}" title="${name}" aria-label="${name}" style="--c1:${c1};--c2:${c2}"></button>`).join('')}</div></div>`}
       ${isPrivate ? '' : `<div class="menu-row"><span class="label">Mode</span><div class="seg">${Object.entries(MODES).map(([key, m]) => `<button data-mode="${key}" class="${key === mode ? 'on' : ''}" title="${esc(m.desc)}">${m.icon}</button>`).join('')}</div></div>`}
       <div class="menu-sep"></div>
       <button class="menu-item" data-a="history">${I.history}<span>History</span>${k('Ctrl+H')}</button>
@@ -638,6 +660,10 @@ async function showMenu() {
       const el = e.target as HTMLElement;
       const th = el.closest<HTMLElement>('[data-theme]')?.dataset.theme;
       if (th) { void invoke('setTheme', th); p.querySelectorAll('[data-theme]').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.theme === th)); return; }
+      const lay = el.closest<HTMLElement>('[data-layout]')?.dataset.layout;
+      if (lay) { void invoke('setLayout', lay); p.querySelectorAll('[data-layout]').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.layout === lay)); return; }
+      const pal = el.closest<HTMLElement>('.sw[data-palette]')?.dataset.palette;
+      if (pal) { void invoke('setPalette', pal); p.querySelectorAll('.sw').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.palette === pal)); return; }
       const md = el.closest<HTMLElement>('[data-mode]')?.dataset.mode;
       if (md) { void invoke('setMode', md); p.querySelectorAll('[data-mode]').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.mode === md)); toast(`${MODES[md].label} mode${md === 'shopping' ? ': Nebula compares products for you' : ''}`); return; }
       const act = el.closest<HTMLElement>('[data-a]')?.dataset.a;
@@ -806,3 +832,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 void invoke<{ shortcuts: typeof shortcuts }>('ready').then((r) => { shortcuts = r.shortcuts; });
+
+const sideToggle = document.getElementById('side-toggle')!;
+sideToggle.innerHTML = I.sidebar;
+sideToggle.addEventListener('click', () => void invoke('setLayout', 'vertical', !state?.settings.sidebarCollapsed));
+
+// The launch animation: the main process opens the first window with intro=1 and the page hidden underneath.
+if (new URLSearchParams(location.search).get('intro') === '1') playIntro(() => {}, () => void invoke('overlay', false));

@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { JsonStore } from './store';
+import { PALETTES } from '../shared/types';
 import {
   DEFAULT_SETTINGS, type Bookmark, type DownloadInfo, type HistoryEntry, type InternalEvent,
   type PermissionDecision, type PermissionKind, type Settings, type Shortcut, type SitePermission, type TabGroup, type NebulaNote,
@@ -45,6 +46,8 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
     if (out[k] !== undefined && !allowed.includes(out[k] as string)) delete out[k];
   };
   oneOf('theme', ['system', 'light', 'dark']);
+  oneOf('palette', PALETTES);
+  oneOf('tabLayout', ['horizontal', 'vertical']);
   oneOf('startup', ['restore', 'newtab', 'homepage']);
   oneOf('searchEngine', ['nude', 'duckduckgo', 'google', 'bing', 'brave', 'ecosia', 'startpage']);
   oneOf('protectionLevel', ['standard', 'enhanced', 'maximum']);

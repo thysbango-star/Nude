@@ -1,6 +1,10 @@
 // Types shared by the main process, preloads and renderers.
 
 export type ThemeSetting = 'system' | 'light' | 'dark';
+/** Colour themes. Each has a light and a dark version (ThemeSetting picks which). */
+export const PALETTES = ['nude', 'glass', 'lavender', 'sunset', 'forest', 'mono'] as const;
+export type Palette = typeof PALETTES[number];
+export type TabLayout = 'horizontal' | 'vertical';
 export type StartupSetting = 'restore' | 'newtab' | 'homepage';
 export type SearchEngineId = 'nude' | 'duckduckgo' | 'google' | 'bing' | 'brave' | 'ecosia' | 'startpage';
 export type ProtectionLevel = 'standard' | 'enhanced' | 'maximum';
@@ -9,6 +13,10 @@ export type ToolbarItem = 'home' | 'reader' | 'split' | 'overview' | 'downloads'
 
 export interface Settings {
   theme: ThemeSetting;
+  palette: Palette;
+  tabLayout: TabLayout;
+  sidebarCollapsed: boolean;
+  launchIntro: boolean;
   searchEngine: SearchEngineId;
   searchSuggestions: boolean;
   startup: StartupSetting;
@@ -55,6 +63,10 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
+  palette: 'nude',
+  tabLayout: 'horizontal',
+  sidebarCollapsed: false,
+  launchIntro: true,
   searchEngine: 'duckduckgo',
   searchSuggestions: true,
   startup: 'restore',
@@ -241,7 +253,7 @@ export interface WindowState {
   tabs: TabState[];
   activeTabId: number | null;
   bookmarksBar: Bookmark[];
-  settings: Pick<Settings, 'theme' | 'showHomeButton' | 'showBookmarksBar' | 'reduceMotion' | 'searchEngine'>;
+  settings: Pick<Settings, 'theme' | 'palette' | 'tabLayout' | 'sidebarCollapsed' | 'showHomeButton' | 'showBookmarksBar' | 'reduceMotion' | 'searchEngine'>;
   downloads: DownloadSummary;
   permissionPrompt: PermissionPrompt | null;
   find: FindState;

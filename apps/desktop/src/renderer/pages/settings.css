@@ -18,3 +18,20 @@ kbd { font: 12px var(--mono); padding: 3px 8px; border-radius: 6px; background: 
 section.card { scroll-margin-top: 20px; }
 .link-x { border: 0; background: none; padding: 0 0 0 4px; font: inherit; color: var(--text-3); cursor: pointer; }
 .link-x:hover { color: var(--danger); }
+.setting.col { flex-direction: column; align-items: stretch; }
+.theme-cards, .layout-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-top: 10px; }
+.theme-card, .layout-card { display: flex; flex-direction: column; gap: 8px; align-items: center; padding: 10px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); font-size: 12.5px; color: var(--text-2); transition: border-color var(--t), transform var(--t-fast); }
+.theme-card:hover, .layout-card:hover { transform: translateY(-1px); }
+.theme-card.on, .layout-card.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); color: var(--text); }
+.tc-win { position: relative; width: 100%; aspect-ratio: 16 / 10; border-radius: 9px; background: var(--f); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.06); }
+.tc-win i { position: absolute; top: 7px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.85); }
+.tc-win i:nth-child(1) { left: 8px; width: 30%; }
+.tc-win i:nth-child(2) { left: calc(8px + 34%); width: 22%; opacity: .6; }
+.tc-win b { position: absolute; left: 8px; right: 8px; top: 20px; bottom: 8px; border-radius: 6px; background: #fff; box-shadow: inset 0 -14px 0 -8px var(--a); }
+.lc { position: relative; width: 100%; aspect-ratio: 16 / 10; border-radius: 9px; background: var(--surface-2); overflow: hidden; }
+.lc i { position: absolute; background: var(--accent); opacity: .75; border-radius: 3px; }
+.lc-top i { top: 7px; height: 6px; width: 22%; } .lc-top i:nth-child(1) { left: 8px; } .lc-top i:nth-child(2) { left: 32%; opacity: .35; } .lc-top i:nth-child(3) { left: 56%; opacity: .35; }
+.lc-side i { left: 7px; width: 22%; height: 6px; } .lc-side i:nth-child(1) { top: 8px; } .lc-side i:nth-child(2) { top: 18px; opacity: .35; } .lc-side i:nth-child(3) { top: 28px; opacity: .35; }
+.lc::after { content: ""; position: absolute; background: var(--surface); border-radius: 5px; }
+.lc-top::after { left: 8px; right: 8px; top: 18px; bottom: 8px; }
+.lc-side::after { left: 32%; right: 8px; top: 8px; bottom: 8px; }

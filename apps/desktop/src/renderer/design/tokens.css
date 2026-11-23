@@ -94,8 +94,70 @@
   }
 }
 
+/* ------------------------------------------------------------------ colour themes (Settings → Appearance)
+   Each theme sets the frame, surfaces and accent; light and dark follow the Theme setting. "nude" is the default above. */
+:root[data-palette="glass"] {
+  --accent: #2457ff; --accent-text: #fff; --chrome: #dfe8fb; --mode-bg: #e6edfc; --pill-bg: #e6edfc;
+  --chrome-bg: linear-gradient(160deg, #d7e3ff 0%, #e9f0ff 45%, #dff4ff 100%);
+  --bg: #eef3ff; --surface: #ffffff; --surface-2: rgba(255, 255, 255, .62); --surface-3: rgba(255, 255, 255, .85);
+  --glass: rgba(240, 245, 255, .72); --glass-strong: rgba(246, 249, 255, .9); --border: rgba(20, 40, 110, .1); --text-2: #4b587a;
+}
+:root[data-palette="lavender"] {
+  --accent: #8f4fe8; --accent-text: #fff; --chrome: #ece3fa; --mode-bg: #efe6fb; --pill-bg: #efe6fb;
+  --chrome-bg: linear-gradient(120deg, #e3d6fb 0%, #efe3fa 50%, #f8e6f3 100%);
+  --bg: #f7f2fd; --surface: #ffffff; --surface-2: rgba(255, 255, 255, .6); --surface-3: rgba(255, 255, 255, .85);
+  --glass: rgba(246, 240, 253, .75); --glass-strong: rgba(250, 246, 255, .92); --border: rgba(70, 30, 110, .1); --text-2: #5f5672;
+}
+:root[data-palette="sunset"] {
+  --accent: #e8742f; --accent-text: #fff; --chrome: #f8e2d2; --mode-bg: #f9e7da; --pill-bg: #f9e7da;
+  --chrome-bg: linear-gradient(150deg, #fbd8bf 0%, #fbe6d6 50%, #fdf0e3 100%);
+  --bg: #fdf5ee; --surface: #fffaf6; --surface-2: rgba(255, 250, 246, .65); --surface-3: rgba(255, 250, 246, .9);
+  --glass: rgba(253, 244, 236, .76); --glass-strong: rgba(255, 249, 244, .92); --border: rgba(110, 50, 20, .1); --text-2: #6d5a4d;
+}
+:root[data-palette="forest"] {
+  --accent: #2f8a57; --accent-text: #fff; --chrome: #dfeae2; --mode-bg: #e5efe8; --pill-bg: #e5efe8;
+  --chrome-bg: linear-gradient(160deg, #d6e8dc 0%, #e6f0e8 55%, #eef4ea 100%);
+  --bg: #f1f6f2; --surface: #ffffff; --surface-2: rgba(255, 255, 255, .6); --surface-3: rgba(255, 255, 255, .85);
+  --glass: rgba(240, 246, 241, .76); --glass-strong: rgba(246, 250, 247, .92); --border: rgba(20, 70, 40, .1); --text-2: #4f6356;
+}
+:root[data-palette="mono"] {
+  --accent: #18181b; --accent-text: #fff; --chrome: #f4f4f5; --mode-bg: #ececee; --pill-bg: #ececee;
+  --bg: #fafafa; --surface: #ffffff; --surface-2: #efeff1; --surface-3: #e4e4e7;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="glass"] {
+    --accent: #4d7cff; --accent-text: #fff; --chrome: #071029; --mode-bg: #0d1a40; --pill-bg: #0d1a40;
+    --chrome-bg: linear-gradient(160deg, #050b22 0%, #0a1946 55%, #06213d 100%);
+    --bg: #050b1f; --surface: #101d48; --surface-2: rgba(30, 50, 110, .42); --surface-3: rgba(44, 70, 140, .55);
+    --glass: rgba(14, 26, 66, .72); --glass-strong: rgba(10, 20, 54, .92); --border: rgba(160, 190, 255, .14); --text-2: #a3b3d8;
+  }
+  :root[data-palette="lavender"] {
+    --accent: #b58cff; --accent-text: #1a0d2e; --chrome: #130e20; --mode-bg: #1f1733; --pill-bg: #1f1733;
+    --chrome-bg: linear-gradient(130deg, #120c22 0%, #1d1233 55%, #26112b 100%);
+    --bg: #0f0b19; --surface: #221a36; --surface-2: rgba(70, 50, 110, .38); --surface-3: rgba(90, 66, 140, .5);
+    --glass: rgba(30, 22, 48, .76); --glass-strong: rgba(24, 17, 40, .93); --border: rgba(220, 200, 255, .11); --text-2: #b2a6cc;
+  }
+  :root[data-palette="sunset"] {
+    --accent: #f59156; --accent-text: #1f0e05; --chrome: #1a110c; --mode-bg: #2a1b13; --pill-bg: #2a1b13;
+    --chrome-bg: linear-gradient(150deg, #1d110b 0%, #2a160d 55%, #22120f 100%);
+    --bg: #140d09; --surface: #2a1d15; --surface-2: rgba(110, 60, 30, .3); --surface-3: rgba(140, 80, 40, .42);
+    --glass: rgba(36, 24, 17, .78); --glass-strong: rgba(28, 19, 13, .93); --border: rgba(255, 210, 180, .1); --text-2: #c4ab98;
+  }
+  :root[data-palette="forest"] {
+    --accent: #5cc98a; --accent-text: #06170d; --chrome: #0b1510; --mode-bg: #13241a; --pill-bg: #13241a;
+    --chrome-bg: linear-gradient(160deg, #08130d 0%, #0e2116 55%, #0b1a14 100%);
+    --bg: #08110c; --surface: #15281d; --surface-2: rgba(40, 90, 60, .3); --surface-3: rgba(50, 110, 75, .42);
+    --glass: rgba(16, 30, 22, .78); --glass-strong: rgba(12, 24, 17, .93); --border: rgba(190, 255, 215, .1); --text-2: #9fbba9;
+  }
+  :root[data-palette="mono"] {
+    --accent: #f4f4f5; --accent-text: #0b0b0c; --chrome: #0b0b0c; --mode-bg: #18181b; --pill-bg: #18181b;
+    --bg: #09090b; --surface: #18181b; --surface-2: #1c1c1f; --surface-3: #27272a;
+  }
+}
+
 /* Private browsing: an ink-violet night palette in both themes. */
 :root.private {
+  --chrome-bg: #0f0e14;
   --chrome: #0f0e14;
   --mode-bg: #1d1a28;
   --mode-text: #e6e1fb;

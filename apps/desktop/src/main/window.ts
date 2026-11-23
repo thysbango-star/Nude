@@ -28,7 +28,7 @@ export class BrowserWindowController {
   private uiReady = false;
   readonly partitionKey: string | null;
 
-  constructor(readonly app: NudeApp, readonly session: Session, readonly isPrivate: boolean, saved?: SavedWindow, partitionKey?: string) {
+  constructor(readonly app: NudeApp, readonly session: Session, readonly isPrivate: boolean, saved?: SavedWindow, partitionKey?: string, intro = false) {
     this.partitionKey = partitionKey ?? null;
     const dark = nativeTheme.shouldUseDarkColors;
     const display = screen.getPrimaryDisplay().workArea;
@@ -39,7 +39,8 @@ export class BrowserWindowController {
       minHeight: 320,
       show: false,
       title: isPrivate ? 'Nude — Private' : 'Nude',
-      backgroundColor: isPrivate ? '#0f0e14' : dark ? '#111113' : '#e9e9ec',
+      // The launch animation's own colour, so the window opens straight into it with no flash.
+      backgroundColor: intro ? '#0b0c14' : isPrivate ? '#0f0e14' : dark ? '#111113' : '#e9e9ec',
       titleBarStyle: 'hidden',
       ...(process.platform === 'darwin'
         ? { trafficLightPosition: { x: 14, y: 14 } }
@@ -53,7 +54,9 @@ export class BrowserWindowController {
       },
     });
     if (saved?.maximized) this.win.maximize();
-    void this.win.loadFile(CHROME_HTML, { query: { private: isPrivate ? '1' : '0' } });
+    // While the launch animation plays the page stays hidden; the UI calls overlay(false) when it ends.
+    this.overlayOpen = intro;
+    void this.win.loadFile(CHROME_HTML, { query: { private: isPrivate ? '1' : '0', intro: intro ? '1' : '0' } });
     this.win.webContents.on('before-input-event', (e, input) => this.handleInput(e, input, false));
     this.win.webContents.on('will-navigate', (e) => e.preventDefault()); // the UI never navigates
     this.win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -716,7 +719,7 @@ export class BrowserWindowController {
       tabs: this.tabs.map((t) => t.state(false, Boolean(p.findBookmark(t.url)))),
       activeTabId: this.activeTabId,
       bookmarksBar: p.bookmarks.get().filter((b) => b.folder === '').slice(0, 60),
-      settings: { theme: s.theme, showHomeButton: s.showHomeButton, showBookmarksBar: s.showBookmarksBar, reduceMotion: s.reduceMotion, searchEngine: s.searchEngine },
+      settings: { theme: s.theme, palette: s.palette, tabLayout: s.tabLayout, sidebarCollapsed: s.sidebarCollapsed, showHomeButton: s.showHomeButton, showBookmarksBar: s.showBookmarksBar, reduceMotion: s.reduceMotion, searchEngine: s.searchEngine },
       downloads: this.app.downloads.summary(this.isPrivate),
       permissionPrompt: active ? this.app.permissions.promptForTab(active.id) : null,
       find: this.find,
