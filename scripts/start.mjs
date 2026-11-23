@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 
 const target = process.env.NUDE_START ?? (process.env.RENDER ? 'search' : 'desktop');
-const workspace = { search: 'services/search', 'ai-gateway': 'services/ai-gateway', 'threat-intel': 'services/threat-intel', desktop: 'apps/desktop' }[target];
+const workspace = { search: 'services/search', 'ai-gateway': 'services/ai-gateway', 'threat-intel': 'services/threat-intel', accounts: 'services/accounts', desktop: 'apps/desktop' }[target];
 if (!workspace) { console.error(`Unknown NUDE_START "${target}"`); process.exit(1); }
 const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'start', '-w', workspace], { stdio: 'inherit' });
 for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => child.kill(sig));

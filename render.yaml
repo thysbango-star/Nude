@@ -22,3 +22,31 @@ services:
         value: "0"
       - key: BRAVE_SEARCH_API_KEY
         sync: false
+
+  # Nude Accounts: Nude IDs (name@nude), device sign-in, sync and Sign in with Nude.
+  - type: web
+    name: nude-accounts
+    runtime: docker
+    dockerfilePath: ./services/Dockerfile
+    dockerContext: .
+    # Accounts must survive restarts. The free plan has no disk, so it runs in test mode
+    # (accounts are wiped on each deploy). For real use: plan: starter, add the disk below,
+    # and set NUDE_ACCOUNTS_STORAGE=permanent.
+    plan: free
+    healthCheckPath: /healthz
+    autoDeploy: true
+    # disk:
+    #   name: accounts-data
+    #   mountPath: /data
+    #   sizeGB: 1
+    envVars:
+      - key: SERVICE
+        value: accounts
+      - key: NUDE_START
+        value: accounts
+      - key: NUDE_ACCOUNTS_DB
+        value: /data/accounts.db
+      - key: NUDE_ACCOUNTS_STORAGE
+        value: temporary
+      - key: NUDE_ADMIN_TOKEN
+        generateValue: true

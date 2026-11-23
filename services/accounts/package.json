@@ -1,0 +1,12 @@
+{
+  "name": "@nude/accounts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nude Accounts: Nude IDs (name@nude), device sessions, QR sign-in, sync and Sign in with Nude (OpenID Connect)",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts"
+  },
+  "devDependencies": { "tsx": "^4.23.12" },
+  "engines": { "node": ">=22.13" }
+}
