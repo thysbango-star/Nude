@@ -81,3 +81,30 @@ test('pairing, reading and unlinking', async () => {
     link.stop();
   }
 });
+
+test('PassGate login handover: right site only, used once, then gone', async () => {
+  const link = new PhoneLink(mkdtempSync(join(tmpdir(), 'pg-cred-')), { identity: () => ({}), report: () => ({}) });
+  try {
+    const req = await link.credentialRequest('https://accounts.example.com');
+    assert.ok(req.text.startsWith('NUDEPW1:'));
+    const q = JSON.parse(req.text.slice(8)) as { p: number; i: string; k: string; o: string };
+    assert.equal(q.o, 'https://accounts.example.com');
+    const { enc, mac } = linkKeys(Buffer.from(q.k, 'base64url'));
+    const path = `/v1/credential/${q.i}`;
+    const send = (origin: string, password: string, key = mac) => {
+      const t = Date.now();
+      return fetch(`http://127.0.0.1:${q.p}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ t, s: sign(key, `cred\n${q.i}\n${q.o}\n${t}`), env: seal(enc, path, { origin, username: 'simon', password }) }) });
+    };
+    // A login for a different site is refused, even with the right key.
+    // (Retry once: the test's HTTP client may hold a stale connection to an earlier test's server on this port.)
+    assert.equal((await send('https://evil.example', 'pw').catch(() => send('https://evil.example', 'pw'))).status, 400);
+    // A wrong key is refused.
+    assert.equal((await send(q.o, 'pw', Buffer.alloc(32))).status, 401);
+    const ok = await send(q.o, 'correct horse');
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await req.result, { username: 'simon', password: 'correct horse' });
+    // The code works once.
+    assert.equal((await send(q.o, 'again')).status, 410);
+  } finally { link.stop(); }
+});

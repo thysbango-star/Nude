@@ -118,9 +118,9 @@ fun HomeScreen(vault: Vault, id: Identity, phone: PhoneFacts, busy: Boolean, err
 
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Stat("${id.accounts.size.coerceAtLeast(if (a != null) 1 else 0)}", "Accounts", Modifier.weight(1f)) { onTab(1) }
-            Stat("${1 + id.devices.size}", "Trusted devices", Modifier.weight(1f)) { onTab(2) }
-            Stat("—", "Passkeys", Modifier.weight(1f), note = "Not yet") { onSecurity() }
+            Stat("${id.accounts.size.coerceAtLeast(if (a != null) 1 else 0)}", "Accounts", Modifier.weight(1f)) { onTab(2) }
+            Stat("${1 + id.devices.size}", "Trusted devices", Modifier.weight(1f)) { onTab(3) }
+            Stat("${vault.logins.size}", "Saved logins", Modifier.weight(1f)) { onTab(1) }
         }
 
         SectionTitle("Sign-in requests")
@@ -136,7 +136,7 @@ fun HomeScreen(vault: Vault, id: Identity, phone: PhoneFacts, busy: Boolean, err
             }
         }
 
-        SectionTitle("Recent activity", action = "See all", onAction = { onTab(3) })
+        SectionTitle("Recent activity", action = "See all", onAction = { onTab(4) })
         val recent = merged(id, vault).take(3)
         GlassCard(Modifier.fillMaxWidth(), padding = 6.dp) {
             if (recent.isEmpty()) Text("Nothing yet.", color = c.muted, fontSize = 13.sp, modifier = Modifier.padding(10.dp))
@@ -145,7 +145,7 @@ fun HomeScreen(vault: Vault, id: Identity, phone: PhoneFacts, busy: Boolean, err
 
         Spacer(Modifier.height(18.dp))
         GlassButton(if (busy) "Checking…" else "Scan a code from Nude", onScan, Modifier.fillMaxWidth(), icon = Icons.Default.Search, quiet = true, enabled = !busy)
-        Foot("Updated ${ago(vault.identityAt)} from ${id.pcName}. PassGate holds your verified identity, never passwords or sign-in tokens.")
+        Foot("Updated ${ago(vault.identityAt)} from ${id.pcName}. Your logins stay encrypted on this phone and go to Nude only when you pick one.")
     }
 }
 
@@ -318,7 +318,7 @@ fun WelcomeScreen(busy: Boolean, error: String?, relink: Boolean, onScan: () -> 
         error?.let { Notice(it) }
         Spacer(Modifier.height(18.dp))
         GlassButton(if (busy) "Signing in…" else if (relink) "Scan a new code" else "Scan code on your PC", onScan, Modifier.fillMaxWidth(), icon = Icons.Default.Search, enabled = !busy)
-        Foot("PassGate keeps only your verified identity, encrypted on this phone. Never passwords or sign-in tokens, and none of it is shared with Rovian Defender or Nebula.")
+        Foot("Your logins and identity stay encrypted on this phone. Nothing is shared with Rovian Defender or Nebula; a login goes to Nude only when you pick it.")
     }
 }
 
@@ -335,7 +335,7 @@ fun SecuritySheet(vault: Vault, id: Identity?, phone: PhoneFacts) {
         }
         Spacer(Modifier.height(14.dp))
         Text("What PassGate never shares", color = c.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        Text("PassGate doesn't hold passwords. Its link key and data stay encrypted on this phone. Rovian Defender and Nebula never receive them: Defender can only see whether PassGate is linked.",
+        Text("Your logins, link key and data stay encrypted on this phone. A login is sent only to Nude, only for the site it was saved for, after your fingerprint, face or PIN. Rovian Defender and Nebula never receive any of it: Defender can only see whether PassGate is linked.",
             color = c.muted, fontSize = 12.5.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }

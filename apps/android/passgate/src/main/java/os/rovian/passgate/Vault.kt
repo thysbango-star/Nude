@@ -57,6 +57,8 @@ class Vault(ctx: Context) {
     var identityAt by mutableLongStateOf(0L); private set
     var lockEnabled by mutableStateOf(true); private set
     var loadError by mutableStateOf<String?>(null)
+    /** Your saved logins. Only here, encrypted; never sent anywhere except one at a time, when you choose to. */
+    var logins by mutableStateOf<List<Login>>(emptyList()); private set
     /** What happened in PassGate on this phone: unlocks, codes scanned, links made or removed. No secrets. */
     var local by mutableStateOf<List<IEvent>>(emptyList()); private set
 
@@ -69,6 +71,7 @@ class Vault(ctx: Context) {
                 raw = j.optJSONObject("identity")
                 identity = raw?.let(::parseIdentity)
                 identityAt = j.optLong("identityAt")
+                logins = Login.list(j.optJSONArray("logins"))
                 local = j.optJSONArray("local")?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { IEvent(it.optLong("t"), it.optString("kind"), it.optString("detail")) } } } ?: emptyList()
             }
         } catch (e: Exception) {
@@ -82,6 +85,7 @@ class Vault(ctx: Context) {
 
     private fun save() {
         file.write(JSONObject().put("lock", lockEnabled).put("pc", pc?.toJson()).put("identity", raw).put("identityAt", identityAt)
+            .put("logins", org.json.JSONArray(logins.map { it.toJson() }))
             .put("local", org.json.JSONArray(local.map { JSONObject().put("t", it.t).put("kind", it.kind).put("detail", it.detail) })).toString())
     }
 
@@ -90,6 +94,20 @@ class Vault(ctx: Context) {
     fun setIdentity(j: JSONObject) { raw = j; identity = parseIdentity(j); identityAt = System.currentTimeMillis(); save() }
     fun signOut() { pc = null; raw = null; identity = null; identityAt = 0; log("unlinked", "This phone was unlinked from your PC") }
     fun setLock(on: Boolean) { lockEnabled = on; log("lock-${if (on) "on" else "off"}", if (on) "PassGate lock turned on" else "PassGate lock turned off") }
+
+    fun saveLogin(l: Login) {
+        val now = System.currentTimeMillis()
+        val had = logins.firstOrNull { it.id == l.id }
+        val next = l.copy(site = Logins.clean(l.site), created = had?.created ?: now, updated = now)
+        logins = (logins.filter { it.id != l.id } + next).sortedBy { it.site }
+        log(if (had == null) "login-added" else "login-changed", "${if (had == null) "Saved" else "Changed"} a login for ${next.site}")
+    }
+
+    fun deleteLogin(id: String) {
+        val l = logins.firstOrNull { it.id == id } ?: return
+        logins = logins.filter { it.id != id }
+        log("login-deleted", "Deleted the login for ${l.site}")
+    }
 
     /** Adds to this phone's activity (newest first, last 100 kept). */
     fun log(kind: String, detail: String) { local = (listOf(IEvent(System.currentTimeMillis(), kind, detail.take(200))) + local).take(100); save() }

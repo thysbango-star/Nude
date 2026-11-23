@@ -7,6 +7,11 @@
 //   Replies:  {"iv","ct"}: AES-256-GCM with encKey, additional data "nude-link-v1|"+path
 //   Keys:     encKey = HMAC-SHA256(key, "nude-link enc"), macKey = HMAC-SHA256(key, "nude-link mac")
 //
+// Sign in with your phone (PassGate): for one login, Nude shows a separate single-use code for the site you're on:
+//   QR:       NUDEPW1:{"v":1,"h":[LAN addresses],"p":port,"i":requestId,"k":key,"o":origin,"n":pc name}
+//   Send:     POST /v1/credential/<id>  {t, s: HMAC(macKey, "cred\n"+id+"\n"+origin+"\n"+t), env: seal(encKey, path, {origin, username, password})}
+// The request lives 2 minutes, is used once, and the login is only accepted for the origin in the code. Nude never stores it.
+//
 // The server only answers addresses on private networks, only while a code is showing or a phone is linked, and only
 // to signed requests. Replies are encrypted, so others on the Wi-Fi can't read them. Nothing here contains a
 // password, a token or a key for anything else.
@@ -24,6 +29,8 @@ const CLOCK_WINDOW = 5 * 60_000;
 export interface LinkedDevice { id: string; app: LinkApp; name: string; key: string; created: number; lastSeen: number; lastAddress: string }
 export interface PublicDevice { id: string; app: LinkApp; name: string; created: number; lastSeen: number }
 interface Offer { id: string; app: LinkApp; key: Buffer; created: number }
+interface CredRequest { id: string; key: Buffer; origin: string; created: number; done: (c: { username: string; password: string } | null) => void }
+const CRED_TTL = 2 * 60_000;
 
 const b64u = (b: Buffer) => b.toString('base64url');
 export function linkKeys(key: Buffer) {
@@ -88,6 +95,7 @@ export class PhoneLink {
   private server: Server | null = null;
   private port = 0;
   private offers = new Map<string, Offer>();
+  private creds = new Map<string, CredRequest>();
   private failures = new Map<string, { count: number; until: number }>();
   private store: JsonStore<{ devices: LinkedDevice[] }>;
   onChange: () => void = () => {};
@@ -119,6 +127,26 @@ export class PhoneLink {
     }, OFFER_TTL + 5_000).unref();
     const text = `NUDE1:${JSON.stringify({ v: 1, a: app, h: hosts, p: this.port, i: o.id, k: b64u(o.key), n: pc })}`;
     return { text, expires: o.created + OFFER_TTL, hosts, port: this.port };
+  }
+
+  /**
+   * A single-use code asking PassGate for one login for `origin`. Resolves with the login PassGate sends,
+   * or null when the code expires or is cancelled. Only one request at a time.
+   */
+  async credentialRequest(origin: string): Promise<{ text: string; expires: number; result: Promise<{ username: string; password: string } | null>; cancel: () => void }> {
+    await this.start();
+    for (const r of this.creds.values()) r.done(null);
+    this.creds.clear();
+    const id = b64u(randomBytes(16));
+    const key = randomBytes(32);
+    let done!: CredRequest['done'];
+    const result = new Promise<{ username: string; password: string } | null>((resolve) => { done = resolve; });
+    const req: CredRequest = { id, key, origin, created: Date.now(), done: (c) => { if (this.creds.get(id) === req) this.creds.delete(id); done(c); } };
+    this.creds.set(id, req);
+    const timer = setTimeout(() => { req.done(null); if (!this.offers.size && !this.creds.size && !this.store.get().devices.length) this.stop(); }, CRED_TTL);
+    timer.unref();
+    const text = `NUDEPW1:${JSON.stringify({ v: 1, h: lanAddresses(), p: this.port, i: id, k: b64u(key), o: origin, n: (hostname() || 'This PC').slice(0, 40) })}`;
+    return { text, expires: req.created + CRED_TTL, result, cancel: () => req.done(null) };
   }
 
   /** Stop showing a code: forget unused offers, and stop listening if no phone is linked. */
@@ -198,6 +226,23 @@ export class PhoneLink {
       this.store.set((x) => ({ devices: [...x.devices, device].slice(-20) }));
       this.onChange();
       return reply(res, 200, seal(enc, path, { deviceId: device.id, app: device.app, pc: (hostname() || 'This PC').slice(0, 40) }));
+    }
+
+    const cm = /^\/v1\/credential\/([\w-]{10,40})$/.exec(path);
+    if (cm && req.method === 'POST') {
+      const r = this.creds.get(cm[1]);
+      if (!r || Date.now() - r.created > CRED_TTL) { this.fail(ip); return reply(res, 410, { error: 'expired' }); }
+      const body = await readJson(req);
+      const t = typeof body?.t === 'number' ? body.t : 0;
+      const sg = typeof body?.s === 'string' ? body.s : '';
+      const { enc, mac } = linkKeys(r.key);
+      if (Math.abs(Date.now() - t) > CLOCK_WINDOW || !sameSig(sg, sign(mac, `cred\n${r.id}\n${r.origin}\n${t}`))) { this.fail(ip); return reply(res, 401, { error: 'signature' }); }
+      let cred: { origin?: unknown; username?: unknown; password?: unknown };
+      try { cred = open(enc, path, body!.env as { iv: string; ct: string }) as typeof cred; } catch { this.fail(ip); return reply(res, 400, { error: 'envelope' }); }
+      // The login must be for the site this code was made for.
+      if (cred.origin !== r.origin || typeof cred.password !== 'string' || !cred.password || cred.password.length > 1000) return reply(res, 400, { error: 'origin' });
+      r.done({ username: typeof cred.username === 'string' ? cred.username.slice(0, 300) : '', password: cred.password });
+      return reply(res, 200, seal(enc, path, { ok: true }));
     }
 
     const m = /^\/v1\/device\/([\w-]{10,40})\/(identity|report|unlink)$/.exec(path);

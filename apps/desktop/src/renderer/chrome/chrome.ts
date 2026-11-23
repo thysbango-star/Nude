@@ -16,6 +16,7 @@ export const invoke = nude.invoke;
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const isPrivate = new URLSearchParams(location.search).get('private') === '1';
+const passgateBtnEl = document.getElementById('passgate')!;
 document.documentElement.classList.toggle('private', isPrivate);
 installFaviconFallback();
 
@@ -270,6 +271,7 @@ function renderToolbar(s: WindowState) {
   els.omnibox.classList.toggle('loading', Boolean(t?.loading));
   els.star.classList.toggle('on', Boolean(t?.isBookmarked));
   els.star.hidden = !t || !/^https?:/.test(t.url);
+  passgateBtnEl.hidden = isPrivate || !t || !/^https:/.test(t.url);
   els.reader.hidden = !t?.readerAvailable;
   els.ai.hidden = !s.aiEnabled;
   els.ai.classList.toggle('on', nebula.isOpen());
@@ -613,6 +615,28 @@ function paintSuggestions() {
 }
 
 // ------------------------------------------------------------------ menus & panels
+// ------------------------------------------------------------------ sign in with PassGate on your phone
+let passgateOpen = false;
+const passgateBtn = passgateBtnEl;
+passgateBtn.innerHTML = I.key;
+passgateBtn.addEventListener('click', () => void showPassgate());
+async function showPassgate() {
+  const r = await invoke<{ ok: boolean; error?: string; origin?: string; expires?: number; svg?: string }>('passgate.request');
+  if (!r.ok) { toast(r.error ?? 'PassGate isn\'t available here.'); return; }
+  const host = new URL(r.origin!).hostname;
+  passgateOpen = true;
+  await openOverlay((layer) => {
+    const p = popover(passgateBtn, 'passgate-pop', `<div class="pg-head">${I.key}<b>Sign in with PassGate</b></div>
+      <p>Scan this with PassGate on your phone, pick your account for <b>${esc(host)}</b>, and Nude fills it in here.</p>
+      <div class="pg-qr">${r.svg}</div>
+      <p class="tiny" id="pg-left"></p>
+      <p class="tiny">Your phone must be on the same Wi-Fi. The login is sent encrypted, used once for ${esc(host)} only, and never saved by Nude.</p>`);
+    const tick = () => { const el = p.querySelector('#pg-left'); if (!el || !passgateOpen) return; const s = Math.max(0, Math.round((r.expires! - Date.now()) / 1000)); el.textContent = s ? `This code works once and expires in ${s} s.` : 'The code expired. Open this again for a new one.'; if (s) setTimeout(tick, 1000); };
+    tick();
+    void layer;
+  }, () => { if (passgateOpen) void invoke('passgate.cancel'); passgateOpen = false; });
+}
+
 /** The colour themes, as swatches: id, name, and the two colours each one is made of. */
 const PALETTE_SWATCHES: [string, string, string, string][] = [
   ['nude', 'Nude', '#e7e7ea', '#e8742f'], ['glass', 'Liquid Glass', '#cfe0ff', '#2457ff'], ['lavender', 'Lavender', '#e6d8fb', '#8f4fe8'],
@@ -820,6 +844,7 @@ nude.onCommand((c) => {
     case 'ai-prompt': nebula.ask(c.prompt, c.context); break;
     case 'toggle-overview': void showSwitcher(); break;
     case 'nebula-activity': setNebulaActive(c.active); break;
+    case 'passgate': if (passgateOpen) closeOverlay(); passgateOpen = false; if (c.message) toast(c.message); break;
   }
 });
 nude.onState((s) => render(s as WindowState));

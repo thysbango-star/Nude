@@ -18,9 +18,10 @@ import { Accounts } from './accounts';
 import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { NudeId, NudeIdError } from './nude-id';
 import { GroqNebula } from './groq-nebula';
+import { fillLogin } from './passgate-fill';
 import { NebulaChats, type ChatMessage } from './nebula-chats';
 import { JsonStore } from './store';
-import { PhoneLink, type LinkApp, type PublicDevice } from './phone-link';
+import { PhoneLink, lanAddresses, type LinkApp, type PublicDevice } from './phone-link';
 import { qrSvg } from '../shared/qr';
 import { hostname } from 'node:os';
 import { BrowserWindowController } from './window';
@@ -50,6 +51,8 @@ export class NudeApp {
   /** Phone sign-ins waiting for this computer's approval, by Nude ID. */
   private pendingLinks = new Map<string, string>();
   private introPlayed = false;
+  /** The PassGate login request showing in a window, if any. */
+  private passgateCancel: (() => void) | null = null;
   /** Nebula on Groq (the Nebula app's engine) and the synced conversations. */
   groq!: GroqNebula;
   chats!: NebulaChats;
@@ -772,6 +775,30 @@ export class NudeApp {
         case 'setLayout': this.profile.updateSettings({ tabLayout: str(a[0], 20) as never, ...(typeof a[1] === 'boolean' ? { sidebarCollapsed: a[1] } : {}) }); return;
         case 'signOut': { const c = this.accounts.currentRaw(); if (c) await this.nudeId.signOut(c.id); this.accounts.signOut(); w.openInternal('welcome'); return; }
         case 'accounts': return { current: this.accounts.current(), all: this.accounts.list() };
+        // Sign in with your phone: a single-use code for the site in this tab; PassGate sends one login back.
+        case 'passgate.request': {
+          if (!tab || w.isPrivate) return { ok: false, error: 'Open the site\'s sign-in page first.' };
+          let origin = '';
+          try { const u = new URL(tab.url); if (u.protocol === 'https:' || (u.protocol === 'http:' && isPrivateIP(u.hostname))) origin = u.origin; } catch { /* ignore */ }
+          if (!origin) return { ok: false, error: 'PassGate only fills secure (https) sign-in pages.' };
+          try {
+            this.passgateCancel?.();
+            const r = await this.phoneLink.credentialRequest(origin);
+            if (!lanAddresses().length) { r.cancel(); return { ok: false, error: 'This PC isn\'t on a Wi-Fi or wired network, so your phone can\'t reach it.' }; }
+            this.passgateCancel = r.cancel;
+            const tabId = tab.id;
+            void r.result.then(async (cred) => {
+              this.passgateCancel = null;
+              if (!cred) { w.sendCommand({ type: 'passgate', state: 'closed' }); return; }
+              const t = w.tabById(tabId);
+              const out = t ? await fillLogin(t.wc, origin, cred) : { ok: false, message: 'That tab was closed.' };
+              w.sendCommand({ type: 'passgate', state: out.ok ? 'filled' : 'failed', message: out.message });
+              this.security.log({ type: 'scan', detail: `PassGate ${out.ok ? 'filled a login' : 'sent a login that wasn\'t used'} on ${new URL(origin).hostname}.` });
+            });
+            return { ok: true, origin, expires: r.expires, svg: qrSvg(r.text, { ecc: 'M', dark: '#0b1430', light: '#ffffff' }) };
+          } catch (err) { return { ok: false, error: (err as Error).message }; }
+        }
+        case 'passgate.cancel': this.passgateCancel?.(); this.passgateCancel = null; return;
         case 'pageContext': {
           if (!tab || !/^https?:/.test(tab.url)) return null;
           const products = await ReaderStore.pageProducts(tab.wc).catch(() => []);

@@ -301,7 +301,8 @@ export type ChromeCommand =
   | { type: 'toggle-ai' }
   | { type: 'ai-prompt'; prompt: string; context: Partial<Record<'page' | 'selection' | 'security', boolean>> }
   | { type: 'toggle-overview' }
-  | { type: 'nebula-activity'; active: boolean };
+  | { type: 'nebula-activity'; active: boolean }
+  | { type: 'passgate'; state: 'closed' | 'filled' | 'failed'; message?: string };
 
 export interface ClearDataOptions {
   range: 'hour' | 'day' | 'week' | 'month' | 'all';

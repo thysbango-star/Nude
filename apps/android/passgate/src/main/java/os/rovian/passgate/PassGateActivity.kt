@@ -68,6 +68,9 @@ class PassGateActivity : FragmentActivity() {
     private val busy = mutableStateOf(false)
     private val linking = mutableStateOf(false)
     private val error = mutableStateOf<String?>(null)
+    private val loginRequest = mutableStateOf<LoginRequest?>(null)
+    private val sending = mutableStateOf(false)
+    private val sendResult = mutableStateOf<String?>(null)
     private val phone = mutableStateOf(PhoneFacts(false, false, null))
     private val client = PhoneLinkClient()
     private val prefs by lazy { getSharedPreferences("passgate-ui", Context.MODE_PRIVATE) }
@@ -156,10 +159,38 @@ class PassGateActivity : FragmentActivity() {
         }).authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Unlock PassGate").setSubtitle("Confirm it's you").setAllowedAuthenticators(allowed()).build())
     }
 
+    /** Sends one login to Nude after your fingerprint, face or PIN confirms it. */
+    private fun sendLogin(req: LoginRequest, login: Login) {
+        val go = {
+            sending.value = true
+            lifecycleScope.launch {
+                sendResult.value = try {
+                    withContext(Dispatchers.IO) { Logins.send(req, login) }
+                    vault.log("login-sent", "Sent the login for ${login.site} to Nude on ${req.pcName}")
+                    "Sent. Nude on ${req.pcName} is filling in ${login.username.ifBlank { "your login" }} on ${req.host}."
+                } catch (e: LoginSendError) {
+                    vault.log("login-send-failed", "A login for ${login.site} couldn't be sent: ${e.message}")
+                    e.message ?: "That didn't work."
+                }
+                sending.value = false
+            }
+            Unit
+        }
+        if (BiometricManager.from(this).canAuthenticate(allowed()) != BiometricManager.BIOMETRIC_SUCCESS) { go(); return }
+        BiometricPrompt(this, mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { go() }
+        }).authenticate(BiometricPrompt.PromptInfo.Builder().setTitle("Send your ${login.site} login").setSubtitle("To Nude on ${req.pcName}, for ${req.host}").setAllowedAuthenticators(allowed()).build())
+    }
+
     private fun lockNow() { unlocked.value = false; phase.value = LockPhase.IDLE; unlock() }
 
     /** Sign in: the code on the PC carries the key; PassGate pairs, then reads the verified identity. */
     private fun link(text: String) {
+        // A sign-in request from Nude for one site: show it, never act on it without you.
+        Logins.parseRequest(text)?.let { r ->
+            vault.log("login-request", "Nude on ${r.pcName} asked for a login for ${r.host}")
+            sendResult.value = null; loginRequest.value = r; return
+        }
         val code = LinkCode.parse(text)
         if (code == null) {
             vault.log("code-rejected", "A code that isn't from Nude was scanned and ignored")
@@ -215,39 +246,57 @@ class PassGateActivity : FragmentActivity() {
         var scanning by remember { mutableStateOf(false) }
         var security by remember { mutableStateOf(false) }
         var settings by remember { mutableStateOf(false) }
+        var editing by remember { mutableStateOf(false) }
+        var editLogin by remember { mutableStateOf<Login?>(null) }
         val id = vault.identity
         val signedIn = vault.pc != null && id != null
         val scan = { error.value = null; scanning = true }
         val refreshNow: () -> Unit = { lifecycleScope.launch { refresh() } }
-        BackHandler(signedIn && tab != 0 && !scanning) { tab = 0 }
+        BackHandler(tab != 0 && !scanning) { tab = 0 }
 
         Box(Modifier.fillMaxSize()) {
-            AnimatedContent(if (signedIn) tab else -1, transitionSpec = {
+            // Passwords work without a linked PC; the other tabs need the link.
+            AnimatedContent(if (signedIn || tab == 1) tab else -1, transitionSpec = {
                 (fadeIn(tween(260)) + scaleIn(tween(380, easing = FastOutSlowInEasing), initialScale = 0.98f)) togetherWith fadeOut(tween(140))
             }, label = "tab") { t ->
-                if (t < 0 || id == null) WelcomeScreen(busy.value, error.value ?: vault.loadError, vault.pc != null, scan)
+                if (t == 1) PasswordsScreen(vault, scan) { l -> editLogin = l; editing = true }
+                else if (t < 0 || id == null) WelcomeScreen(busy.value, error.value ?: vault.loadError, vault.pc != null, scan)
                 else when (t) {
                     0 -> HomeScreen(vault, id, phone.value, busy.value, error.value, scan, { security = true }, { tab = it }, { settings = true })
-                    1 -> AccountsScreen(id, busy.value, refreshNow)
-                    2 -> DevicesScreen(vault, id, phone.value, busy.value, refreshNow, scan) { tab = 0; signOut() }
+                    2 -> AccountsScreen(id, busy.value, refreshNow)
+                    3 -> DevicesScreen(vault, id, phone.value, busy.value, refreshNow, scan) { tab = 0; signOut() }
                     else -> ActivityScreen(id, vault)
                 }
             }
-            if (signedIn) {
+            run {
                 Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, c.bgBottom.copy(alpha = 0.92f))))
                     .navigationBarsPadding().padding(top = 24.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
-                    GlassNavBar(listOf(NavItem(Icons.Default.Home, "Home"), NavItem(Icons.Default.AccountCircle, "Accounts"), NavItem(Icons.Default.Phone, "Devices"), NavItem(Icons.Default.List, "Activity")),
+                    GlassNavBar(listOf(NavItem(Icons.Default.Home, "Home"), NavItem(Icons.Default.Lock, "Passwords"), NavItem(Icons.Default.AccountCircle, "Accounts"), NavItem(Icons.Default.Phone, "Devices"), NavItem(Icons.Default.List, "Activity")),
                         tab, { tab = it })
                 }
             }
             AnimatedVisibility(scanning, enter = slideInVertically(tween(360, easing = FastOutSlowInEasing)) { it / 3 } + fadeIn(tween(240)),
                 exit = slideOutVertically(tween(260)) { it / 3 } + fadeOut(tween(200))) {
-                Scanner("Point at the PassGate code in Nude on your PC", onResult = { text -> scanning = false; link(text) }, onClose = { scanning = false })
+                Scanner("Point at the code in Nude on your PC", onResult = { text -> scanning = false; link(text) }, onClose = { scanning = false })
             }
             AnimatedVisibility(linking.value, enter = fadeIn(tween(200)), exit = fadeOut(tween(300))) { LinkingOverlay(vault.pc?.pcName) }
         }
 
         val sheet = if (c.dark) Color(0xFF0A1640) else Color(0xFFF4F8FF)
+        loginRequest.value?.let { r ->
+            ModalBottomSheet(onDismissRequest = { loginRequest.value = null }, containerColor = sheet, contentColor = c.ink) {
+                SendLoginSheet(r, vault, sending.value, sendResult.value, onSend = { l -> sendLogin(r, l) },
+                    onAdd = { editLogin = Login("", r.host, "", "", "", 0, 0); editing = true }, onClose = { loginRequest.value = null })
+            }
+        }
+        if (editing) ModalBottomSheet(onDismissRequest = { editing = false }, containerColor = sheet, contentColor = c.ink) {
+            // editLogin with an id: change it; without one: a new login (maybe for the site Nude asked about).
+            val ex = editLogin?.takeIf { it.id.isNotEmpty() }
+            LoginEditor(ex, prefillSite = editLogin?.site,
+                onSave = { l -> vault.saveLogin(l); editing = false },
+                onDelete = ex?.let { e -> { vault.deleteLogin(e.id); editing = false } },
+                onCancel = { editing = false })
+        }
         if (security) ModalBottomSheet(onDismissRequest = { security = false }, containerColor = sheet, contentColor = c.ink) { SecuritySheet(vault, id, phone.value) }
         if (settings) ModalBottomSheet(onDismissRequest = { settings = false }, containerColor = sheet, contentColor = c.ink) {
             SettingsSheet(vault, phone.value, theme.value, { t -> theme.value = t; prefs.edit().putString("theme", t).apply() },
