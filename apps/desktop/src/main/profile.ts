@@ -54,7 +54,7 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   oneOf('fontSize', ['small', 'medium', 'large']);
   oneOf('mode', ['everyday', 'shopping', 'research', 'study', 'focus']);
   oneOf('nebulaSpeed', ['auto', 'fast', 'thorough']);
-  oneOf('nebulaEngine', ['auto', 'ollama', 'gateway']);
+  oneOf('nebulaEngine', ['auto', 'ollama', 'groq', 'gateway']);
   oneOf('wallpaper', WALLPAPER_IDS);
   if (out.ollamaModel !== undefined) out.ollamaModel = String(out.ollamaModel).replace(/[^\w.:/-]/g, '').slice(0, 100);
   if (out.ollamaUrl !== undefined && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(String(out.ollamaUrl))) out.ollamaUrl = 'http://127.0.0.1:11434';

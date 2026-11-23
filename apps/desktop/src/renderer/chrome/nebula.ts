@@ -7,9 +7,10 @@ import { renderMarkdown } from './md';
 type Bridge = { invoke<T = unknown>(cmd: string, ...a: unknown[]): Promise<T>; onAi(cb: (m: Record<string, unknown>) => void): () => void };
 const nude = (window as unknown as { nude: Bridge }).nude;
 
-export type Section = 'ask' | 'spaces' | 'media' | 'downloads' | 'notes' | 'modes' | 'archived';
+export type Section = 'ask' | 'chats' | 'spaces' | 'media' | 'downloads' | 'notes' | 'modes' | 'archived';
 const SECTIONS: { id: Section; label: string; icon: string }[] = [
   { id: 'ask', label: 'Ask', icon: I.ask },
+  { id: 'chats', label: 'Chats', icon: I.history },
   { id: 'spaces', label: 'Spaces', icon: I.spaces },
   { id: 'media', label: 'Media', icon: I.media },
   { id: 'downloads', label: 'Downloads', icon: I.download },
@@ -85,6 +86,8 @@ export interface NebulaHost {
 
 export class Nebula {
   private messages: Msg[] = [];
+  /** The saved conversation these messages belong to (synced to your other devices). */
+  private chatId: string | null = null;
   private openState = false;
   private section: Section = 'spaces';
   private share = { page: false, selection: false };
@@ -235,6 +238,7 @@ export class Nebula {
       downloads: `<button class="chip" data-a="all-downloads">${I.download}All downloads</button>`,
       notes: '', modes: '',
       archived: `<button class="chip" data-a="history">${I.history}History</button>`,
+      chats: '',
     };
     const offline = this.status && !this.status.ok ? `<button class="chip" data-a="setup" title="Nebula can't reach its gateway">${I.warn}Set up Nebula</button>` : '';
     top.innerHTML = `<h2>${this.section === 'ask' ? '<span class="orb xs"></span>' : ''}${title}</h2>
@@ -254,6 +258,7 @@ export class Nebula {
       case 'notes': void this.paintNotes(body); break;
       case 'modes': this.paintModes(body); break;
       case 'archived': void this.paintArchived(body); break;
+      case 'chats': void this.paintChats(body); break;
     }
   }
 
@@ -431,6 +436,36 @@ export class Nebula {
       <div class="modes">${Object.entries(MODES).map(([k, m], i) => `<button class="mode-card${k === cur ? ' on' : ''}" data-mode="${k}" style="animation-delay:${i * 35}ms">${m.icon}<b>${m.label}</b><span>${m.desc}</span></button>`).join('')}</div>`;
   }
 
+  /** Your Nebula conversations: from here, Nude on your phone and the Nebula app, when you're signed in. */
+  private async paintChats(body: HTMLElement) {
+    body.innerHTML = '<div class="nb-empty-hint"><span class="typing"><i></i><i></i><i></i></span></div>';
+    const r = await nude.invoke<{ chats: { id: string; title: string; updated: number; source: string; count: number }[]; synced: boolean }>('nebulaChats.list').catch(() => ({ chats: [], synced: false }));
+    if (this.section !== 'chats' || !this.root) return;
+    const where: Record<string, string> = { 'nude-desktop': 'Nude on a computer', 'nude-android': 'Nude on a phone', 'nebula-android': 'Nebula on a phone', 'nebula-desktop': 'Nebula for Windows' };
+    const note = r.synced ? '<p class="tiny" style="margin:0 0 10px">Synced with your Nude ID: chats from Nude on your phone and the Nebula app show up here.</p>'
+      : '<p class="tiny" style="margin:0 0 10px">Sign in with your Nude ID to see these chats on your phone and in the Nebula app.</p>';
+    if (!r.chats.length) { body.innerHTML = `${note}<div class="nb-empty-hint">Your conversations with Nebula show up here.</div>`; return; }
+    body.innerHTML = `${note}<div class="nb-list">${r.chats.map((c) => `<div class="nb-row" data-chat="${esc(c.id)}"><span class="ic">${I.ask}</span><span class="tx"><b>${esc(c.title)}</b><span>${esc(where[c.source] ?? 'Another device')} · ${c.count} message${c.count === 1 ? '' : 's'} · ${esc(new Date(c.updated).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</span></span>
+      <button class="icon-btn small" data-chat-del="${esc(c.id)}" title="Delete" aria-label="Delete">${I.close}</button></div>`).join('')}</div>`;
+  }
+
+  private async openChat(id: string) {
+    const c = await nude.invoke<{ id: string; messages: { role: 'user' | 'assistant'; text: string }[] } | null>('nebulaChats.get', id);
+    if (!c) return;
+    this.stop();
+    this.chatId = c.id;
+    this.messages = c.messages.map((m) => ({ role: m.role, content: m.text }));
+    this.section = 'ask';
+    this.paint();
+  }
+
+  private saveChat() {
+    if (this.host.getState()?.private) return; // private windows keep nothing
+    const msgs = this.messages.filter((m) => !m.pending && !m.error && m.content).map((m) => ({ role: m.role, text: m.prompt ?? m.content, t: Date.now() }));
+    if (!msgs.some((m) => m.role === 'assistant')) return;
+    void nude.invoke<string | null>('nebulaChats.save', this.chatId, msgs).then((id) => { if (id) this.chatId = id; }).catch(() => {});
+  }
+
   private async paintArchived(body: HTMLElement) {
     const list = await nude.invoke<ClosedTabInfo[]>('closedTabs').catch(() => []);
     if (this.section !== 'archived' || !this.root) return;
@@ -445,12 +480,16 @@ export class Nebula {
     const pick = (attr: string) => t.closest<HTMLElement>(`[data-${attr}]`)?.dataset[attr.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase())];
     const sec = pick('sec') as Section | undefined;
     if (sec) { this.saveDraft(); this.section = sec; this.paint(); return; }
+    const del = pick('chat-del');
+    if (del) { await nude.invoke('nebulaChats.remove', del); if (this.chatId === del) this.chatId = null; if (this.root) void this.paintChats(this.root.querySelector<HTMLElement>('.nb-body')!); return; }
+    const chat = pick('chat');
+    if (chat) { void this.openChat(chat); return; }
     const a = pick('a');
     switch (a) {
       case 'close': this.close(); return;
       case 'settings': case 'setup': this.close(); void nude.invoke('openInternal', 'settings', '#ai'); return;
       case 'send': if (this.requestId) this.stop(); else void this.send(this.root!.querySelector('textarea')!.value); return;
-      case 'new': this.stop(); this.messages = []; this.tabIds = []; this.files = []; this.image = null; this.share = { page: false, selection: false }; this.paint(); return;
+      case 'new': this.stop(); this.chatId = null; this.messages = []; this.tabIds = []; this.files = []; this.image = null; this.share = { page: false, selection: false }; this.paint(); return;
       case 'analyze':
         if (!this.webPage()) { this.host.toast('Open a web page for Nebula to analyze.'); return; }
         this.share.page = true;
@@ -695,6 +734,7 @@ export class Nebula {
         msg.pending = false; this.requestId = null;
         const hl = [...msg.content.matchAll(/\[\[highlight:\s*([^\]]+?)\s*\]\]/gi)].map((x) => x[1]).slice(0, 3);
         if (hl.length) msg.highlights = hl;
+        this.saveChat();
         this.host.setActivity(false, 300);
         this.root?.classList.remove('thinking');
         break;

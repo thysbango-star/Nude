@@ -90,7 +90,8 @@ async function render() {
         ${sw('aiEnabled', 'Show Nebula', 'The assistant only sees pages, selections, tabs or files you explicitly share with it.')}
         ${sw('voiceOutput', 'Read answers aloud automatically')}
         ${sel('nebulaSpeed', 'Answer speed', [['auto', 'Auto: fast for chat, deep when you share pages or images'], ['fast', 'Fast'], ['thorough', 'Deep: slower, more careful']])}
-        ${sel('nebulaEngine', 'Where Nebula runs', [['auto', 'Automatic: this computer if Ollama is running, otherwise the Nebula gateway'], ['ollama', 'This computer (Ollama, free and private)'], ['gateway', 'Nebula gateway (set under Nude services)']])}
+        ${sel('nebulaEngine', 'Where Nebula runs', [['auto', 'Automatic: Ollama on this computer, then Groq, then the Nebula gateway'], ['groq', 'Groq, the same engine as the Nebula app (your free Groq key)'], ['ollama', 'This computer (Ollama, free and private)'], ['gateway', 'Nebula gateway (set under Nude services)']])}
+        <div id="groq-box"></div>
         <div id="ollama-box"></div>
         <p class="tiny">With Ollama, the AI runs on this computer: it's free, needs no key, and nothing you share leaves your computer. The gateway option uses a hosted model; its keys stay on the server, never in the browser.</p>
       </section>
@@ -129,6 +130,7 @@ async function render() {
       <div class="btns"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="ok">Clear data</button></div></form></dialog>`;
   void renderPerms();
   void renderOllama();
+  void renderGroq();
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
   if (location.hash === '#privacy') $<HTMLDialogElement>('#clear-dlg').showModal();
 }
@@ -139,6 +141,18 @@ interface LocalStatus {
 }
 
 /** Ollama: is it running, which model, download one, share with phones. */
+/** Groq: the Nebula app's engine. The key goes to Nude's main process, encrypted; only its last 4 characters come back. */
+async function renderGroq() {
+  const box = document.getElementById('groq-box');
+  if (!box) return;
+  const g = await api.invoke<{ hasKey: boolean; hint: string | null }>('nebula.groq');
+  box.innerHTML = g.hasKey
+    ? `<div class="setting"><div class="text"><b>Groq key added (${esc(g.hint ?? '')})</b><span>Nebula in Nude answers with the same Groq models as the Nebula app. Use the same key in Nebula on your phone. The key stays encrypted on this computer and is only sent to Groq.</span></div>
+        <span class="pill ok">Ready</span><button class="btn" data-groq-remove>Remove</button></div>`
+    : `<div class="setting"><div class="text"><b>Groq key</b><span>Paste the free key you use in the Nebula app (console.groq.com → API Keys). It stays encrypted on this computer and is only sent to Groq.</span><span id="groq-msg" class="err-line"></span></div>
+        <input class="input" id="groq-key" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" style="min-width:240px"><button class="btn primary" data-groq-save>Add key</button></div>`;
+}
+
 async function renderOllama() {
   const box = document.getElementById('ollama-box');
   if (!box) return;
@@ -208,6 +222,16 @@ document.addEventListener('click', async (e) => {
   if (pullModel) { await api.invoke('nebula.pull', pullModel); void renderOllama(); return; }
   if (t.closest('[data-ollama-cancel]')) { await api.invoke('nebula.cancelPull'); return; }
   if (t.closest('[data-ollama-refresh]')) { void renderOllama(); return; }
+  if (t.closest('[data-groq-remove]')) { await api.invoke('nebula.groqRemove'); void renderGroq(); return; }
+  if (t.closest('[data-groq-save]')) {
+    const input = document.getElementById('groq-key') as HTMLInputElement;
+    const msg = document.getElementById('groq-msg')!;
+    msg.textContent = 'Checking the key with Groq…';
+    const r = await api.invoke<{ ok: boolean; error?: string; model?: string }>('nebula.groqSet', input.value);
+    input.value = '';
+    if (r.ok) { void renderGroq(); void render(); } else msg.textContent = r.error ?? 'That key didn\'t work.';
+    return;
+  }
   if (t.closest('[data-reset-token]')) { await api.invoke('nebula.resetToken'); toast('New access code made'); return; }
   const share = t.closest<HTMLElement>('[data-copy-share]')?.dataset.copyShare;
   if (share) { const [u, k] = share.split('|'); await navigator.clipboard.writeText(`Nebula gateway: ${u}\nAccess token: ${k}`).catch(() => {}); toast('Copied'); return; }
@@ -231,5 +255,5 @@ document.addEventListener('submit', async (e) => {
 });
 on('settings', () => { const y = scrollY; void render().then(() => scrollTo(0, y)); });
 on('permissions', renderPerms);
-on('nebula', () => void renderOllama());
+on('nebula', () => { void renderOllama(); void renderGroq(); });
 void render();

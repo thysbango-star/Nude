@@ -17,6 +17,8 @@ import { AiBridge, type AiRequest } from './ai';
 import { Accounts } from './accounts';
 import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { NudeId, NudeIdError } from './nude-id';
+import { GroqNebula } from './groq-nebula';
+import { NebulaChats, type ChatMessage } from './nebula-chats';
 import { JsonStore } from './store';
 import { PhoneLink, type LinkApp, type PublicDevice } from './phone-link';
 import { qrSvg } from '../shared/qr';
@@ -48,6 +50,9 @@ export class NudeApp {
   /** Phone sign-ins waiting for this computer's approval, by Nude ID. */
   private pendingLinks = new Map<string, string>();
   private introPlayed = false;
+  /** Nebula on Groq (the Nebula app's engine) and the synced conversations. */
+  groq!: GroqNebula;
+  chats!: NebulaChats;
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
   private closed: ClosedTab[] = [];
@@ -98,7 +103,9 @@ export class NudeApp {
     this.ai = new AiBridge(this);
     this.localNebula = new LocalNebula(dir, () => this.broadcast({ topic: 'nebula' }));
     this.accounts = new Accounts(dir);
+    this.groq = new GroqNebula(dir, (url, init) => net.fetch(String(url), init as RequestInit) as never);
     this.nudeId = new NudeId(dir, () => process.env.NUDE_ACCOUNTS_URL || this.profile.settings.get().accountsServerUrl, (url, init) => net.fetch(url, init as RequestInit));
+    this.chats = new NebulaChats(dir, this.nudeId, () => this.accounts.currentRaw()?.id ?? null);
     this.phoneLink = new PhoneLink(dir, { identity: (d) => this.phoneIdentity(d), report: (d) => this.phoneReport(d) },
       safeStorage.isEncryptionAvailable()
         ? { seal: (x) => safeStorage.encryptString(x).toString('base64'), open: (x) => safeStorage.decryptString(Buffer.from(x, 'base64')) }
@@ -239,6 +246,8 @@ export class NudeApp {
     }
     this.security.flush();
     this.phoneLink.flush();
+    this.chats?.flush();
+    this.groq?.stop();
     this.phoneLink.stop();
     this.profile.flushAll();
   }
@@ -256,12 +265,21 @@ export class NudeApp {
   /** Where Nebula's requests go: Ollama on this computer (free) or the Nebula gateway. */
   async nebulaEndpoint(): Promise<{ url: string; token: string; local: boolean } | null> {
     const s = this.profile.settings.get();
+    if (s.nebulaEngine === 'groq') return this.groqEndpoint();
     if (s.nebulaEngine !== 'gateway') {
       const local = await this.localNebula.endpoint(s);
       if (local) return { url: local.url, token: local.token, local: true };
       if (s.nebulaEngine === 'ollama') return null;
+      // Automatic: Nebula on Groq next, when you've added your Groq key.
+      const g = await this.groqEndpoint();
+      if (g) return g;
     } else this.localNebula.stop();
     return { url: s.aiGatewayUrl.replace(/\/+$/, ''), token: s.serviceToken, local: false };
+  }
+
+  private async groqEndpoint() {
+    const g = await this.groq.endpoint();
+    return g ? { url: g.url, token: g.token, local: true } : null;
   }
 
   identityLog(kind: string, detail: string) { this.accounts.logEvent(kind, detail); }
@@ -676,6 +694,14 @@ export class NudeApp {
         case 'noteAdd': if (!w.isPrivate) return this.profile.addNote({ text: str(a[0], 50_000), title: str(a[1], 200), url: str(a[2], 2000) }); return null;
         case 'noteRemove': this.profile.removeNote(str(a[0], 100)); return;
         case 'setSpeed': this.profile.updateSettings({ nebulaSpeed: str(a[0], 10) as never }); return;
+        case 'nebulaChats.list': await this.chats.sync().catch(() => {}); return { chats: this.chats.list(), synced: Boolean(this.accounts.currentRaw() && this.nudeId.has(this.accounts.currentRaw()!.id)) };
+        case 'nebulaChats.get': return this.chats.get(str(a[0], 120));
+        case 'nebulaChats.save': {
+          if (w.isPrivate) return null; // private windows keep nothing
+          const msgs = (Array.isArray(a[1]) ? a[1] : []).map((m) => ({ role: (m as ChatMessage)?.role, text: str((m as ChatMessage)?.text, 40_000), t: Number((m as ChatMessage)?.t) || Date.now() })) as ChatMessage[];
+          return this.chats.save(typeof a[0] === 'string' && a[0] ? str(a[0], 120) : null, msgs);
+        }
+        case 'nebulaChats.remove': this.chats.remove(str(a[0], 120)); return { ok: true };
         case 'nebulaStatus': {
           const speed = this.profile.settings.get().nebulaSpeed;
           const ep = await this.nebulaEndpoint();
@@ -804,6 +830,15 @@ export class NudeApp {
         }
         case 'settings.get': return { settings: p.settings.get(), engines: Object.values(SEARCH_ENGINES).map((x) => ({ id: x.id, name: x.name })), levels: PROTECTION_LEVELS, private: isPrivate, version: app.getVersion(), chrome: process.versions.chrome, electron: process.versions.electron, platform: process.platform, isDefault: app.isDefaultProtocolClient('https'), shortcuts: SHORTCUT_HELP };
         case 'settings.set': return p.updateSettings(a[0]);
+        case 'nebula.groq': if (page !== 'settings') throw new Error('Unauthorized'); return { hasKey: this.groq.hasKey, hint: this.groq.hint };
+        case 'nebula.groqSet': {
+          if (page !== 'settings') throw new Error('Unauthorized');
+          const r = await this.groq.setKey(str(a[0], 200));
+          if (r.ok && p.settings.get().nebulaEngine === 'gateway') p.updateSettings({ nebulaEngine: 'groq' });
+          this.broadcast({ topic: 'nebula' });
+          return r;
+        }
+        case 'nebula.groqRemove': if (page !== 'settings') throw new Error('Unauthorized'); this.groq.removeKey(); this.broadcast({ topic: 'nebula' }); return { ok: true };
         case 'nebula.local': return { ...(await this.localNebula.status(p.settings.get())), recommended: RECOMMENDED };
         case 'nebula.pull': if (!isPrivate) void this.localNebula.pull(p.settings.get(), String(a[0] ?? '')); return;
         case 'nebula.cancelPull': this.localNebula.cancelPull(); return;

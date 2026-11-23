@@ -35,3 +35,4 @@ section.card { scroll-margin-top: 20px; }
 .lc::after { content: ""; position: absolute; background: var(--surface); border-radius: 5px; }
 .lc-top::after { left: 8px; right: 8px; top: 18px; bottom: 8px; }
 .lc-side::after { left: 32%; right: 8px; top: 8px; bottom: 8px; }
+.err-line { display: block; color: var(--danger); font-size: 12.5px; margin-top: 4px; }

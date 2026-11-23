@@ -49,7 +49,7 @@ export interface Settings {
   /** Nebula answer speed: auto picks fast for chat and thorough when pages or images are shared. */
   nebulaSpeed: 'auto' | 'fast' | 'thorough';
   /** Where Nebula's model runs: auto (Ollama on this computer if it's running, otherwise the gateway), ollama, or gateway. */
-  nebulaEngine: 'auto' | 'ollama' | 'gateway';
+  nebulaEngine: 'auto' | 'ollama' | 'groq' | 'gateway';
   /** Ollama model to use; empty = pick the best one that's installed. */
   ollamaModel: string;
   ollamaUrl: string;
