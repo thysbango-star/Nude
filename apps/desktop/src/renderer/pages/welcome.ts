@@ -1,7 +1,6 @@
 import { api, $, esc } from './common';
-import { connectRovian } from './rovian-connect';
 
-interface Acc { id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string; provider: 'local' | 'rovian'; rovianId?: string | null }
+interface Acc { id: string; name: string; firstName: string; username: string; nudeId: string; color: string; photo?: string; initials: string }
 
 /** The sunset: layered so each band can rise in on its own and the clouds can drift. */
 const SCENE = `
@@ -47,7 +46,7 @@ const EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6.5 5 2.
 const EYE_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.3 2 2 3.3l3.2 3.2C3.4 7.9 2.2 9.9 1.5 12c1.2 2.8 5 7 10.5 7 1.9 0 3.6-.5 5-1.2l3.7 3.7 1.3-1.3L3.3 2ZM12 16a4 4 0 0 1-3.9-4.9l5.4 5.4c-.5.3-1 .5-1.5.5Zm0-11c-1.5 0-2.9.3-4.1.8l2.2 2.2A4 4 0 0 1 16 12c0 .7-.2 1.3-.5 1.9l3.3 3.3c1.7-1.4 3-3.3 3.7-5.2C21.3 9.2 17.5 5 12 5Z"/></svg>';
 
 async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
-  const info = await api.invoke<{ current: Acc | null; all: Acc[]; needsWelcome: boolean }>('account.get');
+  const info = await api.invoke<{ current: Acc | null; all: Acc[]; needsWelcome: boolean; server: string }>('account.get');
   if (first && !info.all.length && !location.hash.includes('signin')) mode = 'signup';
   const signin = mode === 'signin';
   $('#root').innerHTML = `
@@ -56,44 +55,38 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
         ${SCENE}
         <div class="wordmark"><span class="wm-nude">Nude</span> <span class="wm-browser">Browser</span>${BLOOM}</div>
         <div class="tagline">
-          <p class="kicker">Your Browser, Your Way</p>
-          <p class="big">Smart Tools for</p>
-          <p class="big row"><span class="rings" aria-hidden="true"><i></i><i><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></i></span>Smarter Work</p>
+          <p class="kicker">One Nude ID, every device</p>
+          <p class="big">Your browser,</p>
+          <p class="big row"><span class="rings" aria-hidden="true"><i></i><i><svg viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></svg></i></span>your account</p>
         </div>
       </aside>
       <main class="panel">
         <div class="form-wrap">
-          <h1>${signin ? 'Welcome Back!' : 'Join Nude!'}</h1>
-          <p class="lead">${signin ? 'Log in to access your dashboard, manage your account, and continue securely with full control.' : 'Create your Nude account so your browser knows you. It stays on this device.'}</p>
-          ${signin && info.all.length ? `<div class="known">${info.all.map((a) => `<button type="button" class="known-acc" data-email="${esc(a.email)}" data-id="${esc(a.id)}" data-provider="${a.provider}" title="${esc(a.provider === 'rovian' ? (a.rovianId ?? a.email) : a.email)}"><span class="av" style="background:${esc(a.color)}">${a.photo ? `<img src="${esc(a.photo)}" alt="">` : esc(a.initials)}</span><span class="kn">${esc(a.firstName)}</span>${a.provider === 'rovian' ? '<img class="via" src="rovian-glyph.svg" alt="Rovian">' : ''}</button>`).join('')}</div>` : ''}
+          <h1>${signin ? 'Welcome back' : 'Create your Nude ID'}</h1>
+          <p class="lead">${signin ? 'Sign in with your Nude ID to pick up where you left off.' : 'One Nude ID for Nude on your computer and phone, Nude Companion, and sites with Sign in with Nude.'}</p>
+          <div id="test-mode" class="note" hidden></div>
+          ${signin && info.all.length ? `<div class="known">${info.all.map((a) => `<button type="button" class="known-acc" data-id="${esc(a.id)}" data-user="${esc(a.username)}" title="${esc(a.nudeId)}"><span class="av" style="background:${esc(a.color)}">${a.photo ? `<img src="${esc(a.photo)}" alt="">` : esc(a.initials)}</span><span class="kn">${esc(a.firstName)}</span></button>`).join('')}</div>` : ''}
           <form id="f" autocomplete="on" novalidate>
-            ${signin ? '' : '<label class="field"><span>Your Name</span><input id="name" autocomplete="name" required maxlength="80" placeholder="Enter your name"></label>'}
-            <label class="field"><span>Email Address</span><input id="email" type="email" autocomplete="email" required placeholder="Enter your email"></label>
+            ${signin ? '' : '<label class="field"><span>Your name</span><input id="name" autocomplete="name" required maxlength="60" placeholder="What should Nude call you?"></label>'}
+            <label class="field"><span>Nude ID</span>
+              <span class="pw nude-id"><input id="user" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="30" placeholder="${signin ? 'yourname' : 'Choose a name'}"><b class="suffix">@nude</b></span>
+              <small id="user-hint" class="hint" aria-live="polite"></small>
+            </label>
             <label class="field"><span>Password</span>
-              <span class="pw"><input id="pw" type="password" autocomplete="${signin ? 'current-password' : 'new-password'}" required minlength="8" placeholder="${signin ? 'Enter your password' : 'At least 8 characters'}">
+              <span class="pw"><input id="pw" type="password" autocomplete="${signin ? 'current-password' : 'new-password'}" required minlength="10" placeholder="${signin ? 'Your password' : 'At least 10 characters'}">
               <button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false">${EYE}</button></span>
             </label>
             <div class="row-between">
-              <label class="check"><input type="checkbox" id="remember" checked><span class="box" aria-hidden="true"></span>Remember me</label>
-              ${signin ? '<button type="button" class="link quiet" id="forgot">Forgot Password?</button>' : ''}
+              <label class="check"><input type="checkbox" id="remember" checked><span class="box" aria-hidden="true"></span>Keep me signed in</label>
+              ${signin ? '<button type="button" class="link quiet" id="forgot">Forgot password?</button>' : ''}
             </div>
-            <div id="forgot-msg" class="note" hidden>Nude accounts live only on this device, so their password can't be reset or sent anywhere. If you signed in with Rovian, use “Forgot password” on Rovian's own sign-in page.</div>
+            <div id="forgot-msg" class="note" hidden>Password reset isn't available yet: Nude IDs don't have an email address to send a reset link to. If you're still signed in on another device, change your password there in Account.</div>
             <div id="err" class="err" role="alert" hidden></div>
-            <button class="primary" id="go">${signin ? 'Login to Nude' : 'Create account'}</button>
+            <button class="primary" id="go">${signin ? 'Sign in' : 'Create Nude ID'}</button>
           </form>
-          <div class="or"><span>or continue with</span></div>
-          <div class="providers">
-            <button type="button" class="provider" id="rovian" aria-label="Continue with Rovian" title="Continue with Rovian"><img src="rovian-glyph.svg" alt=""></button>
-          </div>
-          <div id="rovian-msg" class="err" role="alert" hidden></div>
-          <div id="rovian-wait" class="wait" role="status" hidden>
-            <span class="wait-ring" aria-hidden="true"></span>
-            <div><b>Finish in the Rovian window</b><span>Sign in to Rovian Account and approve Nude Browser there. Nude continues on its own.</span>
-            <div class="wait-actions"><button type="button" class="link quiet" id="rovian-cancel">Cancel</button></div></div>
-          </div>
-          <p class="switch-line">${signin ? 'New to Nude? <button type="button" class="link" data-mode="signup">Create an account</button>' : 'Already have an account? <button type="button" class="link" data-mode="signin">Log in</button>'}</p>
+          <p class="switch-line">${signin ? 'New to Nude? <button type="button" class="link" data-mode="signup">Create a Nude ID</button>' : 'Already have a Nude ID? <button type="button" class="link" data-mode="signin">Sign in</button>'}</p>
           ${info.needsWelcome ? '<button type="button" class="link quiet guest" id="guest">Continue without an account</button>' : ''}
-          <p class="fine">With Rovian, Nude keeps only your verified name, email and Rovian ID, never your Rovian password or sign-in tokens.</p>
+          <p class="fine">Your password goes only to Nude Accounts (${esc(new URL(info.server).host)}). This computer keeps your Nude ID and an encrypted sign-in key, never your password.</p>
         </div>
       </main>
     </div>`;
@@ -101,17 +94,41 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
   const remember = () => $<HTMLInputElement>('#remember').checked;
   const leave = () => { document.body.classList.add('leaving'); setTimeout(() => void api.invoke('account.done'), 460); };
   const show = (sel: string, m: string) => { const e = $(sel); e.textContent = m; e.hidden = !m; };
+  const user = () => $<HTMLInputElement>('#user').value.trim().toLowerCase().replace(/@nude$/, '');
+
+  void api.invoke<{ ok: boolean; persistent?: boolean; error?: string }>('account.status').then((r) => {
+    if (!r.ok) show('#test-mode', r.error ?? 'Nude Accounts isn\'t reachable right now.');
+    else if (r.persistent === false) show('#test-mode', 'Nude Accounts is in test mode: accounts made now are deleted when the server restarts.');
+  });
+
+  // Is this Nude ID free? Checked as you type (sign-up only).
+  if (!signin) {
+    let timer: ReturnType<typeof setTimeout> | undefined; let asked = '';
+    $('#user').addEventListener('input', () => {
+      clearTimeout(timer);
+      const u = user(); const hint = $('#user-hint');
+      hint.className = 'hint'; hint.textContent = u ? 'Checking…' : '';
+      if (!u) return;
+      timer = setTimeout(async () => {
+        asked = u;
+        const r = await api.invoke<{ ok: boolean; available?: boolean; problem?: string | null; error?: string }>('account.available', u);
+        if (asked !== user()) return;
+        if (!r.ok) { hint.textContent = ''; return; }
+        hint.className = `hint ${r.available ? 'good' : 'bad'}`;
+        hint.textContent = r.available ? `${u}@nude is yours to take` : r.problem ?? 'That Nude ID is taken.';
+      }, 300);
+    });
+  }
 
   $('#f').addEventListener('submit', async (e) => {
     e.preventDefault();
     show('#err', '');
     const go = $<HTMLButtonElement>('#go');
     go.disabled = true; go.classList.add('busy');
-    const email = $<HTMLInputElement>('#email').value;
     const pw = $<HTMLInputElement>('#pw').value;
     const r = signin
-      ? await api.invoke<{ ok: boolean; error?: string }>('account.signIn', email, pw, remember())
-      : await api.invoke<{ ok: boolean; error?: string }>('account.signUp', $<HTMLInputElement>('#name').value, email, pw, remember());
+      ? await api.invoke<{ ok: boolean; error?: string }>('account.signIn', user(), pw, remember())
+      : await api.invoke<{ ok: boolean; error?: string }>('account.signUp', user(), $<HTMLInputElement>('#name').value, pw, remember());
     go.disabled = false; go.classList.remove('busy');
     if (!r.ok) { show('#err', r.error ?? 'Something went wrong.'); $('#f').classList.remove('shake'); void $('#f').offsetWidth; $('#f').classList.add('shake'); return; }
     leave();
@@ -131,39 +148,13 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
     $('.form-wrap').classList.add('swap');
     setTimeout(() => void render(b.dataset.mode as 'signin' | 'signup', false), 180);
   }));
+  // A Nude ID already on this computer: still signed in → straight in; signed out → fill in the name.
   document.querySelectorAll<HTMLElement>('.known-acc').forEach((b) => b.addEventListener('click', async () => {
-    if (b.dataset.provider === 'rovian') {
-      const r = await api.invoke<{ ok: boolean; error?: string }>('account.switch', b.dataset.id);
-      if (r.ok) leave(); else if (r.error && r.error !== 'password') show('#err', r.error);
-      return;
-    }
-    $<HTMLInputElement>('#email').value = b.dataset.email!; $<HTMLInputElement>('#pw').focus();
+    const r = await api.invoke<{ ok: boolean; error?: string }>('account.switch', b.dataset.id);
+    if (r.ok) { leave(); return; }
+    $<HTMLInputElement>('#user').value = b.dataset.user!; $<HTMLInputElement>('#pw').focus();
   }));
-
-  // Sign in with Rovian: opens Rovian Account's own sign-in and consent pages in this tab.
-  // Sign in with Rovian: Rovian Account's own popup. Nude gets your verified identity, never a password or token.
-  let connecting: ReturnType<typeof connectRovian> | null = null;
-  const stopWaiting = () => { $('#rovian').classList.remove('busy'); $('#rovian-wait').hidden = true; connecting = null; };
-  $('#rovian').addEventListener('click', async () => {
-    if (connecting) return;
-    show('#rovian-msg', '');
-    $('#rovian').classList.add('busy');
-    $('#rovian-wait').hidden = false;
-    connecting = connectRovian();
-    const r = await connecting.done;
-    if (r.type === 'identity') {
-      const res = await api.invoke<{ ok: boolean; error?: string }>('account.rovianConnect', r.identity, remember(), 'signin');
-      stopWaiting();
-      if (res.ok) leave(); else show('#rovian-msg', res.error ?? 'Signing in with Rovian didn\'t work.');
-      return;
-    }
-    stopWaiting();
-    if (r.type === 'denied') show('#rovian-msg', 'You didn\'t allow Nude Browser on Rovian, so you\'re not signed in.');
-    else if (r.type === 'blocked') show('#rovian-msg', 'Nude couldn\'t open the Rovian window. Please try again.');
-  });
-  $('#rovian-cancel').addEventListener('click', () => connecting?.cancel());
-  if (first) void api.invoke<{ ok: boolean; message: string } | null>('account.rovianResult').then((r) => { if (r && !r.ok) show('#rovian-msg', r.message); });
   document.getElementById('guest')?.addEventListener('click', async () => { await api.invoke('account.guest'); void api.invoke('account.done'); });
-  (document.getElementById(signin ? 'email' : 'name') as HTMLInputElement | null)?.focus({ preventScroll: true });
+  (document.getElementById(signin ? 'user' : 'name') as HTMLInputElement | null)?.focus({ preventScroll: true });
 }
 void render();

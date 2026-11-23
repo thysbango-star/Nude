@@ -5,8 +5,24 @@
 .big-av .cam svg { width: 16px; height: 16px; }
 .big-av:hover .cam { opacity: 1; }
 .setting .input { min-width: 0; width: 200px; }
-.rv-h { display: flex; align-items: center; gap: 10px; }
-.rv-h img { width: 20px; height: 23px; }
 .mini-av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 12px; overflow: hidden; flex: none; }
 .mini-av img { width: 100%; height: 100%; object-fit: cover; }
 .btn.confirm { background: var(--danger); color: #fff; }
+.nude-id-line { font-weight: 600; color: var(--accent, #2457ff); margin: 2px 0; }
+.small { font-size: 12.5px; }
+.banner { margin: -8px 0 20px; padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--warn, #c98a1b) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warn, #c98a1b) 35%, transparent); font-size: 13.5px; }
+.list { display: flex; flex-direction: column; }
+.list .row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border, rgba(127,127,127,.15)); }
+.list .row:first-child { border-top: 0; }
+.list .row .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.list .row .text span { color: var(--text-3, #8a8a8a); font-size: 12.5px; }
+.dev-ico { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent, #2457ff) 12%, transparent); color: var(--accent, #2457ff); flex: none; }
+.dev-ico svg { width: 18px; height: 18px; }
+.ev .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent, #2457ff); flex: none; }
+.ev.bad .dot { background: var(--danger, #d14343); }
+h3.sub { font-size: 13px; margin: 18px 0 4px; color: var(--text-3, #8a8a8a); font-weight: 600; }
+.link-dlg { width: min(420px, 92vw); text-align: center; }
+.link-dlg .qr { width: 240px; margin: 16px auto; padding: 12px; background: #fff; border-radius: 16px; }
+.link-dlg .qr svg { display: block; width: 100%; height: auto; }
+.link-dlg .btns { justify-content: center; }
+.err-text { color: var(--danger, #d14343); }

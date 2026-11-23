@@ -61,7 +61,7 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
     if (!out.toolbar) delete out.toolbar;
   }
   if (out.accentColor !== undefined && out.accentColor !== '' && !/^#[0-9a-f]{6}$/i.test(out.accentColor)) delete out.accentColor;
-  for (const k of ['searchServerUrl', 'aiGatewayUrl', 'threatIntelUrl'] as const) {
+  for (const k of ['searchServerUrl', 'accountsServerUrl', 'aiGatewayUrl', 'threatIntelUrl'] as const) {
     if (out[k] !== undefined && out[k] !== '' && !isWebUrl(out[k] as string)) delete out[k];
   }
   if (out.homepage !== undefined && !isWebUrl(out.homepage) && !out.homepage.startsWith('nude://')) delete out.homepage;

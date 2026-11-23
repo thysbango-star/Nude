@@ -611,7 +611,7 @@ async function showMenu() {
     const mode = state?.mode ?? 'everyday';
     const p = popover(els.menu, 'main-menu', `
       ${isPrivate ? '<div class="menu-head">Private window</div>' : a
-        ? `<button class="account-head menu-item" data-a="account"><span class="${av.cls}" style="${av.style}">${av.html}</span><span><b>${esc(a.name)}</b><span>${esc(a.email)}</span></span></button>`
+        ? `<button class="account-head menu-item" data-a="account"><span class="${av.cls}" style="${av.style}">${av.html}</span><span><b>${esc(a.name)}</b><span>${esc(a.nudeId)}</span></span></button>`
         : `<button class="menu-item" data-a="signin">${I.user}<span>Sign in to Nude</span></button>`}
       <div class="menu-sep"></div>
       <button class="menu-item" data-a="newTab">${I.plus}<span>New tab</span>${k('Ctrl+T')}</button>

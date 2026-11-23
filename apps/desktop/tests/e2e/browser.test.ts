@@ -58,7 +58,14 @@ async function go(input: string) {
   await ui.keyboard.press('Enter');
 }
 
+let accountsServer: import('node:http').Server;
 before(async () => {
+  // A real Nude Accounts server, in memory, for signing up and the account centre.
+  const { createAccountsServer } = await import('../../../../services/accounts/src/server');
+  const { openDb } = await import('../../../../services/accounts/src/db');
+  accountsServer = createAccountsServer({ db: openDb(':memory:'), issuer: 'http://127.0.0.1', persistent: true });
+  await new Promise<void>((r) => accountsServer.listen(0, '127.0.0.1', () => r()));
+  const accountsUrl = `http://127.0.0.1:${(accountsServer.address() as { port: number }).port}`;
   server = createServer((req, res) => {
     const p = PAGES[(req.url ?? '/').split('?')[0]];
     if (!p) { res.writeHead(404).end('nope'); return; }
@@ -70,7 +77,7 @@ before(async () => {
   app = await electron.launch({
     executablePath: electronPath(),
     args: [...(process.getuid?.() === 0 || process.env.CI ? ['--no-sandbox'] : []), '--disable-gpu', APP_DIR],
-    env: { ...process.env, NUDE_USER_DATA: profile, NODE_OPTIONS: '' },
+    env: { ...process.env, NUDE_USER_DATA: profile, NODE_OPTIONS: '', NUDE_ACCOUNTS_URL: accountsUrl },
   });
   // The browser UI is the file:// page; the first window event can also be a tab (e.g. nude://welcome).
   await app.firstWindow();
@@ -92,6 +99,7 @@ after(async () => {
   await Promise.race([app?.close().catch(() => {}), new Promise((r) => setTimeout(r, 5000))]);
   proc?.kill('SIGKILL');
   server?.close();
+  accountsServer?.close();
   // Chromium may still be flushing files for a moment after exit.
   try { rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 }); } catch { /* temp dir; ignore */ }
 });
@@ -111,7 +119,7 @@ test('first run shows the welcome page, and signing up greets you by name', asyn
   await waitFor(() => inPage<boolean>('nude://welcome', 'Boolean(document.getElementById("name"))'), Boolean);
   await inPage('nude://welcome', `(() => {
     const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
-    set('name', 'Simon Tester'); set('email', 'simon@example.com'); set('pw', 'correct horse battery');
+    set('name', 'Simon Tester'); set('user', 'simon.tester'); set('pw', 'correct horse battery');
     document.getElementById('go').click();
   })()`);
   await waitFor(activeTab, (t) => t.url.startsWith('nude://newtab'));
@@ -119,6 +127,20 @@ test('first run shows the welcome page, and signing up greets you by name', asyn
   assert.match(hello, /Good (morning|afternoon|evening|night), Simon/);
   const acct = await ui.evaluate(() => (window as unknown as { __lastState: { account: { name: string } | null } }).__lastState.account);
   assert.equal(acct?.name, 'Simon Tester');
+});
+
+test('account centre: your Nude ID, this computer under Devices, and the phone code needs approval', async () => {
+  await inPage('nude://newtab', "location.href = 'nude://account/'");
+  await waitFor(activeTab, (t) => t.url.startsWith('nude://account'));
+  const text = await waitFor(() => inPage<string>('nude://account', 'document.body.innerText'), (x) => /This computer/.test(x) && /Created simon\.tester@nude|Nude ID simon\.tester@nude created/.test(x));
+  assert.match(text, /simon\.tester@nude/);
+  // The Nude Companion code: a QR that is single-use and waits for this computer to approve.
+  await inPage('nude://account', "document.getElementById('link-phone').click()");
+  const qr = await waitFor(() => inPage<string>('nude://account', "document.querySelector('#link-body .qr svg') ? 'yes' : ''"), Boolean);
+  assert.equal(qr, 'yes');
+  await inPage('nude://account', "document.getElementById('link-close').click()");
+  await inPage('nude://account', "location.href = 'nude://newtab/'");
+  await waitFor(activeTab, (t) => t.url.startsWith('nude://newtab'));
 });
 
 test('homepage: the wallpaper loads, a new choice is kept, and the search bar opens addresses', async () => {

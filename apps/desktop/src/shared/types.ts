@@ -27,6 +27,8 @@ export interface Settings {
   protectionLevel: ProtectionLevel;
   /** Nude services. Empty = local development defaults. */
   searchServerUrl: string;
+  /** Nude Accounts (Nude IDs). */
+  accountsServerUrl: string;
   aiGatewayUrl: string;
   threatIntelUrl: string;
   serviceToken: string;
@@ -69,6 +71,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accentColor: '',
   protectionLevel: 'standard',
   searchServerUrl: 'http://127.0.0.1:8787',
+  accountsServerUrl: 'https://nude-accounts.onrender.com',
   aiGatewayUrl: 'http://127.0.0.1:8790',
   threatIntelUrl: 'http://127.0.0.1:8791',
   serviceToken: '',
@@ -217,7 +220,7 @@ export interface AiSource { id: string; kind: 'page' | 'selection' | 'tab' | 'fi
 
 export interface PageProduct { name: string; price?: string; currency?: string; image?: string; url?: string; rating?: string }
 
-export interface AccountInfo { id: string; name: string; firstName: string; email: string; color: string; photo?: string; initials: string }
+export interface AccountInfo { id: string; name: string; firstName: string; nudeId: string; color: string; photo?: string; initials: string }
 
 export interface FindState {
   open: boolean;

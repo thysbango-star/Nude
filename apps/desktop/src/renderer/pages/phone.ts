@@ -9,7 +9,7 @@ const APPS: Record<LinkApp, { name: string; icon: string; verb: string; steps: s
   passgate: {
     name: 'PassGate', icon: '<span class="app-ic pg"><img src="passgate-mark.svg" alt=""></span>', verb: 'Sign in to PassGate',
     steps: ['Open PassGate on your phone.', 'Tap <b>Scan code on your PC</b>.', 'Point your camera at this code.'],
-    shares: 'Your verified name, email and Rovian ID, the accounts on this PC and Nude’s sign-in activity. Never passwords, sign-in tokens or browsing history.',
+    shares: 'Your name and Nude ID, the Nude IDs on this PC and Nude’s sign-in activity. Never passwords, sign-in tokens or browsing history.',
   },
   defender: {
     name: 'Rovian Defender', icon: '<span class="app-ic rd"><img src="rovian-mark.svg" alt=""></span>', verb: 'Link Rovian Defender',
