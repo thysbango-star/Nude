@@ -60,7 +60,7 @@ export class NudeId {
     const j = await r.json().catch(() => ({})) as T & { error?: string; code?: string };
     if (!r.ok) {
       if (r.status === 401 && accountId && j.code === 'signed_out') this.forget(accountId);
-      throw new NudeIdError(j.error ?? `Nude Accounts answered ${r.status}.`, j.code ?? 'error', r.status);
+      throw new NudeIdError(j.error ?? serverProblem(r.status, new URL(this.base).host), j.code ?? 'error', r.status);
     }
     return j;
   }
@@ -106,4 +106,11 @@ export class NudeId {
   syncGet(id: string, space: string, since: number) { return this.call<{ items: { key: string; t: number; value: unknown }[]; now: number; more: boolean }>('GET', `/v1/sync/${space}?since=${since}`, undefined, id); }
   syncPut(id: string, space: string, key: string, value: unknown) { return this.call<{ t: number }>('PUT', `/v1/sync/${space}/${encodeURIComponent(key)}`, { value }, id); }
   syncDelete(id: string, space: string, key: string) { return this.call<{ t: number }>('DELETE', `/v1/sync/${space}/${encodeURIComponent(key)}`, undefined, id); }
+}
+
+/** What to tell you when the reply isn't from Nude Accounts itself (no JSON error of its own). */
+export function serverProblem(status: number, host: string): string {
+  if (status === 404) return `There's no Nude Accounts server at ${host}. Check the address in Settings → Nude Accounts server (on Render it's the URL of your nude-accounts service).`;
+  if (status === 502 || status === 503 || status === 504) return `Nude Accounts at ${host} is starting up or unavailable (free Render servers sleep when idle). Try again in a minute.`;
+  return `Nude Accounts at ${host} answered ${status}. Try again in a moment.`;
 }

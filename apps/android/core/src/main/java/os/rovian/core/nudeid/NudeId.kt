@@ -42,6 +42,14 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
     /** Forget this phone's sign-in (after signing out, or when the server says the device was signed out). */
     fun forget() { state = JSONObject().put("server", state.optString("server")); save() }
 
+    /** Uses another Nude Accounts server (signed out only). Blank goes back to the default. Returns false if the address isn't valid. */
+    fun useServer(url: String): Boolean {
+        val u = url.trim().trimEnd('/')
+        if (u.isNotEmpty() && !Regex("^https://[A-Za-z0-9.-]+(:\\d+)?(/.*)?$").matches(u) && !Regex("^http://(10|127|192\\.168|172\\.(1[6-9]|2\\d|3[01]))\\.[0-9.]+(:\\d+)?$").matches(u)) return false
+        state = JSONObject().put("server", u); save()
+        return true
+    }
+
     private fun device() = JSONObject().put("name", deviceName()).put("platform", "Android ${Build.VERSION.RELEASE}").put("app", app)
 
     private fun call(method: String, path: String, body: JSONObject? = null, auth: Boolean = false, base: String = server, raw: ByteArray? = null, rawType: String? = null): JSONObject {
@@ -66,7 +74,7 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
             val j = runCatching { JSONObject(text.ifBlank { "{}" }) }.getOrDefault(JSONObject())
             if (code !in 200..299) {
                 if (code == 401 && auth && j.optString("code") == "signed_out") forget()
-                throw NudeIdError(j.optString("error").ifBlank { "Nude Accounts answered $code." }, j.optString("code").ifBlank { "error" }, code)
+                throw NudeIdError(j.optString("error").ifBlank { serverProblem(code, runCatching { URL(base).host }.getOrDefault(base)) }, j.optString("code").ifBlank { "error" }, code)
             }
             return j
         } catch (e: IOException) {
@@ -163,6 +171,13 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
                 require(j.getString("k").startsWith("nls_"))
                 LinkCode(s, j.getString("i"), j.getString("k"))
             }.getOrNull()
+        }
+
+        /** What to say when the reply isn't from Nude Accounts itself (no error of its own). */
+        fun serverProblem(code: Int, host: String): String = when (code) {
+            404 -> "There's no Nude Accounts server at $host. Check the address in Settings → Nude Accounts server (on Render it's the URL of your nude-accounts service)."
+            502, 503, 504 -> "Nude Accounts at $host is starting up or unavailable (free Render servers sleep when idle). Try again in a minute."
+            else -> "Nude Accounts at $host answered $code. Try again in a moment."
         }
 
         fun deviceName(): String = "${Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${Build.MODEL}".trim().take(60)

@@ -764,6 +764,7 @@ private fun SettingsPage(browser: Browser) {
         } }
         AppearanceSettings(store) { activity.recreate() }
         NebulaSettings(store)
+        AccountsServerSetting()
         SectionTitle("Nude services")
         Text("Nebula and Nude Search run on Nude servers. Enter their addresses here (API keys stay on the server).", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(gateway, { gateway = it; store.aiGateway = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nebula gateway") }, placeholder = { Text("https://ai.example.com") }, singleLine = true)
@@ -774,6 +775,25 @@ private fun SettingsPage(browser: Browser) {
         SectionTitle("About")
         Text("Nude ${BuildConfig.VERSION_NAME} for Android · Engine: Android System WebView (Chromium)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(32.dp))
+    }
+}
+
+/** Where your Nude ID lives. Can be changed only while signed out (your sign-in belongs to one server). */
+@Composable
+private fun AccountsServerSetting() {
+    val accounts = (LocalContext.current.applicationContext as NudeApplication).accounts
+    var url by remember { mutableStateOf(accounts.id.server) }
+    var note by remember { mutableStateOf<String?>(null) }
+    SectionTitle("Nude Accounts server")
+    if (accounts.current != null) {
+        Text("${accounts.id.server.removePrefix("https://")} · sign out to change it.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    } else {
+        OutlinedTextField(url, { url = it; note = null }, Modifier.fillMaxWidth(), label = { Text("Address") }, placeholder = { Text("https://nude-accounts.onrender.com") }, singleLine = true)
+        Row {
+            TextButton({ note = if (accounts.id.useServer(url)) "Saved. Sign in again to use it." else "That isn't a valid address. It should start with https://" }) { Text("Save") }
+            TextButton({ accounts.id.useServer(""); url = accounts.id.server; note = "Back to the default server." }) { Text("Use default") }
+        }
+        note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 

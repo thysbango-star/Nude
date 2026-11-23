@@ -189,11 +189,17 @@ class CompanionActivity : ComponentActivity() {
         var user by remember { mutableStateOf("") }
         var pw by remember { mutableStateOf("") }
         var busy by remember { mutableStateOf(false) }
+        var server by remember { mutableStateOf(id.server) }
+        var editServer by remember { mutableStateOf(false) }
         GlassCard(Modifier.fillMaxWidth()) {
             GlassField(user, { user = it.lowercase().replace(" ", "") }, "Nude ID", suffix = "@nude")
             GlassField(pw, { pw = it }, "Password", secret = true)
+            Text("Server: ${server.removePrefix("https://")} · ${if (editServer) "Done" else "Change"}", color = c.faint, fontSize = 12.sp,
+                modifier = Modifier.padding(top = 8.dp).clickable { editServer = !editServer })
+            if (editServer) GlassField(server, { server = it.trim() }, "Nude Accounts server")
             Spacer(Modifier.height(12.dp))
             GlassButton(if (busy) "Signing in…" else "Sign in", {
+                if (server.trimEnd('/') != id.server && !id.useServer(server)) { onError("That isn't a valid server address. It should start with https://"); return@GlassButton }
                 busy = true; onError(null)
                 scope.launch {
                     try { account.value = withContext(Dispatchers.IO) { id.signIn(user.removeSuffix("@nude"), pw) } }
