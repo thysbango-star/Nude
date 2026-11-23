@@ -75,6 +75,14 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   return out;
 }
 
+/** Fixes settings saved by older versions. */
+export function migrateSettings(s: Settings): Settings {
+  // The old default Nude Accounts address (a Render server that never existed). Nude Accounts is now hosted on
+  // your own computer (Settings → Host Nude services), so forget it.
+  if (/^https:\/\/nude-accounts\.onrender\.com\/?$/i.test(s.accountsServerUrl)) s = { ...s, accountsServerUrl: '' };
+  return s;
+}
+
 export class Profile extends EventEmitter {
   readonly settings: JsonStore<Settings>;
   readonly bookmarks: JsonStore<Bookmark[]>;
@@ -90,7 +98,7 @@ export class Profile extends EventEmitter {
   constructor(readonly dir: string) {
     super();
     this.settings = new JsonStore(join(dir, 'settings.json'), () => ({ ...DEFAULT_SETTINGS }), 200,
-      (raw) => ({ ...DEFAULT_SETTINGS, ...sanitizeSettingsPatch(raw) }));
+      (raw) => migrateSettings({ ...DEFAULT_SETTINGS, ...sanitizeSettingsPatch(raw) }));
     this.bookmarks = new JsonStore<Bookmark[]>(join(dir, 'bookmarks.json'), () => []);
     this.history = new JsonStore<HistoryEntry[]>(join(dir, 'history.json'), () => [], 2000);
     this.shortcuts = new JsonStore<Shortcut[]>(join(dir, 'shortcuts.json'), () => DEFAULT_SHORTCUTS.map((s) => ({ ...s })));

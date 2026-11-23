@@ -25,3 +25,10 @@ test('host: explains why the tunnel stopped', () => {
   assert.match(tunnelProblem('failed to request quick Tunnel: Post "https://api.trycloudflare.com/tunnel": dial tcp: lookup api.trycloudflare.com: no such host'), /couldn't give this computer a public address/);
   assert.equal(tunnelProblem(''), 'The public address went away.');
 });
+
+test('settings: the old Render accounts address is forgotten', async () => {
+  const { migrateSettings } = await import('../../src/main/profile');
+  const { DEFAULT_SETTINGS } = await import('../../src/shared/types');
+  assert.equal(migrateSettings({ ...DEFAULT_SETTINGS, accountsServerUrl: 'https://nude-accounts.onrender.com' }).accountsServerUrl, '');
+  assert.equal(migrateSettings({ ...DEFAULT_SETTINGS, accountsServerUrl: 'https://my-pc.tail1.ts.net' }).accountsServerUrl, 'https://my-pc.tail1.ts.net');
+});

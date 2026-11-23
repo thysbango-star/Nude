@@ -33,6 +33,11 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
     private val vault = SecureFile(ctx, "nude-id-$app", "nude-id-$app.json")
     private var state: JSONObject = runCatching { JSONObject(vault.read() ?: "{}") }.getOrDefault(JSONObject())
 
+    init {
+        // Older versions defaulted to a Render server that never existed; forget it (and the sign-in made against it).
+        if (Regex("^https://nude-accounts\\.onrender\\.com/?$", RegexOption.IGNORE_CASE).matches(state.optString("server"))) { state = JSONObject(); save() }
+    }
+
     val server: String get() = state.optString("server").ifBlank { defaultServer }.trimEnd('/')
     val account: NudeAccount? get() = state.optJSONObject("account")?.let { runCatching { NudeAccount.from(it) }.getOrNull() }
     val signedIn: Boolean get() = state.optString("token").isNotBlank() && account != null
