@@ -40,4 +40,5 @@ Rules every app follows:
 
 ## Status
 - Nude for Windows: Groq engine and chat sync — done.
-- Nude for Android and the Nebula app: next (they need the same Nude ID sign-in and this sync space).
+- Nude for Android: Groq engine (Settings → Nebula) and chat sync (Nebula → Chats) — done.
+- The Nebula app: next (it needs the same Nude ID sign-in and this sync space).

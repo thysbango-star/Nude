@@ -33,6 +33,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -65,7 +66,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-private enum class NebulaSection(val label: String) { ASK("Ask"), SPACES("Spaces"), MODES("Modes") }
+private enum class NebulaSection(val label: String) { ASK("Ask"), CHATS("Chats"), SPACES("Spaces"), MODES("Modes") }
 
 private data class Quick(val label: String, val prompt: String, val page: Boolean)
 
@@ -141,7 +142,11 @@ private fun NebulaPanel(browser: Browser, onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val tab = browser.active
     val activity = LocalContext.current as MainActivity
-    val accounts = (LocalContext.current.applicationContext as NudeApplication).accounts
+    val nudeApp = LocalContext.current.applicationContext as NudeApplication
+    val accounts = nudeApp.accounts
+    val groq = nudeApp.groq
+    val chats = nudeApp.chats
+    LaunchedEffect(accounts.current?.id) { chats.sync() }
     val dark = when (store.theme) { "dark" -> true; "light" -> false; else -> isSystemInDarkTheme() }
     val messages = remember { NebulaMemory.messages }
     var input by remember { mutableStateOf("") }
@@ -173,23 +178,26 @@ private fun NebulaPanel(browser: Browser, onDismiss: () -> Unit) {
                     .put("content", JSONObject().put("action", v.action.name).put("confirmed", v.confirmed).put("signals", v.signals.joinToString("; ") { it.message }).toString())
                 used += title
             }
-            if (store.aiGateway.isBlank()) {
+            val useGroq = groq.hasKey && (store.nebulaEngine == "groq" || store.aiGateway.isBlank())
+            if (!useGroq && store.aiGateway.isBlank()) {
                 val local = NudeAi.localAnswer(text, tab?.url, store.level)
                 messages += if (local != null) ChatMessage("assistant", local, note = "Answered on your phone by Rovian Defender.")
-                else ChatMessage("assistant", "Nebula isn't set up yet. Add your Nebula gateway address in Settings → Nude services (see docs/NEBULA_SETUP.md). Safety questions like \"Is this website safe?\" work without it.", error = true)
+                else ChatMessage("assistant", "Nebula isn't set up yet. Add your Groq key in Settings → Nebula (free at console.groq.com), the same engine as the Nebula app. Safety questions like \"Is this website safe?\" work without it.", error = true)
                 busy = false
                 return@launch
             }
             messages += ChatMessage("assistant", "", sources = used)
             val idx = messages.lastIndex
-            val r = NudeAi.ask(store.aiGateway, store.serviceToken, messages.dropLast(1), sources, mode = mode, speed = speed) { delta ->
-                activity.runOnUiThread { if (idx < messages.size) messages[idx] = messages[idx].copy(text = messages[idx].text + delta) }
-            }
+            val onDelta: (String) -> Unit = { delta -> activity.runOnUiThread { if (idx < messages.size) messages[idx] = messages[idx].copy(text = messages[idx].text + delta) } }
+            val r = if (useGroq) groq.ask(messages.dropLast(1), sources, mode, speed, onDelta)
+                else NudeAi.ask(store.aiGateway, store.serviceToken, messages.dropLast(1), sources, mode = mode, speed = speed, onDelta = onDelta)
             r.onFailure { e ->
                 val local = NudeAi.localAnswer(text, tab?.url, store.level)
                 if (idx < messages.size) messages[idx] = if (local != null) ChatMessage("assistant", local, note = "Answered on your phone — Nebula isn't reachable.")
                 else ChatMessage("assistant", "Nebula isn't reachable (${e.message}).", error = true)
             }
+            // Saved and synced to your other devices, except in private tabs.
+            if (r.isSuccess && tab?.isPrivate != true) NebulaMemory.chatId = chats.save(NebulaMemory.chatId, messages.toList())
             busy = false
         }
     }
@@ -223,7 +231,7 @@ private fun NebulaPanel(browser: Browser, onDismiss: () -> Unit) {
                 NebulaOrb(22.dp, spinning = busy)
                 Spacer(Modifier.width(10.dp))
                 Text("Nebula", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = ink, modifier = Modifier.weight(1f))
-                if (messages.isNotEmpty()) IconButton({ messages.clear() }) { Icon(Icons.Default.Edit, "New conversation", tint = sub) }
+                if (messages.isNotEmpty()) IconButton({ messages.clear(); NebulaMemory.chatId = null; section = NebulaSection.ASK }) { Icon(Icons.Default.Edit, "New conversation", tint = sub) }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NebulaSection.entries.forEach { s ->
@@ -259,6 +267,9 @@ private fun NebulaPanel(browser: Browser, onDismiss: () -> Unit) {
                         itemsIndexed(messages) { i, m -> NebulaMessage(m, ink, sub, busy && i == messages.lastIndex) }
                         item { Spacer(Modifier.height(8.dp)) }
                     }
+                    NebulaSection.CHATS -> ChatsView(chats, accounts.current != null, ink, sub, onOpen = { c ->
+                        messages.clear(); messages.addAll(c.messages); NebulaMemory.chatId = c.id; section = NebulaSection.ASK
+                    }, onDelete = { c -> scope.launch { chats.remove(c.id); if (NebulaMemory.chatId == c.id) { NebulaMemory.chatId = null; messages.clear() } } })
                     NebulaSection.SPACES -> SpacesView(browser, ink, sub, onPick = { t -> browser.activeId = t.id; onDismiss() })
                     NebulaSection.MODES -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         MODE_INFO.forEach { (key, info) ->
@@ -372,4 +383,32 @@ internal object NebulaMemory {
     val messages = mutableStateListOf<ChatMessage>()
     /** A question typed in the address bar, sent when Nebula opens. */
     var pending: String? = null
+    /** The saved chat the current conversation belongs to, or null for a new one. */
+    var chatId: String? = null
+}
+
+@Composable
+private fun ChatsView(chats: NebulaChats, signedIn: Boolean, ink: Color, sub: Color, onOpen: (SavedChat) -> Unit, onDelete: (SavedChat) -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Text(if (signedIn) "Your conversations from Nude on every device and the Nebula app." else "Saved on this phone. Sign in with your Nude ID to see them on your computer too.",
+                color = sub, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
+        }
+        if (chats.chats.isEmpty()) item { Text("No conversations yet.", color = sub, fontSize = 14.sp, modifier = Modifier.padding(top = 20.dp)) }
+        items(chats.chats, key = { it.id }) { c ->
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(ink.copy(alpha = 0.05f)).clickable { onOpen(c) }.padding(start = 14.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(c.title, color = ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text("${chatSource(c.source)} · ${android.text.format.DateUtils.getRelativeTimeSpanString(c.updated)}", color = sub, fontSize = 12.sp)
+                }
+                IconButton({ onDelete(c) }) { Icon(Icons.Default.Delete, "Delete conversation", tint = sub) }
+            }
+        }
+    }
+}
+
+private fun chatSource(s: String) = when (s) {
+    "nude-android" -> "Nude on this phone"; "nude-desktop" -> "Nude on your computer"
+    "nebula-android", "nebula-desktop" -> "Nebula app"; else -> "Another device"
 }

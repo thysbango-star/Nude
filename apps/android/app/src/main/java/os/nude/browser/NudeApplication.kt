@@ -9,11 +9,17 @@ class NudeApplication : Application() {
         private set
     lateinit var accounts: Accounts
         private set
+    lateinit var groq: GroqNebula
+        private set
+    lateinit var chats: NebulaChats
+        private set
 
     override fun onCreate() {
         super.onCreate()
         store = Store(this)
         accounts = Accounts(this)
+        groq = GroqNebula(this)
+        chats = NebulaChats(this, accounts.id)
         Security.trusted.addAll(store.trusted())
     }
 }

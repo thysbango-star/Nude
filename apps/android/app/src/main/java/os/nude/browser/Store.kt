@@ -48,6 +48,11 @@ class Store(context: Context) {
         get() = prefs.getString("mode", "everyday")!!
         set(v) = prefs.edit().putString("mode", v).apply()
     /** Nebula answer speed: auto, fast or thorough. */
+    /** Where Nebula runs: "groq" (your own Groq key, like the Nebula app) or "gateway" (a Nebula gateway address). */
+    var nebulaEngine: String
+        get() = prefs.getString("nebulaEngine", "groq")!!
+        set(v) = prefs.edit().putString("nebulaEngine", v).apply()
+
     var nebulaSpeed: String
         get() = prefs.getString("nebulaSpeed", "auto")!!
         set(v) = prefs.edit().putString("nebulaSpeed", v).apply()

@@ -763,6 +763,7 @@ private fun SettingsPage(browser: Browser) {
             FilterChip(theme == k, { theme = k; store.theme = k; activity.recreate() }, { Text(l) }, Modifier.padding(end = 8.dp))
         } }
         AppearanceSettings(store) { activity.recreate() }
+        NebulaSettings(store)
         SectionTitle("Nude services")
         Text("Nebula and Nude Search run on Nude servers. Enter their addresses here (API keys stay on the server).", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedTextField(gateway, { gateway = it; store.aiGateway = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nebula gateway") }, placeholder = { Text("https://ai.example.com") }, singleLine = true)
@@ -774,6 +775,42 @@ private fun SettingsPage(browser: Browser) {
         Text("Nude ${BuildConfig.VERSION_NAME} for Android · Engine: Android System WebView (Chromium)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(32.dp))
     }
+}
+
+/** Where Nebula runs. Groq with your own key is the same engine as the Nebula app and Nude for Windows. */
+@Composable
+private fun NebulaSettings(store: Store) {
+    val groq = (LocalContext.current.applicationContext as NudeApplication).groq
+    val scope = rememberCoroutineScope()
+    var engine by remember { mutableStateOf(store.nebulaEngine) }
+    var hint by remember { mutableStateOf(groq.hint) }
+    var key by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    SectionTitle("Nebula")
+    Text("Where Nebula runs", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(Modifier.padding(top = 6.dp)) {
+        listOf("groq" to "Groq (like the Nebula app)", "gateway" to "Nebula gateway").forEach { (k, l) ->
+            FilterChip(engine == k, { engine = k; store.nebulaEngine = k }, { Text(l) }, Modifier.padding(end = 8.dp))
+        }
+    }
+    if (engine == "groq") {
+        if (hint != null) {
+            Text("Groq key $hint · model ${groq.model}", fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            TextButton({ groq.removeKey(); hint = null }) { Text("Remove key") }
+        } else {
+            Text("Paste your Groq key (free at console.groq.com → API Keys). It's checked with Groq, kept encrypted on this phone and sent only to Groq.",
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+            OutlinedTextField(key, { key = it; error = null }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Groq key") }, placeholder = { Text("gsk_…") },
+                singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation())
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp)) }
+            Button({ busy = true; scope.launch { error = groq.setKey(key); busy = false; if (error == null) { key = ""; hint = groq.hint } } }, Modifier.padding(top = 8.dp), enabled = !busy && key.isNotBlank()) {
+                Text(if (busy) "Checking…" else "Save key")
+            }
+        }
+    }
+    Text("Signed in with your Nude ID, your Nebula conversations sync with Nude on your computer and the Nebula app. Private tabs never save them.",
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
 }
 
 @Composable

@@ -12,7 +12,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.coroutines.resume
 
-data class ChatMessage(val role: String, val text: String, val sources: List<String> = emptyList(), val note: String? = null, val error: Boolean = false)
+data class ChatMessage(val role: String, val text: String, val sources: List<String> = emptyList(), val note: String? = null, val error: Boolean = false, val t: Long = System.currentTimeMillis())
 
 /**
  * Nebula (AI) client. Page text is sent only when the user turns on "Share this page".

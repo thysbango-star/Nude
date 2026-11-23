@@ -137,6 +137,13 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
         val items = j.getJSONArray("items").objects().map { Triple(it.getString("key"), it.getLong("t"), if (it.isNull("value")) null else it.get("value")) }
         return items to j.optLong("now")
     }
+    /** One page of a sync space; `more` is true when the server has further items after these. */
+    data class SyncPage(val items: List<Triple<String, Long, Any?>>, val now: Long, val more: Boolean)
+    fun syncPage(space: String, since: Long): SyncPage {
+        val j = call("GET", "/v1/sync/$space?since=$since", auth = true)
+        val items = j.getJSONArray("items").objects().map { Triple(it.getString("key"), it.getLong("t"), if (it.isNull("value")) null else it.get("value")) }
+        return SyncPage(items, j.optLong("now"), j.optBoolean("more"))
+    }
     fun syncPut(space: String, key: String, value: Any) { call("PUT", "/v1/sync/$space/$key", JSONObject().put("value", value), auth = true) }
     fun syncDelete(space: String, key: String) { call("DELETE", "/v1/sync/$space/$key", auth = true) }
 
