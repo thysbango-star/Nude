@@ -18,6 +18,7 @@ import { Accounts } from './accounts';
 import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { NudeId, NudeIdError } from './nude-id';
 import { GroqNebula } from './groq-nebula';
+import { NudeHost, hostDir, LOCAL_URL } from './host';
 import { fillLogin } from './passgate-fill';
 import { NebulaChats, type ChatMessage } from './nebula-chats';
 import { JsonStore } from './store';
@@ -55,6 +56,7 @@ export class NudeApp {
   private passgateCancel: (() => void) | null = null;
   /** Nebula on Groq (the Nebula app's engine) and the synced conversations. */
   groq!: GroqNebula;
+  host!: NudeHost;
   chats!: NebulaChats;
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
@@ -107,7 +109,15 @@ export class NudeApp {
     this.localNebula = new LocalNebula(dir, () => this.broadcast({ topic: 'nebula' }));
     this.accounts = new Accounts(dir);
     this.groq = new GroqNebula(dir, (url, init) => net.fetch(String(url), init as RequestInit) as never);
-    this.nudeId = new NudeId(dir, () => process.env.NUDE_ACCOUNTS_URL || this.profile.settings.get().accountsServerUrl, (url, init) => net.fetch(url, init as RequestInit));
+    this.host = new NudeHost(hostDir(dir), async (url) => {
+      const r = await net.fetch(url, { signal: AbortSignal.timeout(300_000) });
+      if (!r.ok) throw new Error(`The tunnel download failed (${r.status}). Try again later.`);
+      return Buffer.from(await r.arrayBuffer());
+    });
+    this.host.on('status', () => this.broadcast({ topic: 'host' }));
+    // While this computer hosts Nude services, your Nude ID lives on its own server.
+    this.nudeId = new NudeId(dir, () => process.env.NUDE_ACCOUNTS_URL || (this.profile.settings.get().hostEnabled ? LOCAL_URL : this.profile.settings.get().accountsServerUrl),
+      (url, init) => net.fetch(url, init as RequestInit));
     this.chats = new NebulaChats(dir, this.nudeId, () => this.accounts.currentRaw()?.id ?? null);
     this.phoneLink = new PhoneLink(dir, { identity: (d) => this.phoneIdentity(d), report: (d) => this.phoneReport(d) },
       safeStorage.isEncryptionAvailable()
@@ -154,6 +164,7 @@ export class NudeApp {
     this.setupSession(this.persistSession, false, null);
     this.registerIpc();
     void this.security.updateLists();
+    this.applyHost();
 
     const saved = this.profile.session.get();
     const settings = this.profile.settings.get();
@@ -239,6 +250,13 @@ export class NudeApp {
     else this.profile.session.set((s) => s); // keep the last window's tabs when it closed
   }
 
+  /** Starts, restarts or stops hosting to match Settings. */
+  applyHost() {
+    const s = this.profile.settings.get();
+    if (s.hostEnabled) void this.host.start(s.hostAddress, s.hostOwnUrl);
+    else if (this.host.running || this.host.status.state !== 'off') this.host.stop();
+  }
+
   async shutdown() {
     this.quitting = true;
     this.saveSessionNow();
@@ -251,6 +269,7 @@ export class NudeApp {
     this.phoneLink.flush();
     this.chats?.flush();
     this.groq?.stop();
+    this.host?.stop();
     this.phoneLink.stop();
     this.profile.flushAll();
   }
@@ -398,6 +417,12 @@ export class NudeApp {
     });
     const photoOf = async (url: string | null) => (url ? (await this.fetchAvatar(url)) ?? undefined : null);
     switch (cmd) {
+      case 'account.hostHere': {
+        // From the welcome page when there's no server yet: host Nude Accounts on this computer.
+        this.profile.updateSettings({ hostEnabled: true });
+        this.applyHost();
+        return { ok: true };
+      }
       case 'account.status': return ok(this.nudeId.status().then((x) => ({ persistent: x.persistent, server: this.nudeId.base })));
       case 'account.available': return ok(this.nudeId.available(str(a[0], 40).toLowerCase()));
       case 'account.signUp': return ok((async () => {
@@ -856,7 +881,14 @@ export class NudeApp {
           return;
         }
         case 'settings.get': return { settings: p.settings.get(), engines: Object.values(SEARCH_ENGINES).map((x) => ({ id: x.id, name: x.name })), levels: PROTECTION_LEVELS, private: isPrivate, version: app.getVersion(), chrome: process.versions.chrome, electron: process.versions.electron, platform: process.platform, isDefault: app.isDefaultProtocolClient('https'), shortcuts: SHORTCUT_HELP };
-        case 'settings.set': return p.updateSettings(a[0]);
+        case 'settings.set': {
+          const before = p.settings.get();
+          const r = p.updateSettings(a[0]);
+          const after = p.settings.get();
+          if (before.hostEnabled !== after.hostEnabled || before.hostAddress !== after.hostAddress || before.hostOwnUrl !== after.hostOwnUrl) this.applyHost();
+          return r;
+        }
+        case 'host.status': return { ...this.host.status, accounts: this.host.accountCount() };
         case 'nebula.groq': if (page !== 'settings') throw new Error('Unauthorized'); return { hasKey: this.groq.hasKey, hint: this.groq.hint };
         case 'nebula.groqSet': {
           if (page !== 'settings') throw new Error('Unauthorized');

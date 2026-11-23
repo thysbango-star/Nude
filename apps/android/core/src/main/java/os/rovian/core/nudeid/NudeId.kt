@@ -53,6 +53,8 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
     private fun device() = JSONObject().put("name", deviceName()).put("platform", "Android ${Build.VERSION.RELEASE}").put("app", app)
 
     private fun call(method: String, path: String, body: JSONObject? = null, auth: Boolean = false, base: String = server, raw: ByteArray? = null, rawType: String? = null): JSONObject {
+        if (!base.startsWith("https://") && !base.startsWith("http://")) throw NudeIdError(
+            "No Nude Accounts server is set yet. Scan the code from Nude on your computer, or enter the address it shows under Settings → Host Nude services.", "no_server")
         val c = (URL(base + path).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15_000; readTimeout = 20_000
@@ -156,7 +158,8 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
     fun syncDelete(space: String, key: String) { call("DELETE", "/v1/sync/$space/$key", auth = true) }
 
     companion object {
-        const val DEFAULT_SERVER = "https://nude-accounts.onrender.com"
+        /** No built-in server: Nude Accounts runs on your own computer (Nude → Settings → Host Nude services). */
+        const val DEFAULT_SERVER = ""
 
         /** Reads the code Nude shows on a signed-in computer: NUDEID1:{"s":server,"i":id,"k":secret}. */
         fun parseLink(text: String): LinkCode? {
@@ -175,8 +178,8 @@ class NudeId(ctx: Context, private val app: String, private val defaultServer: S
 
         /** What to say when the reply isn't from Nude Accounts itself (no error of its own). */
         fun serverProblem(code: Int, host: String): String = when (code) {
-            404 -> "There's no Nude Accounts server at $host. Check the address in Settings → Nude Accounts server (on Render it's the URL of your nude-accounts service)."
-            502, 503, 504 -> "Nude Accounts at $host is starting up or unavailable (free Render servers sleep when idle). Try again in a minute."
+            404 -> "There's no Nude Accounts server at $host. Check the address in Settings → Nude Accounts server, or check that the Nude Accounts service is running on your server."
+            502, 503, 504 -> "Nude Accounts at $host is starting up or unavailable. Try again in a minute."
             else -> "Nude Accounts at $host answered $code. Try again in a moment."
         }
 

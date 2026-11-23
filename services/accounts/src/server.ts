@@ -13,7 +13,12 @@ import {
 import { discovery, jwt, redirectAllowed, s256, signingKey, type SigningKey } from './oidc';
 import { authorizePage, homePage, messagePage } from './pages';
 
-export interface Options { db: Db; issuer: string; adminToken?: string; persistent: boolean; now?: () => number }
+/**
+ * issuer is the public address (it may change while running: the Nude desktop app's host mode sets it when its
+ * tunnel comes up). trustProxy: the server sits behind a tunnel on this machine, so the visitor's address comes
+ * from the tunnel's header rather than the socket.
+ */
+export interface Options { db: Db; issuer: string; adminToken?: string; persistent: boolean; now?: () => number; trustProxy?: boolean }
 
 interface Device { name: string; platform: string; app: string }
 const APPS = new Set(['browser', 'companion', 'passgate', 'nebula', 'web', 'other']);
@@ -33,7 +38,8 @@ export function createAccountsServer(o: Options) {
   const fails = new Limiter();
   const links = new Map<string, { user: string; secret: string; expires: number; state: 'waiting' | 'claimed' | 'approved' | 'denied' | 'done'; claim?: string; device?: Device; token?: string }>();
   const forms = new Map<string, { params: AuthParams; expires: number }>();
-  const secureCookie = o.issuer.startsWith('https://');
+  const secureCookie = () => o.issuer.startsWith('https://');
+  const ipOf = (req: IncomingMessage) => visitorIp(req, o.trustProxy);
 
   // ---------------------------------------------------------------- helpers
 
@@ -367,7 +373,7 @@ export function createAccountsServer(o: Options) {
       const token = startSession(user, { name: 'Web browser', platform: String(req.headers['user-agent'] ?? '').slice(0, 40), app: 'web' }, ipOf(req));
       log(user.id, 'signin', `Signed in to ${a.clientName} with Sign in with Nude`, 'Web browser', ipOf(req));
       forms.delete(b.get('form')!);
-      res.setHeader('set-cookie', `nude_sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}${secureCookie ? '; Secure' : ''}`);
+      res.setHeader('set-cookie', `nude_sid=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}${secureCookie() ? '; Secure' : ''}`);
       return finish(res, a, user);
     } catch (e) {
       if (!(e instanceof HttpError)) throw e;
@@ -455,9 +461,12 @@ async function json(req: IncomingMessage): Promise<Record<string, unknown>> {
   try { const v = JSON.parse(body.toString('utf8') || '{}'); return v && typeof v === 'object' ? v : {}; } catch { throw new HttpError(400, 'Send JSON.'); }
 }
 
-function ipOf(req: IncomingMessage): string | null {
-  // Render puts the visitor's address first in X-Forwarded-For.
-  const fwd = process.env.RENDER ? String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '';
+function visitorIp(req: IncomingMessage, trustProxy?: boolean): string | null {
+  // Behind a proxy (a hosting platform, or a tunnel on this machine) the visitor's address is in a header;
+  // only believed when the connection itself comes from that proxy.
+  const local = /^(::1|127\.|::ffff:127\.)/.test(req.socket.remoteAddress ?? '');
+  const fwd = process.env.RENDER || (trustProxy && local)
+    ? String(req.headers['cf-connecting-ip'] ?? req.headers['x-forwarded-for'] ?? '').split(',')[0].trim() : '';
   return coarseIp(fwd || req.socket.remoteAddress);
 }
 

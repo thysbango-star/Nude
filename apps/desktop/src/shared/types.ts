@@ -35,8 +35,12 @@ export interface Settings {
   protectionLevel: ProtectionLevel;
   /** Nude services. Empty = local development defaults. */
   searchServerUrl: string;
-  /** Nude Accounts (Nude IDs). */
+  /** Nude Accounts (Nude IDs). Ignored while this computer hosts Nude services (it uses its own server). */
   accountsServerUrl: string;
+  /** Host Nude services: run Nude Accounts on this computer, reachable through a tunnel or your own address. */
+  hostEnabled: boolean;
+  hostAddress: 'quick' | 'own';
+  hostOwnUrl: string;
   aiGatewayUrl: string;
   threatIntelUrl: string;
   serviceToken: string;
@@ -83,7 +87,10 @@ export const DEFAULT_SETTINGS: Settings = {
   accentColor: '',
   protectionLevel: 'standard',
   searchServerUrl: 'http://127.0.0.1:8787',
-  accountsServerUrl: 'https://nude-accounts.onrender.com',
+  accountsServerUrl: '',
+  hostEnabled: false,
+  hostAddress: 'quick',
+  hostOwnUrl: '',
   aiGatewayUrl: 'http://127.0.0.1:8790',
   threatIntelUrl: 'http://127.0.0.1:8791',
   serviceToken: '',
@@ -314,5 +321,5 @@ export interface ClearDataOptions {
 }
 
 export interface InternalEvent {
-  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes' | 'nebula' | 'phone';
+  topic: 'settings' | 'bookmarks' | 'history' | 'downloads' | 'permissions' | 'shortcuts' | 'security' | 'passwords' | 'account' | 'notes' | 'nebula' | 'phone' | 'host';
 }

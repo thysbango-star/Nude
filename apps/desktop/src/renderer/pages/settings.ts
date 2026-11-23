@@ -33,7 +33,7 @@ async function render() {
     <nav class="side">
       <a href="#appearance" class="on">${I.sparkle}Appearance</a><a href="#search">${I.search}Search</a><a href="#startup">${I.home}On startup</a>
       <a href="#privacy">${I.shield}Privacy &amp; security</a><a href="#permissions">${I.camera}Site permissions</a><a href="#downloads">${I.download}Downloads</a>
-      <a href="#ai">${I.sparkle}Nebula</a><a href="#services">${I.globe}Nude services</a><a href="#accessibility">${I.info}Accessibility</a>
+      <a href="#ai">${I.sparkle}Nebula</a><a href="#hosting">${I.globe}Host Nude services</a><a href="#services">${I.globe}Nude services</a><a href="#accessibility">${I.info}Accessibility</a>
       <a href="#shortcuts">${I.keyboard}Shortcuts</a><a href="#about">${I.info}About Nude</a></nav>
     <div>
       <div class="page-head"><h1><span class="head-icon">${I.settings}</span>Settings</h1></div>
@@ -96,10 +96,18 @@ async function render() {
         <p class="tiny">With Ollama, the AI runs on this computer: it's free, needs no key, and nothing you share leaves your computer. The gateway option uses a hosted model; its keys stay on the server, never in the browser.</p>
       </section>
 
+      <section class="card" id="hosting"><h2>Host Nude services</h2>
+        <p class="muted" style="margin-top:0">Run Nude Accounts on this computer, so your Nude IDs live on your own machine instead of someone else's server. Your phone and other computers sign in through it while this computer is on and Nude is open.</p>
+        ${sw('hostEnabled', 'Host Nude Accounts on this computer', 'Your Nude ID on this computer moves to this server. Accounts made on another server don\'t come with it.')}
+        ${info.settings.hostEnabled ? `${sel('hostAddress', 'How other devices reach it', [['quick', 'Cloudflare tunnel: a free public address, no domain needed (it changes when Nude restarts)'], ['own', 'My own address (a domain, Tailscale Funnel or ngrok pointing to port 8792)']])}
+        ${info.settings.hostAddress === 'own' ? txt('hostOwnUrl', 'Your address', 'The public https address that reaches http://127.0.0.1:8792 on this computer.', 'https://accounts.example.com') : ''}
+        <div id="host-box"></div>` : ''}
+      </section>
+
       <section class="card" id="services"><h2>Nude services</h2>
         <p class="muted" style="margin-top:0">Addresses of the Nude Search, Nebula and threat-intelligence servers. Defaults point to servers running on this computer.</p>
         ${txt('searchServerUrl', 'Nude Search server', '', 'https://search.example.com')}
-        ${txt('accountsServerUrl', 'Nude Accounts server', 'Where your Nude ID lives.', 'https://nude-accounts.onrender.com')}
+        ${info.settings.hostEnabled ? '' : txt('accountsServerUrl', 'Nude Accounts server', 'Where your Nude ID lives: the address shown in Host Nude services on the computer that hosts it.', 'https://….trycloudflare.com')}
         ${txt('aiGatewayUrl', 'Nebula gateway', '', 'https://ai.example.com')}
         ${txt('threatIntelUrl', 'Threat-intelligence server', '', 'https://threats.example.com')}
         ${txt('serviceToken', 'Access token', 'Only needed if your Nude servers require one.', '', 'password')}
@@ -131,6 +139,7 @@ async function render() {
   void renderPerms();
   void renderOllama();
   void renderGroq();
+  void renderHost();
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
   if (location.hash === '#privacy') $<HTMLDialogElement>('#clear-dlg').showModal();
 }
@@ -151,6 +160,19 @@ async function renderGroq() {
         <span class="pill ok">Ready</span><button class="btn" data-groq-remove>Remove</button></div>`
     : `<div class="setting"><div class="text"><b>Groq key</b><span>Paste the free key you use in the Nebula app (console.groq.com → API Keys). It stays encrypted on this computer and is only sent to Groq.</span><span id="groq-msg" class="err-line"></span></div>
         <input class="input" id="groq-key" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_…" style="min-width:240px"><button class="btn primary" data-groq-save>Add key</button></div>`;
+}
+
+interface HostStatus { state: string; publicUrl: string | null; localUrl: string; message: string; accounts: number | null }
+/** Hosting: live status, the address to give your phone, and how many Nude IDs this computer holds. */
+async function renderHost() {
+  const box = document.getElementById('host-box');
+  if (!box) return;
+  const h = await api.invoke<HostStatus>('host.status');
+  const pill = h.state === 'online' ? '<span class="pill ok">Online</span>' : h.state === 'error' ? '<span class="pill warn">Problem</span>'
+    : h.state === 'local-only' ? '<span class="pill warn">This computer only</span>' : '<span class="pill">Starting…</span>';
+  box.innerHTML = `<div class="setting"><div class="text"><b>Status</b><span>${esc(h.message)}${h.accounts !== null ? ` · ${h.accounts} Nude ID${h.accounts === 1 ? '' : 's'} on this computer` : ''}</span></div>${pill}</div>
+    ${h.publicUrl ? `<div class="setting"><div class="text"><b>Address for your phone and other computers</b><span><code>${esc(h.publicUrl)}</code> — signed in here, open Account → Connect your phone and scan the code in Nude Companion; it carries this address. Or type it in the Nude app under Settings → Nude Accounts server.</span></div>
+      <button class="btn" data-copy-host="${esc(h.publicUrl)}">Copy</button></div>` : ''}`;
 }
 
 async function renderOllama() {
@@ -232,6 +254,8 @@ document.addEventListener('click', async (e) => {
     if (r.ok) { void renderGroq(); void render(); } else msg.textContent = r.error ?? 'That key didn\'t work.';
     return;
   }
+  const hostUrl = t.closest<HTMLElement>('[data-copy-host]')?.dataset.copyHost;
+  if (hostUrl) { await navigator.clipboard.writeText(hostUrl).catch(() => {}); toast('Copied'); return; }
   if (t.closest('[data-reset-token]')) { await api.invoke('nebula.resetToken'); toast('New access code made'); return; }
   const share = t.closest<HTMLElement>('[data-copy-share]')?.dataset.copyShare;
   if (share) { const [u, k] = share.split('|'); await navigator.clipboard.writeText(`Nebula gateway: ${u}\nAccess token: ${k}`).catch(() => {}); toast('Copied'); return; }
@@ -256,4 +280,5 @@ document.addEventListener('submit', async (e) => {
 on('settings', () => { const y = scrollY; void render().then(() => scrollTo(0, y)); });
 on('permissions', renderPerms);
 on('nebula', () => { void renderOllama(); void renderGroq(); });
+on('host', () => { void renderHost(); });
 void render();

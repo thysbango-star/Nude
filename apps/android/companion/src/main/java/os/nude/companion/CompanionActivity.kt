@@ -194,7 +194,7 @@ class CompanionActivity : ComponentActivity() {
         GlassCard(Modifier.fillMaxWidth()) {
             GlassField(user, { user = it.lowercase().replace(" ", "") }, "Nude ID", suffix = "@nude")
             GlassField(pw, { pw = it }, "Password", secret = true)
-            Text("Server: ${server.removePrefix("https://")} · ${if (editServer) "Done" else "Change"}", color = c.faint, fontSize = 12.sp,
+            Text("Server: ${server.removePrefix("https://").ifBlank { "not set (scan the code instead, or add it)" }} · ${if (editServer) "Done" else "Change"}", color = c.faint, fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp).clickable { editServer = !editServer })
             if (editServer) GlassField(server, { server = it.trim() }, "Nude Accounts server")
             Spacer(Modifier.height(12.dp))

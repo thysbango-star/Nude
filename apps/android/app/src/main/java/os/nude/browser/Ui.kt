@@ -788,10 +788,10 @@ private fun AccountsServerSetting() {
     if (accounts.current != null) {
         Text("${accounts.id.server.removePrefix("https://")} · sign out to change it.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
-        OutlinedTextField(url, { url = it; note = null }, Modifier.fillMaxWidth(), label = { Text("Address") }, placeholder = { Text("https://nude-accounts.onrender.com") }, singleLine = true)
+        OutlinedTextField(url, { url = it; note = null }, Modifier.fillMaxWidth(), label = { Text("Address") }, placeholder = { Text("The address in Nude → Settings → Host Nude services") }, singleLine = true)
         Row {
             TextButton({ note = if (accounts.id.useServer(url)) "Saved. Sign in again to use it." else "That isn't a valid address. It should start with https://" }) { Text("Save") }
-            TextButton({ accounts.id.useServer(""); url = accounts.id.server; note = "Back to the default server." }) { Text("Use default") }
+            TextButton({ accounts.id.useServer(""); url = ""; note = "Cleared." }) { Text("Clear") }
         }
         note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }

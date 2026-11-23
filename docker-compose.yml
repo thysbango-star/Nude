@@ -39,6 +39,22 @@ services:
     volumes: [threat-data:/data]
     restart: unless-stopped
 
+  # Nude Accounts: Nude IDs (name@nude), devices, QR sign-in, sync. Keeps its data in the accounts-data volume.
+  # Put it behind HTTPS (see docs/SETUP.md) and set NUDE_ACCOUNTS_URL to the public address.
+  accounts:
+    build: { context: ., dockerfile: services/Dockerfile, args: { SERVICE: accounts } }
+    ports: ["8792:8792"]
+    environment:
+      PORT: 8792
+      HOST: 0.0.0.0
+      NUDE_ACCOUNTS_URL: ${NUDE_ACCOUNTS_URL:-}
+      NUDE_ACCOUNTS_DB: /data/accounts.db
+      NUDE_ACCOUNTS_STORAGE: permanent
+      NUDE_ADMIN_TOKEN: ${NUDE_ADMIN_TOKEN:-}
+    volumes: [accounts-data:/data]
+    restart: unless-stopped
+
 volumes:
+  accounts-data:
   search-data:
   threat-data:

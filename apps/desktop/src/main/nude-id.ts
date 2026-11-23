@@ -43,6 +43,7 @@ export class NudeId {
   get base() { return this.server().replace(/\/$/, ''); }
 
   private async call<T>(method: string, path: string, body?: unknown, accountId?: string, raw?: { data: Uint8Array; type: string }): Promise<T> {
+    if (!/^https?:\/\//.test(this.base)) throw new NudeIdError('No Nude Accounts server is set. Turn on Settings → Host Nude services on this computer, or enter your server\'s address under Nude services.', 'no_server');
     const headers: Record<string, string> = {};
     if (accountId) {
       const t = this.tokens[accountId];
@@ -110,7 +111,7 @@ export class NudeId {
 
 /** What to tell you when the reply isn't from Nude Accounts itself (no JSON error of its own). */
 export function serverProblem(status: number, host: string): string {
-  if (status === 404) return `There's no Nude Accounts server at ${host}. Check the address in Settings → Nude Accounts server (on Render it's the URL of your nude-accounts service).`;
-  if (status === 502 || status === 503 || status === 504) return `Nude Accounts at ${host} is starting up or unavailable (free Render servers sleep when idle). Try again in a minute.`;
+  if (status === 404) return `There's no Nude Accounts server at ${host}. Check the address in Settings → Nude Accounts server, or check that the Nude Accounts service is running on your server.`;
+  if (status === 502 || status === 503 || status === 504) return `Nude Accounts at ${host} is starting up or unavailable. Try again in a minute.`;
   return `Nude Accounts at ${host} answered ${status}. Try again in a moment.`;
 }

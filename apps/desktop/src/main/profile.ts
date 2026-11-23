@@ -69,6 +69,9 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   }
   if (out.homepage !== undefined && !isWebUrl(out.homepage) && !out.homepage.startsWith('nude://')) delete out.homepage;
   if (out.serviceToken !== undefined) out.serviceToken = out.serviceToken.slice(0, 500);
+  if (out.hostEnabled !== undefined) out.hostEnabled = out.hostEnabled === true;
+  if (out.hostAddress !== undefined && out.hostAddress !== 'quick' && out.hostAddress !== 'own') delete out.hostAddress;
+  if (out.hostOwnUrl !== undefined) out.hostOwnUrl = String(out.hostOwnUrl).trim().slice(0, 300);
   return out;
 }
 

@@ -86,7 +86,7 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
           </form>
           <p class="switch-line">${signin ? 'New to Nude? <button type="button" class="link" data-mode="signup">Create a Nude ID</button>' : 'Already have a Nude ID? <button type="button" class="link" data-mode="signin">Sign in</button>'}</p>
           ${info.needsWelcome ? '<button type="button" class="link quiet guest" id="guest">Continue without an account</button>' : ''}
-          <p class="fine">Your password goes only to Nude Accounts (${esc(new URL(info.server).host)}). This computer keeps your Nude ID and an encrypted sign-in key, never your password.</p>
+          <p class="fine">Your password goes only to Nude Accounts (${esc((() => { try { return new URL(info.server).host; } catch { return 'not set yet'; } })())}). This computer keeps your Nude ID and an encrypted sign-in key, never your password.</p>
         </div>
       </main>
     </div>`;
@@ -96,8 +96,18 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
   const show = (sel: string, m: string) => { const e = $(sel); e.textContent = m; e.hidden = !m; };
   const user = () => $<HTMLInputElement>('#user').value.trim().toLowerCase().replace(/@nude$/, '');
 
-  void api.invoke<{ ok: boolean; persistent?: boolean; error?: string }>('account.status').then((r) => {
-    if (!r.ok) show('#test-mode', r.error ?? 'Nude Accounts isn\'t reachable right now.');
+  void api.invoke<{ ok: boolean; persistent?: boolean; error?: string; code?: string }>('account.status').then((r) => {
+    if (!r.ok && r.code === 'no_server') {
+      // No server yet: this computer can be the one that holds Nude IDs.
+      const n = $('#test-mode');
+      n.innerHTML = 'Nude IDs live on a computer you own. <button type="button" class="link" id="host-here">Host Nude Accounts on this computer</button>, or enter the address of the one that does in Settings → Nude services.';
+      n.hidden = false;
+      $('#host-here').addEventListener('click', async () => {
+        n.textContent = 'Starting Nude Accounts on this computer…';
+        await api.invoke('account.hostHere');
+        setTimeout(() => location.reload(), 900);
+      });
+    } else if (!r.ok) show('#test-mode', r.error ?? 'Nude Accounts isn\'t reachable right now.');
     else if (r.persistent === false) show('#test-mode', 'Nude Accounts is in test mode: accounts made now are deleted when the server restarts.');
   });
 
