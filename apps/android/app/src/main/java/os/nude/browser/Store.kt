@@ -48,6 +48,14 @@ class Store(context: Context) {
         get() = prefs.getString("mode", "everyday")!!
         set(v) = prefs.edit().putString("mode", v).apply()
     /** Nebula answer speed: auto, fast or thorough. */
+    /** Meditate (the Nude sign-in site): its issuer (…/auth/v1) and Nude Browser's client ID there. */
+    var meditateIssuer: String
+        get() = prefs.getString("meditateIssuer", "")!!
+        set(v) = prefs.edit().putString("meditateIssuer", v.trim().trimEnd('/')).apply()
+    var meditateClientId: String
+        get() = prefs.getString("meditateClientId", "")!!
+        set(v) = prefs.edit().putString("meditateClientId", v.trim()).apply()
+
     /** Where Nebula runs: "groq" (your own Groq key, like the Nebula app) or "gateway" (a Nebula gateway address). */
     var nebulaEngine: String
         get() = prefs.getString("nebulaEngine", "groq")!!

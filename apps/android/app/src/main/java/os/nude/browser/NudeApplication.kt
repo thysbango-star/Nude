@@ -17,7 +17,7 @@ class NudeApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         store = Store(this)
-        accounts = Accounts(this)
+        accounts = Accounts(this) { os.rovian.core.meditate.MeditateConfig(store.meditateIssuer, store.meditateClientId) }
         groq = GroqNebula(this)
         chats = NebulaChats(this, accounts.id)
         Security.trusted.addAll(store.trusted())

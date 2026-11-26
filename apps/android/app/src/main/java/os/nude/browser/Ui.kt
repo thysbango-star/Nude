@@ -163,7 +163,7 @@ fun BrowserScreen(browser: Browser) {
         NebulaOverlay(browser, visible = screen == Screen.AI, onDismiss = { screen = Screen.NONE })
 
         val accounts = (ctx.applicationContext as NudeApplication).accounts
-        if (accounts.needsWelcome) NudeIdWelcome(accounts)
+        if (accounts.needsWelcome && !accounts.meditateOpen) NudeIdWelcome(accounts, browser)
         LaunchedEffect(Unit) { accounts.refresh() }
 
         when (screen) {
@@ -763,6 +763,7 @@ private fun SettingsPage(browser: Browser) {
             FilterChip(theme == k, { theme = k; store.theme = k; activity.recreate() }, { Text(l) }, Modifier.padding(end = 8.dp))
         } }
         AppearanceSettings(store) { activity.recreate() }
+        MeditateSettings(store)
         NebulaSettings(store)
         AccountsServerSetting()
         SectionTitle("Nude services")
@@ -776,6 +777,24 @@ private fun SettingsPage(browser: Browser) {
         Text("Nude ${BuildConfig.VERSION_NAME} for Android · Engine: Android System WebView (Chromium)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(32.dp))
     }
+}
+
+/** Meditate, the Nude sign-in site: where it is and Nude Browser's client ID there (no secret: public app). */
+@Composable
+private fun MeditateSettings(store: Store) {
+    var issuer by remember { mutableStateOf(store.meditateIssuer) }
+    var client by remember { mutableStateOf(store.meditateClientId) }
+    var note by remember { mutableStateOf<String?>(null) }
+    SectionTitle("Sign-in (Meditate)")
+    Text("Nude Browser is registered on Meditate as a public app with the callback nude://auth/callback.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    OutlinedTextField(issuer, { issuer = it; note = null }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Meditate address (ends in /auth/v1)") }, singleLine = true)
+    OutlinedTextField(client, { client = it; note = null }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nude Browser client ID") }, singleLine = true)
+    TextButton({
+        val i = issuer.trim().trimEnd('/'); val c = client.trim()
+        note = if (os.rovian.core.meditate.MeditateAuth.validIssuer(i) && os.rovian.core.meditate.MeditateAuth.validClientId(c)) { store.meditateIssuer = i; store.meditateClientId = c; "Saved." }
+            else "Check both: the address starts with https:// and the client ID has no spaces."
+    }) { Text("Save") }
+    note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
 }
 
 /** Where your Nude ID lives. Can be changed only while signed out (your sign-in belongs to one server). */

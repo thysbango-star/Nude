@@ -26,6 +26,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.net.http.SslError
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -247,9 +249,24 @@ class Browser(private val activity: MainActivity, val store: Store) {
         true
     } catch (e: Exception) { true }
 
+    /** What went wrong with the last Meditate sign-in (shown on the welcome screen), or null. */
+    var meditateProblem by androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    /** Finishes Continue with Meditate; closes the Meditate tab it happened in. */
+    fun finishMeditate(url: String, tab: Tab?) {
+        val accounts = (activity.application as NudeApplication).accounts
+        activity.lifecycleScope.launch {
+            meditateProblem = accounts.meditateFinish(url)
+            if (meditateProblem != null) accounts.showWelcome()
+            tab?.let { closeTab(it) }
+        }
+    }
+
     inner class NudeWebViewClient(private val tab: Tab) : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url.toString()
+            // Meditate sending you back to Nude: caught here, before any request is made.
+            if (os.rovian.core.meditate.MeditateAuth.isCallback(url)) { finishMeditate(url, tab); return true }
             val scheme = request.url.scheme?.lowercase() ?: return true
             if (scheme != "http" && scheme != "https") {
                 if (scheme in setOf("javascript", "file", "content", "data")) return true

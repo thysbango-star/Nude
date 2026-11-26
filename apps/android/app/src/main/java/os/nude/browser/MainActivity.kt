@@ -53,7 +53,11 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         when (intent?.action) {
-            Intent.ACTION_VIEW -> intent.dataString?.takeIf { it.startsWith("http") }?.let { browser.newTab(it) }
+            Intent.ACTION_VIEW -> intent.dataString?.let { url ->
+                // Meditate handing you back through the system (signed in from another browser).
+                if (os.rovian.core.meditate.MeditateAuth.isCallback(url)) browser.finishMeditate(url, null)
+                else if (url.startsWith("http")) browser.newTab(url)
+            }
             Intent.ACTION_WEB_SEARCH -> intent.getStringExtra(SearchManager.QUERY)?.let { browser.navigate("?$it", newTab = true) }
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
                 val url = Regex("https?://\\S+").find(text)?.value

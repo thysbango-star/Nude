@@ -283,8 +283,10 @@ fun AppearanceSettings(store: Store, onChanged: () -> Unit) {
 // ------------------------------------------------------------------ welcome: create a Nude ID or sign in
 
 @Composable
-fun NudeIdWelcome(accounts: Accounts) {
+fun NudeIdWelcome(accounts: Accounts, browser: Browser) {
     val scope = rememberCoroutineScope()
+    var other by remember { mutableStateOf(false) }
+    var starting by remember { mutableStateOf(false) }
     var signIn by remember { mutableStateOf(accounts.lastUsername().isNotEmpty()) }
     var name by remember { mutableStateOf("") }
     var user by remember { mutableStateOf(accounts.lastUsername()) }
@@ -304,11 +306,28 @@ fun NudeIdWelcome(accounts: Accounts) {
                 Text(if (signIn) "Welcome back" else "Create your Nude ID", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Clay)
                 Text(if (signIn) "Sign in with your Nude ID." else "For Nude on your phone and computer, Nude Companion and Sign in with Nude.",
                     fontSize = 13.sp, color = Color(0xFF6D6460), modifier = Modifier.padding(top = 4.dp))
+                (browser.meditateProblem ?: error.takeIf { !other })?.let { Text(it, color = Color(0xFFA33A17), fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp)) }
+                Spacer(Modifier.height(14.dp))
+                // Continue with Meditate: opens Meditate in a tab; Nude checks the answer itself and keeps only who you are.
+                Button({
+                    starting = true; browser.meditateProblem = null; error = null
+                    scope.launch {
+                        accounts.meditateBegin().onSuccess { url -> accounts.meditateOpen = true; browser.newTab(url) }.onFailure { error = it.message }
+                        starting = false
+                    }
+                }, Modifier.fillMaxWidth().height(50.dp), enabled = !starting, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = Clay)) {
+                    if (starting) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp) else Text("Continue with Meditate", fontWeight = FontWeight.SemiBold)
+                }
+                Text("Nude checks the sign-in itself and keeps only who you are, never a password or token.", fontSize = 11.sp, color = Color(0xFF9A918C), modifier = Modifier.padding(top = 6.dp))
+                TextButton({ other = !other; error = null }, Modifier.align(Alignment.CenterHorizontally)) {
+                    Text(if (other) "Hide Nude Accounts sign-in" else "Use a Nude Accounts server instead", color = Color(0xFF6D6460))
+                }
+                if (other) {
                 if (!accounts.persistent) Text("Nude Accounts is in test mode: Nude IDs are deleted when its server restarts.", fontSize = 12.sp, color = Color(0xFFA33A17), modifier = Modifier.padding(top = 8.dp))
                 if (!signIn) Field(name, { name = it; error = null }, "Your name", false, KeyboardType.Text)
                 Field(user, { user = it.lowercase().replace(" ", ""); error = null }, "Nude ID", false, KeyboardType.Ascii, suffix = "@nude")
                 Field(password, { password = it; error = null }, if (signIn) "Password" else "Password (10+ characters)", true, KeyboardType.Password)
-                error?.let { Text(it, color = Color(0xFFA33A17), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+                if (other) error?.let { Text(it, color = Color(0xFFA33A17), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
                 Spacer(Modifier.height(16.dp))
                 Button({
                     busy = true
@@ -319,8 +338,9 @@ fun NudeIdWelcome(accounts: Accounts) {
                 TextButton({ signIn = !signIn; error = null }, Modifier.align(Alignment.CenterHorizontally)) {
                     Text(if (signIn) "New to Nude? Create a Nude ID" else "Already have a Nude ID? Sign in", color = Clay)
                 }
-                TextButton({ accounts.continueAsGuest() }, Modifier.align(Alignment.CenterHorizontally)) { Text("Continue without an account", color = Color(0xFF6D6460)) }
                 Text("Your password goes only to Nude Accounts. This phone keeps your Nude ID and an encrypted sign-in key.", fontSize = 11.sp, color = Color(0xFF9A918C))
+                }
+                TextButton({ accounts.continueAsGuest() }, Modifier.align(Alignment.CenterHorizontally)) { Text("Continue without an account", color = Color(0xFF6D6460)) }
             }
         }
     }
@@ -342,6 +362,7 @@ private val APP_NAMES = mapOf("browser" to "Nude browser", "companion" to "Nude 
 @Composable
 fun AccountPage(accounts: Accounts, onSignedOut: () -> Unit) {
     val a = accounts.current ?: run { EmptyAccount(accounts); return }
+    if (accounts.isMeditate) { MeditateAccount(accounts, a, onSignedOut); return }
     val scope = rememberCoroutineScope()
     var devices by remember { mutableStateOf<List<NudeDevice>?>(null) }
     var events by remember { mutableStateOf<List<NudeEvent>?>(null) }
@@ -394,6 +415,35 @@ fun AccountPage(accounts: Accounts, onSignedOut: () -> Unit) {
         Spacer(Modifier.height(18.dp))
         OutlinedButton({ scope.launch { accounts.signOut(); onSignedOut() } }, Modifier.fillMaxWidth()) { Text("Sign out of ${a.nudeId}") }
         Text("Manage your picture, password and devices from anywhere with Nude Companion.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp, bottom = 32.dp))
+    }
+}
+
+/** A Nude ID that signs in with Meditate: who you are and where to change it. Devices and sync move to Meditate later. */
+@Composable
+private fun MeditateAccount(accounts: Accounts, a: os.rovian.core.nudeid.NudeAccount, onSignedOut: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 12.dp)) {
+            Box(Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
+                Text(a.initials, color = MaterialTheme.colorScheme.onPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(a.name, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(a.nudeId, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+            }
+        }
+        Text("Signed in with Meditate", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+        Text("Meditate is where your Nude ID lives. Nude checked this sign-in itself and keeps only your name, Nude ID and email, never your password or a sign-in token.",
+            fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        accounts.meditateEmail()?.let { (email, verified) -> Text("$email${if (verified) " · verified" else " · not verified"}", fontSize = 14.sp, modifier = Modifier.padding(top = 10.dp)) }
+        Text("Change your name, picture or password on Meditate, then sign in again here to bring the changes over.", fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 14.dp))
+        Text("Your devices, Nude Companion and synced Nebula chats still use Nude Accounts; they move to Meditate in the next update.", fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.height(18.dp))
+        OutlinedButton({ scope.launch { accounts.signOut(); onSignedOut() } }, Modifier.fillMaxWidth()) { Text("Sign out of ${a.nudeId}") }
+        Spacer(Modifier.height(32.dp))
     }
 }
 
