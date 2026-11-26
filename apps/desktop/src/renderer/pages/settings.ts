@@ -33,7 +33,7 @@ async function render() {
     <nav class="side">
       <a href="#appearance" class="on">${I.sparkle}Appearance</a><a href="#search">${I.search}Search</a><a href="#startup">${I.home}On startup</a>
       <a href="#privacy">${I.shield}Privacy &amp; security</a><a href="#permissions">${I.camera}Site permissions</a><a href="#downloads">${I.download}Downloads</a>
-      <a href="#ai">${I.sparkle}Nebula</a><a href="#hosting">${I.globe}Host Nude services</a><a href="#services">${I.globe}Nude services</a><a href="#accessibility">${I.info}Accessibility</a>
+      <a href="#ai">${I.sparkle}Nebula</a><a href="#signin">${I.user}Sign-in</a><a href="#hosting">${I.globe}Host Nude services</a><a href="#services">${I.globe}Nude services</a><a href="#accessibility">${I.info}Accessibility</a>
       <a href="#shortcuts">${I.keyboard}Shortcuts</a><a href="#about">${I.info}About Nude</a></nav>
     <div>
       <div class="page-head"><h1><span class="head-icon">${I.settings}</span>Settings</h1></div>
@@ -94,6 +94,12 @@ async function render() {
         <div id="groq-box"></div>
         <div id="ollama-box"></div>
         <p class="tiny">With Ollama, the AI runs on this computer: it's free, needs no key, and nothing you share leaves your computer. The gateway option uses a hosted model; its keys stay on the server, never in the browser.</p>
+      </section>
+
+      <section class="card" id="signin"><h2>Sign-in</h2>
+        <p class="muted" style="margin-top:0">Nude signs you in with Meditate, the Nude sign-in site. Nude Browser is registered there as a public app with the callback <code>nude://auth/callback</code>, so it needs no secret.</p>
+        ${txt('meditateIssuer', 'Meditate address (issuer)', 'Ends in /auth/v1. Shown in Lovable Cloud as the project\'s auth URL.', 'https://….supabase.co/auth/v1')}
+        ${txt('meditateClientId', 'Nude Browser client ID', 'From Meditate\'s OAuth app registration for Nude Browser.', 'Client ID')}
       </section>
 
       <section class="card" id="hosting"><h2>Host Nude services</h2>

@@ -1,6 +1,6 @@
 import { api, $, esc, I, toast } from './common';
 
-interface Acc { id: string; name: string; firstName: string; username: string; nudeId: string; color: string; photo?: string; initials: string; created: number; lastSignIn: number }
+interface Acc { id: string; name: string; firstName: string; username: string; nudeId: string; color: string; photo?: string; initials: string; created: number; lastSignIn: number; provider: 'nude' | 'meditate'; email?: string; emailVerified?: boolean }
 interface Device { id: string; name: string; platform: string; app: string; created: number; lastSeen: number; ip: string | null; current: boolean }
 interface Ev { t: number; kind: string; detail: string; device: string | null; ip: string | null }
 type R<T> = ({ ok: true } & T) | { ok: false; error: string; code?: string };
@@ -24,6 +24,7 @@ async function render() {
     return;
   }
   const others = info.all.filter((x) => x.id !== a.id);
+  if (a.provider === 'meditate') { renderMeditate(a, others); return; }
   $('#root').innerHTML = `<div class="page">
     <div class="profile">
       <label class="big-av" style="background:${esc(a.color)}" title="Change picture">${a.photo ? `<img src="${esc(a.photo)}" alt="">` : esc(a.initials)}<input type="file" id="photo" accept="image/png,image/jpeg,image/webp" hidden><span class="cam">${I.camera}</span></label>
@@ -96,7 +97,7 @@ async function render() {
   };
   document.querySelectorAll<HTMLElement>('[data-switch]').forEach((b) => b.addEventListener('click', async () => {
     const r = await api.invoke<{ ok: boolean; error?: string }>('account.switch', b.dataset.switch);
-    if (r.ok) { toast('Switched'); void render(); } else void api.invoke('open', 'nude://welcome/#signin');
+    if (r.ok) { toast('Switched'); void render(); } else if (r.error === 'meditate') void api.invoke('account.meditate'); else void api.invoke('open', 'nude://welcome/#signin');
   }));
   document.querySelectorAll<HTMLElement>('[data-remove]').forEach((b) => b.addEventListener('click', async () => {
     if (!b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Click again'; return; }
@@ -110,6 +111,39 @@ async function render() {
     const r = await api.invoke<R<object>>('account.delete', $<HTMLInputElement>('#del-pw').value);
     if (r.ok) void api.invoke('open', 'nude://welcome/'); else toast(r.error);
   });
+}
+
+/** A Nude ID that signs in with Meditate: who you are, and where to change it. Devices and sync move to Meditate later. */
+function renderMeditate(a: Acc, others: Acc[]) {
+  $('#root').innerHTML = `<div class="page">
+    <div class="profile">
+      <span class="big-av" style="background:${esc(a.color)}">${a.photo ? `<img src="${esc(a.photo)}" alt="">` : esc(a.initials)}</span>
+      <div><h1>${esc(a.name)}</h1><div class="nude-id-line">${esc(a.nudeId)}</div><div class="muted small">Signed in with Meditate ${esc(when(a.lastSignIn))}</div></div>
+    </div>
+    <section class="card"><h2>Your Nude ID</h2>
+      <div class="setting"><div class="text"><b>Signed in with Meditate</b><span>Meditate is where your Nude ID lives. Nude checked this sign-in itself and keeps only the details below, never your password or a sign-in token.</span></div></div>
+      <div class="setting"><div class="text"><b>Name</b><span>${esc(a.name)}</span></div></div>
+      ${a.email ? `<div class="setting"><div class="text"><b>Email</b><span>${esc(a.email)}${a.emailVerified ? ' · verified' : ' · not verified'}</span></div></div>` : ''}
+      <div class="setting"><div class="text"><b>Change your name, picture or password</b><span>Do it on Meditate, then sign in again here to bring the changes over.</span></div><button class="btn" id="again">Sign in again</button></div>
+    </section>
+    <section class="card"><h2>On this computer</h2>
+      ${others.map((o) => `<div class="setting"><div class="text"><b>${esc(o.name)}</b><span>${esc(o.nudeId)}</span></div><button class="btn" data-switch="${esc(o.id)}">Switch</button><button class="btn" data-remove="${esc(o.id)}">Remove</button></div>`).join('')}
+      <div class="setting"><div class="text"><b>Add another Nude ID</b><span>Each one keeps its own sign-in on this computer.</span></div><button class="btn" id="add">Add</button></div>
+      <div class="setting"><div class="text"><b>Sign out</b><span>Your browsing data stays on this computer.</span></div><button class="btn" id="signout">Sign out</button></div>
+    </section>
+    <section class="card"><h2>Coming to Meditate</h2><p class="muted small">Your devices, phone sign-in with Nude Companion and synced Nebula chats still use Nude Accounts. They move to Meditate in the next update.</p></section>
+  </div>`;
+  $('#again').onclick = async () => { const r = await api.invoke<{ ok: boolean; error?: string }>('account.meditate'); if (!r.ok) toast(r.error ?? 'Something went wrong.'); };
+  document.querySelectorAll<HTMLElement>('[data-switch]').forEach((b) => b.addEventListener('click', async () => {
+    const r = await api.invoke<{ ok: boolean; error?: string }>('account.switch', b.dataset.switch);
+    if (r.ok) { toast('Switched'); void render(); } else if (r.error === 'meditate') void api.invoke('account.meditate'); else void api.invoke('open', 'nude://welcome/#signin');
+  }));
+  document.querySelectorAll<HTMLElement>('[data-remove]').forEach((b) => b.addEventListener('click', async () => {
+    if (!b.classList.contains('confirm')) { b.classList.add('confirm'); b.textContent = 'Click again'; return; }
+    await api.invoke('account.remove', b.dataset.remove); toast('Removed from this computer'); void render();
+  }));
+  $('#add').onclick = () => void api.invoke('open', 'nude://welcome/#signin');
+  $('#signout').onclick = async () => { await api.invoke('account.signOut'); void api.invoke('open', 'nude://welcome/#signin'); };
 }
 
 async function loadDevices() {

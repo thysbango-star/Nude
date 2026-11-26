@@ -64,6 +64,10 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
         <div class="form-wrap">
           <h1>${signin ? 'Welcome back' : 'Create your Nude ID'}</h1>
           <p class="lead">${signin ? 'Sign in with your Nude ID to pick up where you left off.' : 'One Nude ID for Nude on your computer and phone, Nude Companion, and sites with Sign in with Nude.'}</p>
+          <div id="signin-err" class="err" role="alert" hidden></div>
+          <button type="button" class="primary meditate" id="meditate">Continue with Meditate</button>
+          <p class="fine meditate-note">Meditate opens in a new tab. Nude checks the sign-in itself and keeps only who you are, never a password or token.</p>
+          <details class="other-way"${location.hash.includes('nude-accounts') ? ' open' : ''}><summary>Use a Nude Accounts server instead</summary>
           <div id="test-mode" class="note" hidden></div>
           ${signin && info.all.length ? `<div class="known">${info.all.map((a) => `<button type="button" class="known-acc" data-id="${esc(a.id)}" data-user="${esc(a.username)}" title="${esc(a.nudeId)}"><span class="av" style="background:${esc(a.color)}">${a.photo ? `<img src="${esc(a.photo)}" alt="">` : esc(a.initials)}</span><span class="kn">${esc(a.firstName)}</span></button>`).join('')}</div>` : ''}
           <form id="f" autocomplete="on" novalidate>
@@ -85,11 +89,22 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
             <button class="primary" id="go">${signin ? 'Sign in' : 'Create Nude ID'}</button>
           </form>
           <p class="switch-line">${signin ? 'New to Nude? <button type="button" class="link" data-mode="signup">Create a Nude ID</button>' : 'Already have a Nude ID? <button type="button" class="link" data-mode="signin">Sign in</button>'}</p>
+          </details>
           ${info.needsWelcome ? '<button type="button" class="link quiet guest" id="guest">Continue without an account</button>' : ''}
           <p class="fine">Your password goes only to Nude Accounts (${esc((() => { try { return new URL(info.server).host; } catch { return 'not set yet'; } })())}). This computer keeps your Nude ID and an encrypted sign-in key, never your password.</p>
         </div>
       </main>
     </div>`;
+
+  // Meditate: the sign-in result comes back to this page only when something went wrong.
+  const back = new URLSearchParams(location.search).get('signin');
+  if (back) { const e = $('#signin-err'); e.textContent = back; e.hidden = false; history.replaceState(null, '', location.pathname); }
+  $('#meditate').addEventListener('click', async () => {
+    const r = await api.invoke<{ ok: boolean; error?: string }>('account.meditate');
+    const e = $('#signin-err');
+    e.textContent = r.ok ? '' : r.error ?? 'Something went wrong.';
+    e.hidden = r.ok;
+  });
 
   const remember = () => $<HTMLInputElement>('#remember').checked;
   const leave = () => { document.body.classList.add('leaving'); setTimeout(() => void api.invoke('account.done'), 460); };
@@ -162,9 +177,10 @@ async function render(mode: 'signin' | 'signup' = 'signin', first = true) {
   document.querySelectorAll<HTMLElement>('.known-acc').forEach((b) => b.addEventListener('click', async () => {
     const r = await api.invoke<{ ok: boolean; error?: string }>('account.switch', b.dataset.id);
     if (r.ok) { leave(); return; }
+    if (r.error === 'meditate') { $('#meditate').click(); return; }
     $<HTMLInputElement>('#user').value = b.dataset.user!; $<HTMLInputElement>('#pw').focus();
   }));
   document.getElementById('guest')?.addEventListener('click', async () => { await api.invoke('account.guest'); void api.invoke('account.done'); });
-  (document.getElementById(signin ? 'user' : 'name') as HTMLInputElement | null)?.focus({ preventScroll: true });
+  ($('.other-way') as HTMLDetailsElement).open ? (document.getElementById(signin ? 'user' : 'name') as HTMLInputElement | null)?.focus({ preventScroll: true }) : $('#meditate').focus({ preventScroll: true });
 }
 void render();

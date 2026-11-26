@@ -526,14 +526,23 @@ export class BrowserWindowController {
       };
     });
 
+    // Meditate's redirect back to Nude (nude://auth/callback): caught here, before any request is made.
+    const meditateBack = (e: { preventDefault(): void }, url: string) => {
+      if (!this.app.meditate?.isCallback(url)) return false;
+      e.preventDefault();
+      void this.app.finishMeditate(url, tab);
+      return true;
+    };
     // Web content can never reach nude:// pages.
     wc.on('will-navigate', (e, url) => {
+      if (meditateBack(e, url)) return;
       if (url.startsWith('nude:') && !wc.getURL().startsWith('nude:')) e.preventDefault();
     });
     wc.on('will-frame-navigate', (e) => {
       if (!e.isMainFrame && e.url.startsWith('nude:')) e.preventDefault();
     });
     wc.on('will-redirect', (e, url) => {
+      if (meditateBack(e, url)) return;
       if (url.startsWith('nude:')) e.preventDefault();
     });
 

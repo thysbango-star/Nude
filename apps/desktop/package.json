@@ -94,6 +94,12 @@
           "http",
           "https"
         ]
+      },
+      {
+        "name": "Nude sign-in",
+        "schemes": [
+          "nude"
+        ]
       }
     ],
     "fileAssociations": [

@@ -41,6 +41,9 @@ export interface Settings {
   hostEnabled: boolean;
   hostAddress: 'quick' | 'own';
   hostOwnUrl: string;
+  /** Meditate (the Nude sign-in site): its issuer (…/auth/v1) and Nude Browser's client ID there. */
+  meditateIssuer: string;
+  meditateClientId: string;
   aiGatewayUrl: string;
   threatIntelUrl: string;
   serviceToken: string;
@@ -91,6 +94,8 @@ export const DEFAULT_SETTINGS: Settings = {
   hostEnabled: false,
   hostAddress: 'quick',
   hostOwnUrl: '',
+  meditateIssuer: '',
+  meditateClientId: '',
   aiGatewayUrl: 'http://127.0.0.1:8790',
   threatIntelUrl: 'http://127.0.0.1:8791',
   serviceToken: '',

@@ -169,3 +169,14 @@ input::placeholder { color: #7d7771; }
 .hint.good { color: #2f7d4f; }
 .hint.bad { color: #a33a17; }
 #test-mode { margin: 0 0 16px; }
+
+/* Continue with Meditate: the main way in. The Nude Accounts form sits folded underneath. */
+.primary.meditate { width: 100%; margin-top: 6px; }
+.meditate-note { margin: 10px 0 18px; }
+.other-way { border-top: 1px solid rgba(0, 0, 0, 0.08); padding-top: 14px; margin-top: 4px; }
+.other-way > summary { cursor: pointer; color: var(--w-muted, #7a6a63); font-size: 14px; list-style: none; padding: 4px 0 10px; }
+.other-way > summary::-webkit-details-marker { display: none; }
+.other-way > summary::before { content: '›'; display: inline-block; margin-right: 8px; transition: transform 0.2s; }
+.other-way[open] > summary::before { transform: rotate(90deg); }
+#signin-err { margin-bottom: 12px; }
+.other-way:not([open]) ~ .fine { display: none; }

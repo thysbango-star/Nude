@@ -19,6 +19,7 @@ import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { NudeId, NudeIdError } from './nude-id';
 import { GroqNebula } from './groq-nebula';
 import { NudeHost, hostDir, LOCAL_URL } from './host';
+import { MeditateAuth, MeditateAuthError } from './meditate-auth';
 import { fillLogin } from './passgate-fill';
 import { NebulaChats, type ChatMessage } from './nebula-chats';
 import { JsonStore } from './store';
@@ -57,6 +58,7 @@ export class NudeApp {
   /** Nebula on Groq (the Nebula app's engine) and the synced conversations. */
   groq!: GroqNebula;
   host!: NudeHost;
+  meditate!: MeditateAuth;
   chats!: NebulaChats;
   readonly windows: BrowserWindowController[] = [];
   private lastFocused: BrowserWindowController | null = null;
@@ -115,6 +117,8 @@ export class NudeApp {
       return Buffer.from(await r.arrayBuffer());
     });
     this.host.on('status', () => this.broadcast({ topic: 'host' }));
+    this.meditate = new MeditateAuth((url, init) => net.fetch(url, init as RequestInit) as never,
+      () => ({ issuer: process.env.NUDE_MEDITATE_ISSUER || this.profile.settings.get().meditateIssuer, clientId: process.env.NUDE_MEDITATE_CLIENT_ID || this.profile.settings.get().meditateClientId }));
     // While this computer hosts Nude services, your Nude ID lives on its own server.
     this.nudeId = new NudeId(dir, () => process.env.NUDE_ACCOUNTS_URL || (this.profile.settings.get().hostEnabled ? LOCAL_URL : this.profile.settings.get().accountsServerUrl),
       (url, init) => net.fetch(url, init as RequestInit));
@@ -248,6 +252,26 @@ export class NudeApp {
     const windows = this.windows.filter((w) => !w.isPrivate && !w.win.isDestroyed() && w.tabs.length).map((w) => w.saved());
     if (windows.length || this.quitting) this.profile.session.set({ windows, cleanExit: false });
     else this.profile.session.set((s) => s); // keep the last window's tabs when it closed
+  }
+
+  /**
+   * Meditate sent you back to nude://auth/callback (caught in a tab, or handed to Nude by the system).
+   * Verifies everything, signs you in, then shows your account. The tab it happened in shows the result.
+   */
+  async finishMeditate(url: string, tab?: { load(u: string): unknown } | null) {
+    try {
+      const { identity } = await this.meditate.complete(url);
+      this.accounts.signedInMeditate(identity);
+      this.broadcast({ topic: 'account' });
+      const show = 'nude://account/';
+      if (tab) void tab.load(show);
+      else this.lastFocused?.addTab({ url: show });
+    } catch (e) {
+      const msg = e instanceof MeditateAuthError ? e.withReference : 'Nude couldn\'t finish signing you in with Meditate. Please try again.';
+      const show = `nude://welcome/?signin=${encodeURIComponent(msg)}`;
+      if (tab) void tab.load(show);
+      else this.lastFocused?.addTab({ url: show });
+    }
   }
 
   /** Starts, restarts or stops hosting to match Settings. */
@@ -406,10 +430,15 @@ export class NudeApp {
   /** Everything the welcome and account pages can ask about your Nude ID. Tokens never leave this process. */
   private async accountCommand(cmd: string, a: unknown[], str: (x: unknown, max?: number) => string): Promise<unknown> {
     const cur = () => this.accounts.currentRaw();
-    const need = () => { const c = cur(); if (!c) throw new NudeIdError('Sign in first.', 'signed_out'); return c.id; };
+    const need = () => {
+      const c = cur();
+      if (!c) throw new NudeIdError('Sign in first.', 'signed_out');
+      if (c.provider === 'meditate') throw new NudeIdError('Your Nude ID is managed on Meditate. Change it there.', 'meditate_account');
+      return c.id;
+    };
     const ok = <T>(p: Promise<T>) => p.then((v) => ({ ok: true as const, ...(v as object) })).catch((e: unknown) => {
       if (e instanceof NudeIdError) {
-        if (e.code === 'signed_out' && cur() && !this.nudeId.has(cur()!.id)) this.accounts.signOut();
+        if (e.code === 'signed_out' && cur() && cur()!.provider !== 'meditate' && !this.nudeId.has(cur()!.id)) this.accounts.signOut();
         return { ok: false as const, error: e.message, code: e.code };
       }
       console.error(e);
@@ -417,6 +446,15 @@ export class NudeApp {
     });
     const photoOf = async (url: string | null) => (url ? (await this.fetchAvatar(url)) ?? undefined : null);
     switch (cmd) {
+      case 'account.meditate': return ok((async () => {
+        // Opens Meditate in a new tab; the callback (nude://auth/callback) is caught by Nude before any request.
+        const url = await this.meditate.begin('signin', null).catch((e: unknown) => { throw e instanceof MeditateAuthError ? new NudeIdError(e.userMessage, e.code) : e; });
+        const w = this.lastFocused ?? this.windows[this.windows.length - 1];
+        if (!w) throw new NudeIdError('Open a Nude window first.', 'no_window');
+        w.addTab({ url });
+        return {};
+      })());
+      case 'account.meditateReady': return { ok: true, configured: this.meditate.configured };
       case 'account.hostHere': {
         // From the welcome page when there's no server yet: host Nude Accounts on this computer.
         this.profile.updateSettings({ hostEnabled: true });
@@ -440,18 +478,20 @@ export class NudeApp {
         return { account: acct };
       })());
       case 'account.switch': {
-        const id = str(a[0], 60);
+        const id = str(a[0], 140);
+        // Meditate accounts keep no token here, so switching back means signing in on Meditate again.
+        if (id.startsWith('meditate:')) return { ok: false, error: 'meditate' };
         if (!this.nudeId.has(id)) return { ok: false, error: 'password', username: this.accounts.list().find((x) => x.id === id)?.username };
         return { ok: this.accounts.switchTo(id) };
       }
       case 'account.signOut': {
         const c = cur();
-        if (c) await this.nudeId.signOut(c.id);
+        if (c && c.provider !== 'meditate') await this.nudeId.signOut(c.id);
         this.accounts.signOut();
         return { ok: true };
       }
       case 'account.remove': {
-        const id = str(a[0], 60);
+        const id = str(a[0], 140);
         if (this.nudeId.has(id)) await this.nudeId.signOut(id);
         this.accounts.remove(id);
         return { ok: true };

@@ -72,6 +72,8 @@ export function sanitizeSettingsPatch(patch: unknown): Partial<Settings> {
   if (out.hostEnabled !== undefined) out.hostEnabled = out.hostEnabled === true;
   if (out.hostAddress !== undefined && out.hostAddress !== 'quick' && out.hostAddress !== 'own') delete out.hostAddress;
   if (out.hostOwnUrl !== undefined) out.hostOwnUrl = String(out.hostOwnUrl).trim().slice(0, 300);
+  if (out.meditateIssuer !== undefined) out.meditateIssuer = String(out.meditateIssuer).trim().replace(/\/$/, '').slice(0, 300);
+  if (out.meditateClientId !== undefined) out.meditateClientId = String(out.meditateClientId).trim().slice(0, 120);
   return out;
 }
 

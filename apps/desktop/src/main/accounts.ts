@@ -3,6 +3,7 @@
 import { join } from 'node:path';
 import { JsonStore } from './store';
 import type { NudeAccount } from './nude-id';
+import type { MeditateIdentity } from './meditate-auth';
 
 export interface Account {
   id: string; // Nude Accounts user id
@@ -12,11 +13,15 @@ export interface Account {
   photo?: string; // data: URL, cached from Nude Accounts
   created: number;
   lastSignIn: number;
+  /** Where this Nude ID signs in: Meditate (the Nude sign-in site) or a Nude Accounts server. Missing = 'nude'. */
+  provider?: 'nude' | 'meditate';
+  email?: string;
+  emailVerified?: boolean;
 }
 
 export interface PublicAccount {
   id: string; name: string; firstName: string; username: string; nudeId: string; color: string; photo?: string; initials: string;
-  provider: 'nude'; created: number; lastSignIn: number;
+  provider: 'nude' | 'meditate'; email?: string; emailVerified?: boolean; created: number; lastSignIn: number;
 }
 
 interface AccountsData {
@@ -34,7 +39,7 @@ export function toPublic(a: Account): PublicAccount {
   return {
     id: a.id, name: a.name, firstName: parts[0] ?? a.name, username: a.username, nudeId: `${a.username}@nude`, color: a.color, photo: a.photo,
     initials: ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?',
-    provider: 'nude', created: a.created, lastSignIn: a.lastSignIn,
+    provider: a.provider ?? 'nude', email: a.email, emailVerified: a.emailVerified, created: a.created, lastSignIn: a.lastSignIn,
   };
 }
 
@@ -78,6 +83,22 @@ export class Accounts {
       ...x, accounts: had ? x.accounts.map((y) => (y.id === a.id ? a : y)) : [...x.accounts, a],
       currentId: makeCurrent ? a.id : x.currentId, guest: makeCurrent ? false : x.guest,
     }));
+    this.onChange();
+    return toPublic(a);
+  }
+
+  /** After Meditate's ID token was verified: remember who you are (never a token) and make it current. */
+  signedInMeditate(i: MeditateIdentity, photo?: string | null): PublicAccount {
+    const d = this.store.get();
+    const id = `meditate:${i.sub}`;
+    const had = d.accounts.find((x) => x.id === id);
+    const a: Account = {
+      id, username: i.username, name: i.name, color: had?.color ?? COLORS[d.accounts.length % COLORS.length],
+      photo: photo ?? had?.photo, created: had?.created ?? Date.now(), lastSignIn: Date.now(),
+      provider: 'meditate', email: i.email, emailVerified: i.emailVerified,
+    };
+    this.store.set((x) => ({ ...x, accounts: had ? x.accounts.map((y) => (y.id === id ? a : y)) : [...x.accounts, a], currentId: id, guest: false }));
+    this.logEvent('signin', `Signed in with Meditate as ${a.username}@nude`);
     this.onChange();
     return toPublic(a);
   }

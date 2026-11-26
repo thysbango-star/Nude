@@ -36,7 +36,17 @@ if (!app.requestSingleInstanceLock()) {
   let nude: NudeApp | null = null;
   const pendingUrls: string[] = [];
 
+  /** Meditate handing you back to Nude through the system (nude://auth/callback opened in another browser). */
+  const isAuthCallback = (u: string) => /^nude:\/\/auth\/callback(\?|$)/i.test(u);
+
   app.on('second-instance', (_e, argv) => {
+    const back = argv.find(isAuthCallback);
+    if (back && nude) {
+      void nude.finishMeditate(back, null);
+      const fw = nude.windows[nude.windows.length - 1];
+      if (fw) { if (fw.win.isMinimized()) fw.win.restore(); fw.win.focus(); }
+      return;
+    }
     const urls = argv.filter((a) => /^https?:\/\//i.test(a));
     const w = nude?.windows[nude.windows.length - 1];
     if (!nude) return;
@@ -52,6 +62,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('open-url', (e, url) => {
     e.preventDefault();
+    if (isAuthCallback(url)) { if (nude) void nude.finishMeditate(url, null); return; }
     const w = nude?.windows[nude.windows.length - 1];
     if (w) w.addTab({ url });
     else pendingUrls.push(url);
@@ -59,6 +70,8 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+    // So Meditate's redirect (nude://auth/callback) reaches Nude from any browser. Installed builds only.
+    if (app.isPackaged) app.setAsDefaultProtocolClient('nude');
     nude = new NudeApp();
     await nude.start();
     for (const u of pendingUrls.splice(0)) nude.windows[0]?.addTab({ url: u });
