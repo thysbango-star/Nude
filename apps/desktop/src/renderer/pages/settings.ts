@@ -99,7 +99,7 @@ async function render() {
       <section class="card" id="signin"><h2>Sign-in</h2>
         <p class="muted" style="margin-top:0">Nude signs you in with Meditate, the Nude sign-in site. Nude Browser is registered there as a public app with the callback <code>nude://auth/callback</code>, so it needs no secret.</p>
         ${txt('meditateIssuer', 'Meditate address (issuer)', 'Ends in /auth/v1. Shown in Lovable Cloud as the project\'s auth URL.', 'https://….supabase.co/auth/v1')}
-        ${txt('meditateClientId', 'Nude Browser client ID', 'From Meditate\'s OAuth app registration for Nude Browser.', 'Client ID')}
+        ${txt('meditateClientId', 'Nude Browser client ID', 'Leave empty to use Nude Browser\'s registered client (499bced3-…).', '499bced3-ac96-435b-b212-8c6f99c281e3')}
       </section>
 
       <section class="card" id="hosting"><h2>Host Nude services</h2>

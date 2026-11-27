@@ -19,7 +19,7 @@ import { LocalNebula, RECOMMENDED } from './local-nebula';
 import { NudeId, NudeIdError } from './nude-id';
 import { GroqNebula } from './groq-nebula';
 import { NudeHost, hostDir, LOCAL_URL } from './host';
-import { MeditateAuth, MeditateAuthError } from './meditate-auth';
+import { MEDITATE, MeditateAuth, MeditateAuthError } from './meditate-auth';
 import { fillLogin } from './passgate-fill';
 import { NebulaChats, type ChatMessage } from './nebula-chats';
 import { JsonStore } from './store';
@@ -118,7 +118,8 @@ export class NudeApp {
     });
     this.host.on('status', () => this.broadcast({ topic: 'host' }));
     this.meditate = new MeditateAuth((url, init) => net.fetch(url, init as RequestInit) as never,
-      () => ({ issuer: process.env.NUDE_MEDITATE_ISSUER || this.profile.settings.get().meditateIssuer, clientId: process.env.NUDE_MEDITATE_CLIENT_ID || this.profile.settings.get().meditateClientId }));
+      () => ({ issuer: process.env.NUDE_MEDITATE_ISSUER || this.profile.settings.get().meditateIssuer || MEDITATE.issuer,
+        clientId: process.env.NUDE_MEDITATE_CLIENT_ID || this.profile.settings.get().meditateClientId || MEDITATE.clientId }));
     // While this computer hosts Nude services, your Nude ID lives on its own server.
     this.nudeId = new NudeId(dir, () => process.env.NUDE_ACCOUNTS_URL || (this.profile.settings.get().hostEnabled ? LOCAL_URL : this.profile.settings.get().accountsServerUrl),
       (url, init) => net.fetch(url, init as RequestInit));

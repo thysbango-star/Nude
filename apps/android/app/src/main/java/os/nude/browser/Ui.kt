@@ -788,10 +788,10 @@ private fun MeditateSettings(store: Store) {
     SectionTitle("Sign-in (Meditate)")
     Text("Nude Browser is registered on Meditate as a public app with the callback nude://auth/callback.", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     OutlinedTextField(issuer, { issuer = it; note = null }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Meditate address (ends in /auth/v1)") }, singleLine = true)
-    OutlinedTextField(client, { client = it; note = null }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nude Browser client ID") }, singleLine = true)
+    OutlinedTextField(client, { client = it; note = null }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Nude Browser client ID (empty = built-in)") }, singleLine = true)
     TextButton({
         val i = issuer.trim().trimEnd('/'); val c = client.trim()
-        note = if (os.rovian.core.meditate.MeditateAuth.validIssuer(i) && os.rovian.core.meditate.MeditateAuth.validClientId(c)) { store.meditateIssuer = i; store.meditateClientId = c; "Saved." }
+        note = if (os.rovian.core.meditate.MeditateAuth.validIssuer(i) && (c.isEmpty() || os.rovian.core.meditate.MeditateAuth.validClientId(c))) { store.meditateIssuer = i; store.meditateClientId = c; "Saved." }
             else "Check both: the address starts with https:// and the client ID has no spaces."
     }) { Text("Save") }
     note?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }

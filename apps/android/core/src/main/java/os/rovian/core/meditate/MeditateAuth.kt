@@ -45,7 +45,8 @@ class MeditateAuth(ctx: Context, private val config: () -> MeditateConfig, priva
     private val prefs = ctx.getSharedPreferences("meditate-pending", Context.MODE_PRIVATE)
 
     private fun cfg(): MeditateConfig {
-        val c = config()
+        val c0 = config()
+        val c = MeditateConfig(c0.issuer.ifBlank { ISSUER }, c0.clientId.ifBlank { CLIENT_ID })
         val issuer = c.issuer.trim().trimEnd('/')
         if (!validIssuer(issuer) || !validClientId(c.clientId.trim())) throw MeditateError(
             "Meditate sign-in isn't set up yet. Add Meditate's address and Nude Browser's client ID in Settings → Sign-in.", "not_configured")
@@ -204,6 +205,10 @@ class MeditateAuth(ctx: Context, private val config: () -> MeditateConfig, priva
 
     companion object {
         const val REDIRECT_URI = "nude://auth/callback"
+        /** Nude Browser's client on Meditate (public client: not a secret). Settings can override it. */
+        const val CLIENT_ID = "499bced3-ac96-435b-b212-8c6f99c281e3"
+        /** Meditate's issuer (…supabase.co/auth/v1). Empty until known; Settings → Sign-in can set it. */
+        const val ISSUER = ""
         const val SCOPE = "openid email profile"
         private const val PENDING_TTL = 10 * 60_000L
         private const val CLOCK_SKEW = 60L

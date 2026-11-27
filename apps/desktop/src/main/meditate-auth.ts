@@ -15,6 +15,10 @@ export const MEDITATE = {
   /** The one redirect URI registered for Nude Browser, on every platform. */
   redirectUri: 'nude://auth/callback',
   identityDomain: 'nude',
+  /** Nude Browser's client on Meditate (a public client: this ID is not a secret). Settings can override it. */
+  clientId: '499bced3-ac96-435b-b212-8c6f99c281e3',
+  /** Meditate's issuer (…supabase.co/auth/v1). Empty until known; Settings → Sign-in can set it. */
+  issuer: '',
 } as const;
 
 /** Where Meditate is: its issuer (…/auth/v1) and Nude Browser's client ID there. */
